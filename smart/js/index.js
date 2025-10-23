@@ -12,6 +12,14 @@ const STATE = {
 
 const root = {};
 
+// Генерация уникального ID пользователя
+let userCode = localStorage.getItem('userCode');
+if (!userCode) {
+  userCode = 'user-' + Math.random().toString(36).substring(2, 10); // Генерация случайного ID
+  localStorage.setItem('userCode', userCode); // Сохраняем в localStorage
+}
+STATE.user = { name: userCode };
+
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", init);
 } else {
