@@ -12,14 +12,6 @@ const STATE = {
 
 const root = {};
 
-// Генерация уникального ID пользователя
-let userCode = localStorage.getItem('userCode');
-if (!userCode) {
-  userCode = 'user-' + Math.random().toString(36).substring(2, 10); // Генерация случайного ID
-  localStorage.setItem('userCode', userCode); // Сохраняем в localStorage
-}
-STATE.user = { name: userCode };
-
 if (document.readyState === "loading") {
   window.addEventListener("DOMContentLoaded", init);
 } else {
@@ -198,3 +190,106 @@ function handleSwipe() {
   if (dx < -70 && STATE.uiFlags.menuOpen) closeMenu();
   if (dx > 70 && !STATE.uiFlags.menuOpen) toggleMenu();
 }
+
+// ----------------- МЕНЮ -----------------
+
+class CollapsibleMenu {
+  constructor() {
+    this.menuOpen = false;
+    this.init();
+  }
+
+  init() {
+    this.setupEventListeners();
+    this.loadMenuState();
+    this.handleResize();  // Обрабатываем изменение размера сразу при старте
+  }
+
+  setupEventListeners() {
+    document.getElementById('menuToggle').addEventListener('click', () => this.toggleMenu());
+    document.getElementById('closeMenu').addEventListener('click', () => this.closeMenu());
+    document.addEventListener('click', e => {
+      if (this.menuOpen && window.innerWidth <= 768) {
+        const menu = document.getElementById('verticalMenu');
+        const toggle = document.getElementById('menuToggle');
+        if (!menu.contains(e.target) && !toggle.contains(e.target)) this.closeMenu();
+      }
+    });
+    this.setupSubmenus();
+    this.setupActiveLinks();
+    window.addEventListener('resize', () => this.handleResize()); // Добавляем обработку resize
+  }
+
+  toggleMenu() {
+    this.menuOpen = !this.menuOpen;
+    this.updateMenuState();
+  }
+
+  openMenu() {
+    this.menuOpen = true;
+    this.updateMenuState();
+  }
+
+  closeMenu() {
+    this.menuOpen = false;
+    this.updateMenuState();
+  }
+
+  updateMenuState() {
+    document.body.classList.toggle('menu-open', this.menuOpen);
+    this.saveMenuState();
+  }
+
+  saveMenuState() {
+    localStorage.setItem('menuOpen', this.menuOpen);
+  }
+
+  loadMenuState() {
+    const s = localStorage.getItem('menuOpen');
+    this.menuOpen = window.innerWidth <= 768 ? false : (s ? JSON.parse(s) : true);
+    this.updateMenuState();
+  }
+
+  handleResize() {
+    // При изменении размера экрана проверяем, нужно ли менять состояние меню
+    if (window.innerWidth > 768 && !this.menuOpen) {
+      this.openMenu(); // Открываем меню на десктопе
+    } else if (window.innerWidth <= 768 && this.menuOpen) {
+      this.closeMenu(); // Закрываем меню на мобильном
+    }
+  }
+
+  setupSubmenus() {
+    const t = document.querySelectorAll('.submenu-toggle');
+    t.forEach(e => {
+      e.addEventListener('click', a => {
+        a.preventDefault();
+        a.stopPropagation();
+        const n = e.parentElement;
+        const s = n.querySelector('.submenu');
+        document.querySelectorAll('.has-submenu.open').forEach(o => {
+          if (o !== n) {
+            o.classList.remove('open');
+            o.querySelector('.submenu').classList.remove('open');
+          }
+        });
+        n.classList.toggle('open');
+        s.classList.toggle('open');
+      });
+    });
+  }
+
+  setupActiveLinks() {
+    const t = document.querySelectorAll('.menu-link:not(.submenu-toggle)');
+    t.forEach(e => {
+      e.addEventListener('click', a => {
+        if (e.getAttribute('href').startsWith('#')) a.preventDefault();
+        t.forEach(l => l.classList.remove('active'));
+        e.classList.add('active');
+        if (window.innerWidth <= 768) this.closeMenu();
+      });
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => new CollapsibleMenu());
