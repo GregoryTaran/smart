@@ -1,105 +1,157 @@
-/* ------------------------- СТАРЫЕ СТИЛИ ------------------------- */
+/* ======== Smart Vision Desktop (v3.9 – unified visual style) ======== */
 
-/* Меню для десктопа */
-body.menu-open .vertical-menu {
-  transform: translateX(0); /* Меню открыто */
+:root {
+  --menu-desktop: 350px; /* ширина меню */
+  --gray-bg: #f2f2f2;
 }
 
-body.menu-open .content {
-  margin-left: var(--menu-width); /* Контент сдвигается вправо */
-}
-
-body:not(.menu-open) .vertical-menu {
-  transform: translateX(-100%); /* Меню скрыто */
-}
-
-@media (max-width: 768px) {
-  /* Мобильное меню */
-  body[data-env="mobile"] #side-menu {
-    transform: translateX(-100%); /* Меню скрыто по умолчанию */
-  }
-
-  body[data-env="mobile"].menu-open #side-menu {
-    transform: translateX(0); /* Меню открыто */
-  }
-
-  body[data-env="mobile"] #wrapper {
-    transform: translateX(0); /* Контент не сдвигается */
-  }
-
-  body[data-env="mobile"] footer {
-    position: relative; /* Футер фиксирован только на десктопах */
-  }
-}
-
-/* ------------------------- НОВЫЕ СТИЛИ ------------------------- */
-
-/* Общие стили для контента и меню */
-body {
-  font-family: Arial, sans-serif;
+/* ---------- ОСНОВА ---------- */
+body[data-env="desktop"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #fff;
+  color: #111;
+  font-family: "Open Sans", system-ui, sans-serif;
+  line-height: 1.5;
   overflow-x: hidden;
 }
 
-.vertical-menu {
+/* ---------- Контейнер оборачивает весь контент */
+#wrapper {
+  transition: transform 0.4s ease; /* плавный сдвиг */
+}
+
+/* ---------- МЕНЮ ---------- */
+#side-menu {
   position: fixed;
   top: 0;
   left: 0;
-  width: 250px; /* Ширина меню */
-  height: 100%;
-  background-color: #111;
-  color: #fff;
-  transform: translateX(-100%); /* Изначально скрыто */
-  transition: transform 0.3s ease;
-  z-index: 999;
+  width: var(--menu-desktop);
+  height: 100vh;
+  background: #fff;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+  z-index: 10;
 }
 
-.content {
-  transition: margin-left 0.3s ease;
+body[data-env="desktop"].menu-open #side-menu {
+  transform: translateX(0);
 }
 
-/* Кнопка меню */
+/* ---------- HEADER ---------- */
+body[data-env="desktop"] header {
+  position: fixed;
+  top: 0;
+  left: var(--menu-desktop);
+  right: 0;
+  height: 70px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9;
+}
+
+/* кнопка меню */
 #menu-toggle {
-  background: #333;
-  color: white;
+  position: absolute;
+  left: 24px;
+  font-size: 26px;
+  background: none;
   border: none;
-  padding: 10px;
-  font-size: 16px;
   cursor: pointer;
 }
 
-/* Стили для активного состояния */
-body.menu-open .vertical-menu {
-  transform: translateX(0); /* Когда меню открыто */
+#logo {
+  display: block;
+  max-width: 300px;
+  height: auto;
+  object-fit: contain;
 }
 
-body.menu-closed .vertical-menu {
-  transform: translateX(-100%); /* Когда меню закрыто */
+/* ---------- MAIN ---------- */
+body[data-env="desktop"] main {
+  padding: 100px 40px 80px;
+  text-align: center;
+  transition: transform 0.4s ease; /* плавный сдвиг */
 }
 
-/* Добавленные для мобильных версий */
-@media (max-width: 768px) {
-  /* Скрытие меню на мобильных устройствах по умолчанию */
-  body.menu-open .vertical-menu {
-    transform: translateX(0); /* Меню открыто */
-  }
-
-  body.menu-closed .vertical-menu {
-    transform: translateX(-100%); /* Меню скрыто */
-  }
-
-  body.menu-open .content {
-    margin-left: 0; /* Контент не сдвигается на мобильных */
-  }
-
-  /* Контент сдвигается вправо на десктопе */
-  body[data-env="desktop"] .content {
-    margin-left: 250px; /* Сдвиг контента вправо для десктопа */
-  }
+/* ---------- Сдвиг контента (весь wrapper) ---------- */
+body[data-env="desktop"].menu-open #wrapper {
+  transform: translateX(var(--menu-desktop)); /* сдвигаем контейнер */
 }
 
-/* ------------------------- УБРАНИЕ ЛИШНИХ СТИЛЕЙ ------------------------- */
+/* ---------- FOOTER ---------- */
+body[data-env="desktop"] footer {
+  border-top: 1px solid #ddd;
+  background: #fff;
+  text-align: center;
+  padding: 14px 0 16px;
+  font-size: 14px;
+  position: relative;
+  z-index: 8;
+}
 
-/* Убираем лишние стили, которые не используются:
-   - Стили для элементов, которые не участвуют в текущем процессе
-   - Переписываем правила, которые не необходимы для адаптивности */
+/* ---------- КНОПКИ И СТИЛИ ---------- */
+.env-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  background: #fff;
+  color: #000;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.env-btn:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
 
+/* ---------- МЕНЮ СПИСОК ---------- */
+.menu-header {
+  font-weight: bold;
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+  background: #fafafa;
+}
+.menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu-list a {
+  display: block;
+  padding: 14px 18px;
+  color: #000;
+  text-decoration: none;
+  font-size: 16px;
+  border-bottom: 1px solid #f1f1f1;
+  transition: background 0.25s;
+}
+.menu-list a:hover {
+  background: #f8f8f8;
+}
+.menu-list a.active {
+  background: #eaeaea;
+  font-weight: bold;
+}
+.menu-close {
+  display: none; /* не нужно на десктопе */
+}
+
+/* ---------- OVERLAY ---------- */
+#overlay {
+  display: none;
+}
+
+/* ---------- ПРЕЛОАД ---------- */
+body.preload #side-menu {
+  transition: none !important;
+}
