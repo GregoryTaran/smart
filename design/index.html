@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Vision Design v3.9</title>
+
+  <!-- 1️⃣ Базовые стили -->
+  <link rel="stylesheet" href="css/base.css" />
+
+  <!-- 2️⃣ Загрузчик среды -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("🧠 Smart Vision: DOM готов.");
+
+      const env = window.innerWidth <= 768 ? "mobile" : "desktop";
+      document.body.dataset.env = env;
+      window.SMART_ENV = env;
+
+      // Подключаем нужный env-стиль
+      const envStyle = document.createElement("link");
+      envStyle.rel = "stylesheet";
+      envStyle.href = `css/${env}.css`;
+      envStyle.onload = () => {
+        console.log(`🎨 Стиль ${env}.css загружен`);
+
+        // Подключаем основной JS после стилей
+        const app = document.createElement("script");
+        app.type = "module";
+        app.src = "js/index.js";
+        document.head.appendChild(app);
+      };
+      document.head.appendChild(envStyle);
+    });
+  </script>
+</head>
+
+<body class="preload">
+  <!-- Оборачиваем все части в контейнер -->
+  <div id="wrapper">
+    <header></header>
+    <nav id="side-menu"></nav>
+    <main id="content"></main>
+    <footer id="footer"></footer>
+  </div>
+  <div id="overlay"></div>
+</body>
+</html>

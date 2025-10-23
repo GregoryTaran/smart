@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Vision</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="icon" href="/icons/icon-192.png" />
+  <style>
+    body { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; min-height:100vh; padding-top:60px; background:#f5f5f5; font-family:system-ui,sans-serif; color:#222; margin:0; text-align:center; }
+    #topSection { margin-bottom:60px; }
+    button { padding:14px 30px; font-size:18px; font-weight:600; border:none; border-radius:12px; cursor:pointer; transition:0.25s; }
+    #installBtn { background:#000; color:#fff; } #installBtn:hover { background:#333; }
+    #openBtn { background:#008f3e; color:#fff; } #openBtn:hover { background:#00a54a; }
+    #contextBtn { background:#fff; color:#000; border:2px solid #000; margin-top:2rem; }
+    #contextBtn:hover { background:#e9e9e9; }
+    h1 { font-size:1.6rem; margin-bottom:0.5rem; }
+    p { line-height:1.6; max-width:400px; color:#444; margin:0.3rem 0; }
+    footer { margin-top:40px; color:#777; font-size:0.9rem; }
+  </style>
+</head>
+<body>
+  <div id='topSection'>
+    <p id='statusText'>Загрузка...</p>
+    <button id='installBtn' style='display:none;'>Установить приложение</button>
+    <div id='installedControls' style='display:none;'>
+      <p>Приложение здесь ✅</p>
+      <button id='openBtn'>Открыть приложение</button>
+    </div>
+  </div>
+  <h1>Smart Vision</h1>
+  <p>Любая мысль может стать визией.</p>
+  <p>Любая визия может стать дорогой.</p>
+  <p>А дорога — источником внутреннего света.</p>
+  <button id='contextBtn'>Перейти к контексту</button>
+  <button id='testNotifyBtn' style='margin-top:20px;background:#fff;color:#000;border:2px solid #000;border-radius:10px;padding:12px 24px;font-size:16px;cursor:pointer;'>📨 Отправить уведомление: Вы прекрасны!</button>
+  <footer>Грег Таран | 2025</footer>
+  <script>
+    const installBtn=document.getElementById('installBtn'),installedControls=document.getElementById('installedControls'),openBtn=document.getElementById('openBtn'),contextBtn=document.getElementById('contextBtn'),statusText=document.getElementById('statusText'),contextUrl='/context.html';let deferredPrompt;
+    if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js');
+    const isPWA=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+    if(isPWA){document.getElementById('topSection').style.display='none';}else{statusText.textContent='Smart Vision не установлено';}
+    window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(!isPWA){installBtn.style.display='inline-block';statusText.textContent='Можно установить приложение';}});
+    installBtn.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();const{outcome}=await deferredPrompt.userChoice;if(outcome==='accepted'){statusText.textContent='✅ Приложение установлено';installBtn.style.display='none';installedControls.style.display='block';}else{statusText.textContent='❌ Установка отменена';}deferredPrompt=null;});
+    openBtn.addEventListener('click',()=>window.location.href=contextUrl);contextBtn.addEventListener('click',()=>window.location.href=contextUrl);
+    if(window.matchMedia('(display-mode: standalone)').matches){const perm=Notification.permission,notifSection=document.createElement('div');notifSection.style.marginTop='1.5rem';notifSection.style.textAlign='center';notifSection.style.maxWidth='400px';notifSection.style.color='#555';
+      if(perm==='default'){const btn=document.createElement('button');btn.textContent='🔔 Включить уведомления';btn.style='padding:12px 20px;font-size:16px;background:#000;color:#fff;border:none;border-radius:10px;cursor:pointer;';btn.onclick=async()=>{const permission=await Notification.requestPermission();if(permission==='granted'){new Notification('Smart Vision',{body:'Уведомления активированы ✅',icon:'/icons/icon-192.png'});notifSection.innerHTML='<p>✅ Уведомления включены</p>';}else if(permission==='denied'){showDeniedMessage();}};notifSection.appendChild(btn);}
+      else if(perm==='granted'){notifSection.innerHTML='<p>✅ Уведомления включены</p>';}
+      else if(perm==='denied'){showDeniedMessage();}
+      document.body.appendChild(notifSection);
+      function showDeniedMessage(){notifSection.innerHTML='<p>🔕 Уведомления отключены в настройках браузера.<br>Чтобы включить — перейдите в настройки сайта → <b>«Разрешить уведомления»</b>.</p><button id="openSettingsBtn">Открыть инструкцию</button>';const btn=notifSection.querySelector('#openSettingsBtn');btn.style='margin-top:10px;background:#ddd;color:#333;border:none;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;';btn.onclick=()=>{alert('Перейди в адресную строку → значок замка → Разрешения → Уведомления → Разрешить');};}}
+    const testBtn=document.getElementById('testNotifyBtn');if(testBtn){testBtn.addEventListener('click',async()=>{if(Notification.permission==='granted'){new Notification('Smart Vision',{body:'Вы прекрасны! 💫',icon:'/icons/icon-192.png'});}else if(Notification.permission==='default'){const perm=await Notification.requestPermission();if(perm==='granted'){new Notification('Smart Vision',{body:'Вы прекрасны! 💫',icon:'/icons/icon-192.png'});}else{alert('Разреши уведомления, чтобы услышать комплимент 😉');}}else{alert('🔕 Уведомления отключены. Разреши их в настройках браузера.');}});}
+  </script>
+</body>
+</html>
