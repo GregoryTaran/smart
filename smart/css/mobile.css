@@ -1,4 +1,4 @@
-/* ======== Smart Vision Mobile (v4 – простота) ======== */
+/* ======== Smart Vision Mobile (v4 – футер едет вниз) ======== */
 
 :root {
   --menu-mobile: 80%;  /* меню на 80% */
@@ -102,7 +102,7 @@ body[data-env="mobile"] main {
 
 /* ---------- ФУТЕР ---------- */
 body[data-env="mobile"] footer {
-  position: fixed;
+  position: relative; /* теперь он будет внизу */
   bottom: 0;
   left: 0;
   width: 100%;
