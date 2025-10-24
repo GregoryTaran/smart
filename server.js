@@ -11,15 +11,16 @@ const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 const app = express();
 app.use(express.json());
 
-// ✅ теперь сервер раздаёт папку "smart" как корень сайта
-app.use(express.static("smart"));
+// ✅ оставляем корень как есть — Render уже раздаёт /smart/
+app.use(express.static("."));
 
-const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
+const server = app.listen(PORT, () =>
+  console.log(`🚀 Server started on ${PORT}`)
+);
 const wss = new WebSocketServer({ server });
 
 let sessionCounter = 1;
 
-// === WebSocket ===
 wss.on("connection", (ws) => {
   ws.sampleRate = 44100;
   ws.sessionId = `sess-${sessionCounter++}`;
@@ -70,7 +71,6 @@ app.get("/merge", (req, res) => {
     const merged = makeWav(totalPCM, sr);
     const outFile = `${session}_merged.wav`;
     fs.writeFileSync(outFile, merged);
-    console.log(`🧩 Merged ${outFile}`);
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
   } catch (err) {
     console.error("❌ Merge error:", err);
@@ -93,15 +93,13 @@ app.get("/whisper", async (req, res) => {
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: form
+      body: form,
     });
 
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || "Whisper error");
-    console.log("🧠 Whisper →", data.text);
     res.json({ text: data.text });
   } catch (e) {
-    console.error("❌ Whisper error:", e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -124,45 +122,42 @@ app.post("/gpt", async (req, res) => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }]
-      })
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
 
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || "GPT error");
     const reply = data.choices?.[0]?.message?.content?.trim() || "";
-    console.log("🤖 GPT →", reply);
     res.json({ text: reply });
   } catch (e) {
-    console.error("❌ GPT error:", e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// === TTS (OpenAI Speech) ===
+// === TTS ===
 app.get("/tts", async (req, res) => {
   try {
     const text = req.query.text || "";
     const session = req.query.session || "tts";
     const voice = req.query.voice || "alloy";
     if (!text) return res.status(400).send("No text");
-    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
 
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
         voice,
-        input: text
-      })
+        input: text,
+      }),
     });
 
     if (!r.ok) throw new Error("TTS error: " + (await r.text()));
@@ -171,15 +166,13 @@ app.get("/tts", async (req, res) => {
     const file = `${session}_tts.mp3`;
     fs.writeFileSync(file, Buffer.from(audio));
     const url = `${BASE_URL}/${file}`;
-    console.log(`🔊 TTS ready: ${url}`);
     res.json({ url });
   } catch (e) {
-    console.error("❌ TTS error:", e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// === Helpers ===
+// === helpers ===
 function floatToWav(f32, sampleRate = 44100) {
   const buffer = Buffer.alloc(44 + f32.length * 2);
   const view = new DataView(buffer.buffer);
