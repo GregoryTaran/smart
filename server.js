@@ -50,7 +50,7 @@ wss.on("connection", (ws) => {
   ws.on("close", () => console.log(`❌ Closed: ${ws.sessionId}`));
 });
 
-// 📦 Объединение чанков — старая стабильная логика
+// 📦 Объединение чанков (стабильная версия)
 app.get("/merge", (req, res) => {
   try {
     const session = (req.query.session || "").trim();
@@ -128,7 +128,7 @@ app.get("/whisper", async (req, res) => {
   }
 });
 
-// 🤖 GPT — перевод или ответ ассистента
+// 🤖 GPT — перевод или ответ ассистента (улучшенная версия)
 app.post("/gpt", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
@@ -137,10 +137,13 @@ app.post("/gpt", async (req, res) => {
 
     let prompt;
     if (mode === "translate") {
-      const [from, to] = (langPair || "en-ru").split("-");
-      prompt = `Translate this text from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
+      const [langA, langB] = (langPair || "en-ru").split("-");
+      const isCyrillic = /[а-яё]/i.test(text);
+      const from = isCyrillic ? langB.toUpperCase() : langA.toUpperCase();
+      const to = isCyrillic ? langA.toUpperCase() : langB.toUpperCase();
+      prompt = `Translate beautifully from ${from} to ${to}:\n${text}`;
     } else if (mode === "assistant") {
-      prompt = `Act as an intelligent assistant. Respond naturally to this: ${text}`;
+      prompt = `Act as an intelligent assistant. Respond naturally to this:\n${text}`;
     } else {
       prompt = text;
     }
