@@ -1,22 +1,21 @@
-// ======== Context Module (v1.3 — add process mode + lang pair) ========
-// Встраивание без iframe. Recorder Worklet грузим из /smart/context/
+// ======== Context Module (v1.4 — process chain with GPT modes) ========
 
 export async function render(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Server → Whisper</h2>
+      <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Server → Whisper → GPT → TTS</h2>
 
       <div style="text-align:center; margin-bottom:10px;">
-        <label for="capture-mode" style="font-weight:600;">Режим захвата:</label>
+        <label style="font-weight:600;">Режим захвата:</label>
         <select id="capture-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
-          <option value="raw">🎧 RAW — без обработки (чистый микрофон)</option>
+          <option value="raw">🎧 RAW — без обработки</option>
           <option value="agc">🧠 AGC — автоусиление и шумоподавление</option>
-          <option value="gain">📢 GAIN — ручное усиление (громче, без фильтров)</option>
+          <option value="gain">📢 GAIN — ручное усиление</option>
         </select>
       </div>
 
       <div style="text-align:center; margin-bottom:10px;">
-        <label for="process-mode" style="font-weight:600;">Режим обработки:</label>
+        <label style="font-weight:600;">Режим обработки:</label>
         <select id="process-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
           <option value="recognize">🎧 Только распознавание</option>
           <option value="translate">🔤 Перевод через GPT</option>
@@ -25,7 +24,7 @@ export async function render(mount) {
       </div>
 
       <div style="text-align:center; margin-bottom:10px;">
-        <label for="lang-pair" style="font-weight:600;">Языковая пара:</label>
+        <label style="font-weight:600;">Языковая пара:</label>
         <select id="lang-pair" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
           <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
           <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
@@ -52,11 +51,7 @@ export async function render(mount) {
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
-  let buffer = [];
-  let total = 0;
-  let lastSend = 0;
-  let sampleRate = 44100;
-  let sessionId = null;
+  let buffer = [], total = 0, lastSend = 0, sampleRate = 44100, sessionId = null;
 
   function log(msg) {
     const linked = msg.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
@@ -66,10 +61,9 @@ export async function render(mount) {
     logEl.scrollTop = logEl.scrollHeight;
     console.log(msg);
   }
-
   function logError(err) {
     console.error(err);
-    log('❌ Ошибка: ' + (err?.message || String(err)));
+    log("❌ Ошибка: " + (err?.message || String(err)));
   }
 
   btnStart.onclick = async () => {
@@ -77,46 +71,35 @@ export async function render(mount) {
       const mode = modeSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
-      log(`🎚️ Захват: ${mode.toUpperCase()} | 🧠 Обработка: ${processMode} | 🌐 Пара: ${langPair}`);
 
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
-
       ws.onmessage = (e) => {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
           sessionId = msg.split(":")[1];
-          log('📩 SESSION:' + sessionId);
-        } else {
-          log('📩 ' + msg);
-        }
+          log("📩 SESSION:" + sessionId);
+        } else log("📩 " + msg);
       };
-
-      ws.onclose = () => log('❌ Disconnected');
+      ws.onclose = () => log("❌ Disconnected");
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       sampleRate = audioCtx.sampleRate;
-      log('🎛 Detected SampleRate: ' + sampleRate + ' Hz');
-
-      await audioCtx.audioWorklet.addModule('context/recorder-worklet.js');
+      log("🎛 Detected SampleRate: " + sampleRate + " Hz");
+      await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
 
       ws.onopen = () => {
-        log('✅ Connected to WebSocket server');
-        ws.send(JSON.stringify({ type: 'meta', sampleRate, mode, processMode, langPair }));
+        log("✅ Connected to WebSocket server");
+        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair }));
       };
 
-      // параметры захвата
-      let constraints;
-      if (mode === 'agc') {
-        constraints = { audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } };
-      } else {
-        constraints = { audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false } };
-      }
+      const constraints = (mode === "agc")
+        ? { audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } }
+        : { audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false } };
 
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
-      worklet = new AudioWorkletNode(audioCtx, 'recorder-processor');
-      worklet.port.postMessage({ mode, processMode, langPair });
+      worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       source.connect(worklet);
 
       const INTERVAL = 2000;
@@ -133,16 +116,11 @@ export async function render(mount) {
         }
       };
 
-      log('🎙️ Recording started');
+      log("🎙️ Recording started");
       btnStart.disabled = true;
       btnStop.disabled = false;
     } catch (err) {
       logError(err);
-      try { if (audioCtx) await audioCtx.close(); } catch {}
-      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
-      try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch {}
-      btnStart.disabled = false;
-      btnStop.disabled = true;
     }
   };
 
@@ -166,12 +144,12 @@ export async function render(mount) {
         const padded = new Float32Array(target);
         padded.set(full);
         full = padded;
-        log('🫧 Padded last block');
+        log("🫧 Padded last block");
       }
     }
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(full.buffer);
-      log('🎧 Sent ' + full.byteLength + ' bytes @ ' + sampleRate + ' Hz');
+      log("🎧 Sent " + full.byteLength + " bytes @ " + sampleRate + " Hz");
     }
     buffer = [];
     total = 0;
@@ -183,9 +161,61 @@ export async function render(mount) {
       if (audioCtx) audioCtx.close();
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-      log('⏹️ Stopped');
+      log("⏹️ Stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
+
+      // === POST-PROCESS CHAIN ===
+      setTimeout(async () => {
+        try {
+          if (!sessionId) return log("❔ Нет sessionId");
+
+          log("🧩 Объединяем чанки...");
+          const merge = await fetch(`/merge?session=${sessionId}`);
+          if (!merge.ok) throw new Error(await merge.text());
+          const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
+          log(`💾 Файл готов: ${mergedUrl}`);
+
+          log("🧠 Whisper → Распознаём...");
+          const w = await fetch(`/whisper?session=${sessionId}`);
+          const data = await w.json();
+          if (!w.ok) throw new Error(data?.error || "Whisper error");
+          const text = data.text || "";
+          log("🧠 Whisper → " + text);
+
+          let finalText = text;
+          const processMode = procSel.value;
+          const langPair = langSel.value;
+
+          if (processMode === "translate" || processMode === "assistant") {
+            log("🤖 Отправляем в GPT...");
+            const body = {
+              text,
+              mode: processMode,
+              langPair
+            };
+            const gptRes = await fetch("/gpt", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const gptData = await gptRes.json();
+            if (!gptRes.ok) throw new Error(gptData?.error || "GPT error");
+            finalText = gptData.text;
+            log("🤖 GPT → " + finalText);
+          }
+
+          if (finalText) {
+            log("🔊 TTS → Озвучка...");
+            const tts = await fetch(`/tts?session=${sessionId}&text=${encodeURIComponent(finalText)}`);
+            const ttsData = await tts.json();
+            if (!tts.ok) throw new Error(ttsData?.error || "TTS error");
+            log(`🔊 Готово: ${ttsData.url}`);
+          }
+        } catch (e) {
+          logError(e);
+        }
+      }, 800);
     } catch (e) {
       logError(e);
     }
