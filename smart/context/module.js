@@ -84,7 +84,8 @@ export async function render(mount) {
       log("🎛 SampleRate: " + sampleRate + " Hz");
 
       // ✅ путь для smart/context/
-      await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
+      await audioCtx.audioWorklet.addModule("smart/context/recorder-worklet.js");
+
 
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: "meta", sampleRate, processMode, langPair, voice }));
