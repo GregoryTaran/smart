@@ -11,22 +11,21 @@ const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 const app = express();
 app.use(express.json());
 
-// ✅ оставляем корень как есть — Render уже раздаёт /smart/
-app.use(express.static("."));
+// ✅ раздаём папку smart как корень сайта
+app.use(express.static("smart"));
 
 const server = app.listen(PORT, () =>
   console.log(`🚀 Server started on ${PORT}`)
 );
 const wss = new WebSocketServer({ server });
 
+// === WebSocket ===
 let sessionCounter = 1;
-
 wss.on("connection", (ws) => {
   ws.sampleRate = 44100;
   ws.sessionId = `sess-${sessionCounter++}`;
   ws.chunkCounter = 0;
   ws.send(`SESSION:${ws.sessionId}`);
-  console.log(`🎧 New connection: ${ws.sessionId}`);
 
   ws.on("message", (data) => {
     if (typeof data === "string") {
@@ -48,32 +47,24 @@ wss.on("connection", (ws) => {
       ws.send(`💾 Saved ${filename}`);
     }
   });
-
-  ws.on("close", () => console.log(`❌ Closed ${ws.sessionId}`));
 });
 
 // === Merge ===
 app.get("/merge", (req, res) => {
   try {
     const session = req.query.session;
-    if (!session) return res.status(400).send("No session");
-
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
       .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
-    if (!files.length) return res.status(404).send("No chunks");
-
     const headerSize = 44;
     const first = fs.readFileSync(files[0]);
     const sr = first.readUInt32LE(24);
     const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
-    const totalPCM = Buffer.concat(pcms);
-    const merged = makeWav(totalPCM, sr);
+    const merged = makeWav(Buffer.concat(pcms), sr);
     const outFile = `${session}_merged.wav`;
     fs.writeFileSync(outFile, merged);
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
   } catch (err) {
-    console.error("❌ Merge error:", err);
     res.status(500).send("Merge error");
   }
 });
@@ -82,10 +73,7 @@ app.get("/merge", (req, res) => {
 app.get("/whisper", async (req, res) => {
   try {
     const session = req.query.session;
-    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
     const file = `${session}_merged.wav`;
-    if (!fs.existsSync(file)) return res.status(404).send("No file");
-
     const form = new FormData();
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
@@ -93,11 +81,9 @@ app.get("/whisper", async (req, res) => {
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: form,
+      body: form
     });
-
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || "Whisper error");
     res.json({ text: data.text });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -107,12 +93,10 @@ app.get("/whisper", async (req, res) => {
 // === GPT ===
 app.post("/gpt", async (req, res) => {
   try {
-    const { text, mode, langPair } = req.body || {};
-    if (!text) return res.status(400).send("No text");
-
+    const { text, mode, langPair } = req.body;
     let prompt = text;
     if (mode === "translate") {
-      const [from, to] = (langPair || "en-ru").split("-");
+      const [from, to] = langPair.split("-");
       prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
     } else if (mode === "assistant") {
       prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
@@ -122,18 +106,15 @@ app.post("/gpt", async (req, res) => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-      }),
+        messages: [{ role: "user", content: prompt }]
+      })
     });
-
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || "GPT error");
-    const reply = data.choices?.[0]?.message?.content?.trim() || "";
-    res.json({ text: reply });
+    res.json({ text: data.choices[0].message.content });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -142,38 +123,29 @@ app.post("/gpt", async (req, res) => {
 // === TTS ===
 app.get("/tts", async (req, res) => {
   try {
-    const text = req.query.text || "";
-    const session = req.query.session || "tts";
-    const voice = req.query.voice || "alloy";
-    if (!text) return res.status(400).send("No text");
-
+    const { text, session, voice } = req.query;
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
-        voice,
-        input: text,
-      }),
+        voice: voice || "alloy",
+        input: text
+      })
     });
-
-    if (!r.ok) throw new Error("TTS error: " + (await r.text()));
-
     const audio = await r.arrayBuffer();
     const file = `${session}_tts.mp3`;
     fs.writeFileSync(file, Buffer.from(audio));
-    const url = `${BASE_URL}/${file}`;
-    res.json({ url });
+    res.json({ url: `${BASE_URL}/${file}` });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// === helpers ===
-function floatToWav(f32, sampleRate = 44100) {
+function floatToWav(f32, sampleRate) {
   const buffer = Buffer.alloc(44 + f32.length * 2);
   const view = new DataView(buffer.buffer);
   view.setUint32(0, 0x52494646, false);
