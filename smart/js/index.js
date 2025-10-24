@@ -1,6 +1,4 @@
-// ======== Smart Vision INDEX (v2.5 — модульная загрузка без iframe) ========
-// Изменено минимально: добавлен универсальный загрузчик модулей страниц.
-// НИЧЕГО из существующей логики меню/стилей не ломаем.
+// ======== Smart Vision INDEX (v2.5.1 — фикс обновления хэша) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
@@ -16,7 +14,6 @@ const STATE = {
 
 const root = {};
 
-// Генерация уникального ID пользователя (оставляем, просто не выводим)
 let userCode = localStorage.getItem("userCode");
 if (!userCode) {
   userCode = "user-" + Math.random().toString(36).substring(2, 10);
@@ -60,7 +57,6 @@ function init() {
   console.log(`✅ Smart Vision initialized (${STATE.env})`);
 }
 
-// ---------- RENDER ----------
 function renderApp() {
   renderHeader();
   renderMenuBlock();
@@ -69,7 +65,6 @@ function renderApp() {
   updateEnvButton();
 }
 
-// ---------- HEADER ----------
 function renderHeader() {
   root.header.innerHTML = `
     <button id="menu-toggle" aria-label="Открыть меню">☰</button>
@@ -78,7 +73,6 @@ function renderHeader() {
   document.getElementById("menu-toggle").onclick = toggleMenu;
 }
 
-// ---------- MENU ----------
 function renderMenuBlock() {
   root.menu.innerHTML = renderMenu(STATE.page, STATE.user);
   const closeBtn = document.getElementById("menu-close");
@@ -93,6 +87,7 @@ function renderMenuBlock() {
       const next = a.dataset.page;
       if (next && next !== STATE.page) {
         STATE.page = next;
+        window.location.hash = next; // ✅ теперь хэш снова обновляется
         renderApp();
         if (STATE.env === "mobile") closeMenu();
         root.main.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -103,12 +98,9 @@ function renderMenuBlock() {
   );
 }
 
-// ---------- MAIN ----------
 function renderMain() {
-  // Если страница объявлена как модуль — загружаем его из папки страницы
   const pageCfg = CONFIG.PAGES.find(p => p.id === STATE.page);
   if (pageCfg && pageCfg.module) {
-    // ✅ Универсальная точка монтирования для модулей
     root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
     const mount = document.getElementById("module-root");
     loadModule(pageCfg.module, mount);
@@ -154,8 +146,6 @@ function renderMain() {
   updateEnvButton();
 }
 
-// ---------- МОДУЛЬНЫЙ ЗАГРУЗЧИК ----------
-// Импортирует ../{module}/module.js относительно /js/index.js
 async function loadModule(moduleName, mountEl) {
   try {
     const url = `../${moduleName}/module.js?v=${encodeURIComponent(CONFIG.VERSION)}`;
@@ -171,7 +161,6 @@ async function loadModule(moduleName, mountEl) {
   }
 }
 
-// ---------- FOOTER ----------
 function renderFooter() {
   root.footer.innerHTML = `
     <a href="#policy">Политика конфиденциальности</a><br>
@@ -183,7 +172,6 @@ function renderFooter() {
   `;
 }
 
-// ---------- STATE BUTTON ----------
 function formatState() {
   const { env, user, page, uiFlags } = STATE;
   return `{ env:${env}, user:${user ? user.name : "guest"}, page:${page}, menu:${uiFlags.menuOpen} }`;
@@ -194,7 +182,6 @@ function updateEnvButton() {
   if (btn) btn.textContent = formatState();
 }
 
-// ---------- EVENTS ----------
 function attachGlobalEvents() {
   root.overlay.onclick = closeMenu;
   window.addEventListener("hashchange", setPageFromHash);
@@ -222,7 +209,6 @@ function setPageFromHash() {
   if (STATE.env === "mobile") closeMenu();
 }
 
-// ---------- SWIPE ----------
 let touchStartX = 0;
 let touchEndX = 0;
 
