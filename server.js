@@ -10,16 +10,13 @@ const wss = new WebSocketServer({ server });
 app.use(express.static("."));
 app.use(express.json());
 
-// ✅ Публичный базовый URL
 const PUBLIC_BASE_URL = (process.env.BASE_PUBLIC_URL || "https://test.smartvision.life").replace(/\/$/, "");
-
-// 🔑 Ключи
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
-// 🎙️ Каждое подключение — новая сессия
 let sessionCounter = 1;
 
+// 🎧 WebSocket: приём чанков
 wss.on("connection", (ws) => {
   ws.sampleRate = 44100;
   ws.sessionId = `sess-${sessionCounter++}`;
@@ -53,24 +50,24 @@ wss.on("connection", (ws) => {
   ws.on("close", () => console.log(`❌ Closed: ${ws.sessionId}`));
 });
 
-// 📦 Объединение чанков
+// 📦 Объединение чанков — старая стабильная логика
 app.get("/merge", (req, res) => {
   try {
-    const session = req.query.session?.trim();
+    const session = (req.query.session || "").trim();
     if (!session) return res.status(400).send("No session");
 
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
-      .sort((a, b) => +a.match(/chunk_(\\d+)/)[1] - +b.match(/chunk_(\\d+)/)[1]);
+      .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
 
     if (!files.length) return res.status(404).send("No chunks for session");
 
     const headerSize = 44;
     const first = fs.readFileSync(files[0]);
     const sampleRate = first.readUInt32LE(24);
-
     const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
     const totalPCM = Buffer.concat(pcms);
+
     const byteLen = totalPCM.length;
     const header = Buffer.alloc(44);
     header.write("RIFF", 0);
@@ -100,13 +97,12 @@ app.get("/merge", (req, res) => {
   }
 });
 
-// 🧠 Whisper → текст
+// 🧠 Whisper
 app.get("/whisper", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
-    const session = req.query.session?.trim();
+    const session = (req.query.session || "").trim();
     if (!session) return res.status(400).send("No session id");
-
     const file = `${session}_merged.wav`;
     if (!fs.existsSync(file)) return res.status(404).send("File not found");
 
@@ -152,18 +148,17 @@ app.post("/gpt", async (req, res) => {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }]
-      })
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
 
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || "GPT error");
-
     const reply = data.choices?.[0]?.message?.content?.trim() || "";
     console.log(`🤖 GPT → ${reply}`);
     res.json({ text: reply });
@@ -173,13 +168,13 @@ app.post("/gpt", async (req, res) => {
   }
 });
 
-// 🔊 TTS — озвучка текста через Google Cloud
+// 🔊 TTS — Google Cloud
 app.get("/tts", async (req, res) => {
   try {
     if (!GOOGLE_API_KEY) return res.status(500).send("Missing GOOGLE_API_KEY");
-    const text = req.query.text?.trim();
-    const session = req.query.session?.trim() || "tts";
-    if (!text) return res.status(400).send("No text");
+    const text = (req.query.text || "").trim();
+    const session = (req.query.session || "tts").trim();
+    if (!text) return res.status(400).send("No text provided");
 
     const body = {
       input: { text },
@@ -187,11 +182,14 @@ app.get("/tts", async (req, res) => {
       audioConfig: { audioEncoding: "MP3", speakingRate: 1.0 },
     };
 
-    const r = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const r = await fetch(
+      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
 
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || "TTS error");
@@ -212,10 +210,10 @@ app.get("/tts", async (req, res) => {
 function floatToWav(float32Array, sampleRate = 44100) {
   const buffer = Buffer.alloc(44 + float32Array.length * 2);
   const view = new DataView(buffer.buffer);
-  view.setUint32(0, 0x52494646, false); // RIFF
+  view.setUint32(0, 0x52494646, false);
   view.setUint32(4, 36 + float32Array.length * 2, true);
-  view.setUint32(8, 0x57415645, false); // WAVE
-  view.setUint32(12, 0x666d7420, false); // fmt 
+  view.setUint32(8, 0x57415645, false);
+  view.setUint32(12, 0x666d7420, false);
   view.setUint32(16, 16, true);
   view.setUint16(20, 1, true);
   view.setUint16(22, 1, true);
