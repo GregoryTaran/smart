@@ -7,9 +7,10 @@ const app = express();
 const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(".")); // раздаём файлы из текущей папки
+app.use(express.static("."));
+app.use(express.json());
 
-// ✅ Публичный базовый URL для ссылок
+// ✅ Публичный базовый URL
 const PUBLIC_BASE_URL = (process.env.BASE_PUBLIC_URL || "https://test.smartvision.life").replace(/\/$/, "");
 
 // 🔑 Ключи
@@ -27,26 +28,24 @@ wss.on("connection", (ws) => {
   console.log(`🎧 New connection: ${ws.sessionId}`);
 
   ws.on("message", (data) => {
-    // если это JSON с метаданными
-    if (typeof data === "string" || data instanceof String) {
+    if (typeof data === "string") {
       try {
         const json = JSON.parse(data);
         if (json.type === "meta" && json.sampleRate) {
           ws.sampleRate = json.sampleRate;
+          ws.processMode = json.processMode;
+          ws.langPair = json.langPair;
           ws.send(`🎛 SampleRate confirmed: ${ws.sampleRate} Hz`);
           return;
         }
       } catch {}
     }
 
-    // 📦 бинарный аудиоблок
     const buf = Buffer.from(data);
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
     const wav = floatToWav(f32, ws.sampleRate);
-
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
     fs.writeFileSync(filename, wav);
-
     const fileUrl = `${PUBLIC_BASE_URL}/${filename}`;
     ws.send(`💾 Saved ${filename} — ${fileUrl}`);
   });
@@ -57,12 +56,12 @@ wss.on("connection", (ws) => {
 // 📦 Объединение чанков
 app.get("/merge", (req, res) => {
   try {
-    const session = (req.query.session || "").trim();
+    const session = req.query.session?.trim();
     if (!session) return res.status(400).send("No session");
 
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
-      .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
+      .sort((a, b) => +a.match(/chunk_(\\d+)/)[1] - +b.match(/chunk_(\\d+)/)[1]);
 
     if (!files.length) return res.status(404).send("No chunks for session");
 
@@ -72,7 +71,6 @@ app.get("/merge", (req, res) => {
 
     const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
     const totalPCM = Buffer.concat(pcms);
-
     const byteLen = totalPCM.length;
     const header = Buffer.alloc(44);
     header.write("RIFF", 0);
@@ -106,7 +104,7 @@ app.get("/merge", (req, res) => {
 app.get("/whisper", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
-    const session = (req.query.session || "").trim();
+    const session = req.query.session?.trim();
     if (!session) return res.status(400).send("No session id");
 
     const file = `${session}_merged.wav`;
@@ -126,12 +124,52 @@ app.get("/whisper", async (req, res) => {
 
     const data = await r.json();
     if (!r.ok) throw new Error(data.error?.message || "Whisper error");
-
     console.log(`🧠 Whisper → ${data.text}`);
     res.json({ text: data.text });
   } catch (e) {
     console.error("❌ Whisper error:", e);
-    res.status(500).json({ error: String(e.message || e) });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 🤖 GPT — перевод или ответ ассистента
+app.post("/gpt", async (req, res) => {
+  try {
+    if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
+    const { text, mode, langPair } = req.body || {};
+    if (!text) return res.status(400).send("No text");
+
+    let prompt;
+    if (mode === "translate") {
+      const [from, to] = (langPair || "en-ru").split("-");
+      prompt = `Translate this text from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
+    } else if (mode === "assistant") {
+      prompt = `Act as an intelligent assistant. Respond naturally to this: ${text}`;
+    } else {
+      prompt = text;
+    }
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || "GPT error");
+
+    const reply = data.choices?.[0]?.message?.content?.trim() || "";
+    console.log(`🤖 GPT → ${reply}`);
+    res.json({ text: reply });
+  } catch (e) {
+    console.error("❌ GPT error:", e);
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -139,10 +177,9 @@ app.get("/whisper", async (req, res) => {
 app.get("/tts", async (req, res) => {
   try {
     if (!GOOGLE_API_KEY) return res.status(500).send("Missing GOOGLE_API_KEY");
-
-    const text = (req.query.text || "").trim();
-    const session = (req.query.session || "tts").trim();
-    if (!text) return res.status(400).send("No text provided");
+    const text = req.query.text?.trim();
+    const session = req.query.session?.trim() || "tts";
+    if (!text) return res.status(400).send("No text");
 
     const body = {
       input: { text },
@@ -162,14 +199,12 @@ app.get("/tts", async (req, res) => {
     const audio = Buffer.from(data.audioContent, "base64");
     const outFile = `${session}_tts.mp3`;
     fs.writeFileSync(outFile, audio);
-
     const url = `${PUBLIC_BASE_URL}/${outFile}`;
     console.log(`🔊 TTS ready: ${url}`);
-
     res.json({ url });
   } catch (e) {
     console.error("❌ TTS error:", e);
-    res.status(500).json({ error: String(e.message || e) });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -177,18 +212,18 @@ app.get("/tts", async (req, res) => {
 function floatToWav(float32Array, sampleRate = 44100) {
   const buffer = Buffer.alloc(44 + float32Array.length * 2);
   const view = new DataView(buffer.buffer);
-  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(0, 0x52494646, false); // RIFF
   view.setUint32(4, 36 + float32Array.length * 2, true);
-  view.setUint32(8, 0x57415645, false); // "WAVE"
-  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(8, 0x57415645, false); // WAVE
+  view.setUint32(12, 0x666d7420, false); // fmt 
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // byte rate
-  view.setUint16(32, 2, true); // block align
-  view.setUint16(34, 16, true); // bits per sample
-  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  view.setUint32(36, 0x64617461, false);
   view.setUint32(40, float32Array.length * 2, true);
 
   let offset = 44;
