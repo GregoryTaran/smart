@@ -2,6 +2,7 @@ import fs from "fs";
 import express from "express";
 import { WebSocketServer } from "ws";
 import fetch from "node-fetch";
+import FormData from "form-data";
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -57,7 +58,6 @@ app.get("/merge", (req, res) => {
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
       .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
-
     if (!files.length) return res.status(404).send("No chunks");
 
     const headerSize = 44;
