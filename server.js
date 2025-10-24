@@ -1,229 +1,222 @@
-// ======== Context Module (v1.5 — add voice selector) ========
+import fs from "fs";
+import express from "express";
+import { WebSocketServer } from "ws";
+import fetch from "node-fetch";
 
-export async function render(mount) {
-  mount.innerHTML = `
-    <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Whisper → GPT → TTS</h2>
+const PORT = process.env.PORT || 3000;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 
-      <div style="text-align:center; margin-bottom:10px;">
-        <label style="font-weight:600;">🧑 Голос озвучки:</label>
-        <select id="voice-select" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
-          <option value="alloy">Alloy (универсальный)</option>
-          <option value="verse">Verse (бархатный мужской)</option>
-          <option value="echo">Echo (низкий тембр)</option>
-          <option value="breeze">Breeze (лёгкий мужской)</option>
-          <option value="coral">Coral (мягкий мужской)</option>
-        </select>
-      </div>
+const app = express();
+app.use(express.json());
+app.use(express.static("."));
 
-      <div style="text-align:center; margin-bottom:10px;">
-        <label for="capture-mode" style="font-weight:600;">Режим захвата:</label>
-        <select id="capture-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
-          <option value="raw">🎧 RAW — без обработки</option>
-          <option value="agc">🧠 AGC — автоусиление и шумоподавление</option>
-          <option value="gain">📢 GAIN — ручное усиление</option>
-        </select>
-      </div>
+const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
+const wss = new WebSocketServer({ server });
 
-      <div style="text-align:center; margin-bottom:10px;">
-        <label for="process-mode" style="font-weight:600;">Режим обработки:</label>
-        <select id="process-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
-          <option value="recognize">🎧 Только распознавание</option>
-          <option value="translate">🔤 Перевод через GPT</option>
-          <option value="assistant">🤖 Ответ ассистента</option>
-        </select>
-      </div>
+let sessionCounter = 1;
 
-      <div style="text-align:center; margin-bottom:10px;">
-        <label for="lang-pair" style="font-weight:600;">Языковая пара:</label>
-        <select id="lang-pair" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
-          <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
-          <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
-          <option value="fr-ru">🇫🇷 FR ↔ 🇷🇺 RU</option>
-          <option value="de-ru">🇩🇪 DE ↔ 🇷🇺 RU</option>
-        </select>
-      </div>
+// === WebSocket ===
+wss.on("connection", (ws) => {
+  ws.sampleRate = 44100;
+  ws.sessionId = `sess-${sessionCounter++}`;
+  ws.chunkCounter = 0;
+  ws.send(`SESSION:${ws.sessionId}`);
+  console.log(`🎧 New connection: ${ws.sessionId}`);
 
-      <div class="controls" style="text-align:center; margin-bottom:10px;">
-        <button id="ctx-start" style="padding:10px 20px;border:none;border-radius:8px;background:#4caf50;color:#fff;">Start</button>
-        <button id="ctx-stop"  style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
-      </div>
-
-      <div id="ctx-log" style="white-space:pre-wrap;background:#fff;padding:10px;border-radius:8px;min-height:300px;border:1px solid #ccc;font-size:14px;overflow:auto;"></div>
-    </div>
-  `;
-
-  const logEl = mount.querySelector("#ctx-log");
-  const btnStart = mount.querySelector("#ctx-start");
-  const btnStop  = mount.querySelector("#ctx-stop");
-  const modeSel  = mount.querySelector("#capture-mode");
-  const procSel  = mount.querySelector("#process-mode");
-  const langSel  = mount.querySelector("#lang-pair");
-  const voiceSel = mount.querySelector("#voice-select");
-
-  const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
-  let ws, audioCtx, worklet, stream;
-  let buffer = [], total = 0, lastSend = 0, sampleRate = 44100, sessionId = null;
-
-  function log(msg) {
-    const linked = msg.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
-    const line = document.createElement("div");
-    line.innerHTML = linked;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-    console.log(msg);
-  }
-
-  function concat(chunks) {
-    const totalLen = chunks.reduce((a, b) => a + b.length, 0);
-    const res = new Float32Array(totalLen);
-    let offset = 0;
-    for (const part of chunks) {
-      res.set(part, offset);
-      offset += part.length;
-    }
-    return res;
-  }
-
-  function sendBlock(pad = false) {
-    if (!buffer.length) return;
-    let full = concat(buffer);
-    if (pad) {
-      const target = Math.round(sampleRate * 2);
-      if (full.length < target) {
-        const padded = new Float32Array(target);
-        padded.set(full);
-        full = padded;
-        log("🫧 Padded last block");
-      }
-    }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(full.buffer);
-      log("🎧 Sent " + full.byteLength + " bytes @ " + sampleRate + " Hz");
-    }
-    buffer = [];
-    total = 0;
-  }
-
-  btnStart.onclick = async () => {
-    try {
-      const mode = modeSel.value;
-      const processMode = procSel.value;
-      const langPair = langSel.value;
-      const voice = voiceSel.value;
-      log(`🎚️ Захват: ${mode.toUpperCase()} | 🧠 Обработка: ${processMode} | 🌐 Пара: ${langPair} | 🗣️ Голос: ${voice}`);
-
-      ws = new WebSocket(WS_URL);
-      ws.binaryType = "arraybuffer";
-      ws.onmessage = (e) => {
-        const msg = String(e.data);
-        if (msg.startsWith("SESSION:")) {
-          sessionId = msg.split(":")[1];
-          log("📩 SESSION:" + sessionId);
-        } else log("📩 " + msg);
-      };
-      ws.onclose = () => log("❌ Disconnected");
-
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      sampleRate = audioCtx.sampleRate;
-      log("🎛 Detected SampleRate: " + sampleRate + " Hz");
-      await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
-        log("✅ Connected to WebSocket server");
-      };
-
-      const constraints = (mode === "agc")
-        ? { audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } }
-        : { audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false } };
-
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      const source = audioCtx.createMediaStreamSource(stream);
-      worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-      source.connect(worklet);
-
-      const INTERVAL = 2000;
-      lastSend = performance.now();
-
-      worklet.port.onmessage = (e) => {
-        const chunk = e.data;
-        buffer.push(chunk);
-        total += chunk.length;
-        const now = performance.now();
-        if (now - lastSend >= INTERVAL) {
-          sendBlock();
-          lastSend = now;
+  ws.on("message", (data) => {
+    if (typeof data === "string") {
+      try {
+        const meta = JSON.parse(data);
+        if (meta.type === "meta") {
+          ws.sampleRate = meta.sampleRate;
+          ws.processMode = meta.processMode;
+          ws.langPair = meta.langPair;
+          return ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
         }
-      };
-
-      log("🎙️ Recording started");
-      btnStart.disabled = true;
-      btnStop.disabled = false;
-    } catch (err) {
-      log("❌ " + err.message);
+      } catch {}
+    } else {
+      const buf = Buffer.from(data);
+      const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+      const wav = floatToWav(f32, ws.sampleRate);
+      const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
+      fs.writeFileSync(filename, wav);
+      ws.send(`💾 Saved ${filename}`);
     }
-  };
+  });
 
-  btnStop.onclick = () => {
-    try {
-      sendBlock(true);
-      if (audioCtx) audioCtx.close();
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-      log("⏹️ Stopped");
-      btnStart.disabled = false;
-      btnStop.disabled = true;
+  ws.on("close", () => console.log(`❌ Closed ${ws.sessionId}`));
+});
 
-      setTimeout(async () => {
-        try {
-          if (!sessionId) return log("❔ Нет sessionId");
+// === Merge ===
+app.get("/merge", (req, res) => {
+  try {
+    const session = req.query.session;
+    if (!session) return res.status(400).send("No session");
 
-          log("🧩 Объединяем чанки...");
-          const merge = await fetch(`/merge?session=${sessionId}`);
-          if (!merge.ok) throw new Error(await merge.text());
-          const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
-          log(`💾 Файл готов: ${mergedUrl}`);
+    const files = fs.readdirSync(".")
+      .filter(f => f.startsWith(`${session}_chunk_`))
+      .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
 
-          log("🧠 Whisper → Распознаём...");
-          const w = await fetch(`/whisper?session=${sessionId}`);
-          const data = await w.json();
-          if (!w.ok) throw new Error(data?.error || "Whisper error");
-          const text = data.text || "";
-          log("🧠 Whisper → " + text);
+    if (!files.length) return res.status(404).send("No chunks");
 
-          let finalText = text;
-          const processMode = procSel.value;
-          const langPair = langSel.value;
-          const voice = voiceSel.value;
+    const headerSize = 44;
+    const first = fs.readFileSync(files[0]);
+    const sr = first.readUInt32LE(24);
+    const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
+    const totalPCM = Buffer.concat(pcms);
+    const merged = makeWav(totalPCM, sr);
+    const outFile = `${session}_merged.wav`;
+    fs.writeFileSync(outFile, merged);
+    console.log(`🧩 Merged ${outFile}`);
+    res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
+  } catch (err) {
+    console.error("❌ Merge error:", err);
+    res.status(500).send("Merge error");
+  }
+});
 
-          if (processMode === "translate" || processMode === "assistant") {
-            log("🤖 Отправляем в GPT...");
-            const body = { text, mode: processMode, langPair };
-            const gptRes = await fetch("/gpt", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body)
-            });
-            const gptData = await gptRes.json();
-            if (!gptRes.ok) throw new Error(gptData?.error || "GPT error");
-            finalText = gptData.text;
-            log("🤖 GPT → " + finalText);
-          }
+// === Whisper ===
+app.get("/whisper", async (req, res) => {
+  try {
+    const session = req.query.session;
+    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
+    const file = `${session}_merged.wav`;
+    if (!fs.existsSync(file)) return res.status(404).send("No file");
 
-          if (finalText) {
-            log("🔊 TTS → Озвучка...");
-            const tts = await fetch(`/tts?session=${sessionId}&text=${encodeURIComponent(finalText)}&voice=${voice}`);
-            const ttsData = await tts.json();
-            if (!tts.ok) throw new Error(ttsData?.error || "TTS error");
-            log(`🔊 Готово: ${ttsData.url}`);
-          }
-        } catch (e) {
-          log("❌ " + e.message);
-        }
-      }, 800);
-    } catch (e) {
-      log("❌ " + e.message);
+    const form = new FormData();
+    form.append("file", fs.createReadStream(file));
+    form.append("model", "whisper-1");
+
+    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || "Whisper error");
+    console.log("🧠 Whisper →", data.text);
+    res.json({ text: data.text });
+  } catch (e) {
+    console.error("❌ Whisper error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === GPT ===
+app.post("/gpt", async (req, res) => {
+  try {
+    const { text, mode, langPair } = req.body || {};
+    if (!text) return res.status(400).send("No text");
+
+    let prompt = text;
+    if (mode === "translate") {
+      const [from, to] = (langPair || "en-ru").split("-");
+      prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
+    } else if (mode === "assistant") {
+      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
     }
-  };
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error?.message || "GPT error");
+    const reply = data.choices?.[0]?.message?.content?.trim() || "";
+    console.log("🤖 GPT →", reply);
+    res.json({ text: reply });
+  } catch (e) {
+    console.error("❌ GPT error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === TTS (OpenAI Speech) ===
+app.get("/tts", async (req, res) => {
+  try {
+    const text = req.query.text || "";
+    const session = req.query.session || "tts";
+    const voice = req.query.voice || "alloy";
+    if (!text) return res.status(400).send("No text");
+    if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
+
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice,
+        input: text
+      })
+    });
+
+    if (!r.ok) throw new Error("TTS error: " + (await r.text()));
+
+    const audio = await r.arrayBuffer();
+    const file = `${session}_tts.mp3`;
+    fs.writeFileSync(file, Buffer.from(audio));
+    const url = `${BASE_URL}/${file}`;
+    console.log(`🔊 TTS ready: ${url}`);
+    res.json({ url });
+  } catch (e) {
+    console.error("❌ TTS error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === Helpers ===
+function floatToWav(f32, sampleRate = 44100) {
+  const buffer = Buffer.alloc(44 + f32.length * 2);
+  const view = new DataView(buffer.buffer);
+  view.setUint32(0, 0x52494646, false);
+  view.setUint32(4, 36 + f32.length * 2, true);
+  view.setUint32(8, 0x57415645, false);
+  view.setUint32(12, 0x666d7420, false);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  view.setUint32(36, 0x64617461, false);
+  view.setUint32(40, f32.length * 2, true);
+  let off = 44;
+  for (let i = 0; i < f32.length; i++) {
+    let s = Math.max(-1, Math.min(1, f32[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return buffer;
+}
+
+function makeWav(pcm, sr) {
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sr, 24);
+  header.writeUInt32LE(sr * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
 }
