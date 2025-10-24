@@ -1,9 +1,21 @@
-// ======== Context Module (v1.4 — process chain with GPT modes) ========
+// ======== Context Module (v1.5 — voice selector + OpenAI TTS integration) ========
 
 export async function render(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
       <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Server → Whisper → GPT → TTS</h2>
+
+      <div style="text-align:center; margin-bottom:10px;">
+        <label style="font-weight:600;">🧑 Голос озвучки:</label>
+        <select id="voice-select" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+          <option value="alloy">Alloy (универсальный)</option>
+          <option value="verse">Verse (бархатный мужской)</option>
+          <option value="echo">Echo (низкий тембр)</option>
+          <option value="breeze">Breeze (лёгкий мужской)</option>
+          <option value="coral">Coral (мягкий мужской)</option>
+          <option value="astra">Astra (женский)</option>
+        </select>
+      </div>
 
       <div style="text-align:center; margin-bottom:10px;">
         <label style="font-weight:600;">Режим захвата:</label>
@@ -48,13 +60,14 @@ export async function render(mount) {
   const modeSel  = mount.querySelector("#capture-mode");
   const procSel  = mount.querySelector("#process-mode");
   const langSel  = mount.querySelector("#lang-pair");
+  const voiceSel = mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
   let buffer = [], total = 0, lastSend = 0, sampleRate = 44100, sessionId = null;
 
   function log(msg) {
-    const linked = msg.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
+    const linked = msg.replace(/(https?:\/\/[^\\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     const line = document.createElement("div");
     line.innerHTML = linked;
     logEl.appendChild(line);
@@ -71,6 +84,7 @@ export async function render(mount) {
       const mode = modeSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
+      const voice = voiceSel.value;
 
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
@@ -90,7 +104,8 @@ export async function render(mount) {
 
       ws.onopen = () => {
         log("✅ Connected to WebSocket server");
-        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair }));
+        // отправляем voice вместе с метаданными (не ломает сервер, даже если он не использует voice)
+        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
       };
 
       const constraints = (mode === "agc")
@@ -174,7 +189,7 @@ export async function render(mount) {
           const merge = await fetch(`/merge?session=${sessionId}`);
           if (!merge.ok) throw new Error(await merge.text());
           const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
-          log(`💾 Файл готов: ${mergedUrl}`);
+          log(\`💾 Файл готов: \${mergedUrl}\`);
 
           log("🧠 Whisper → Распознаём...");
           const w = await fetch(`/whisper?session=${sessionId}`);
@@ -186,14 +201,11 @@ export async function render(mount) {
           let finalText = text;
           const processMode = procSel.value;
           const langPair = langSel.value;
+          const voice = voiceSel.value;
 
           if (processMode === "translate" || processMode === "assistant") {
             log("🤖 Отправляем в GPT...");
-            const body = {
-              text,
-              mode: processMode,
-              langPair
-            };
+            const body = { text, mode: processMode, langPair };
             const gptRes = await fetch("/gpt", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -207,10 +219,10 @@ export async function render(mount) {
 
           if (finalText) {
             log("🔊 TTS → Озвучка...");
-            const tts = await fetch(`/tts?session=${sessionId}&text=${encodeURIComponent(finalText)}`);
+            const tts = await fetch(`/tts?session=${sessionId}&voice=${encodeURIComponent(voice)}&text=${encodeURIComponent(finalText)}`);
             const ttsData = await tts.json();
             if (!tts.ok) throw new Error(ttsData?.error || "TTS error");
-            log(`🔊 Готово: ${ttsData.url}`);
+            log(\`🔊 Готово: \${ttsData.url}\`);
           }
         } catch (e) {
           logError(e);
