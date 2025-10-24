@@ -1,6 +1,5 @@
-// ======== Context Module (v1.0 — встраивание без iframe) ========
-// Этот модуль рендерит страницу "Context" прямо в <main>, без iframe.
-// Файлы модуля лежат в /context/. Требуется recorder-worklet.js рядом с module.js.
+// ======== Context Module (v1.1 — fix worklet path + errors) ========
+// Встраивание без iframe. Recorder Worklet грузим из /smart/context/
 
 export async function render(mount) {
   mount.innerHTML = `
@@ -14,7 +13,6 @@ export async function render(mount) {
     </div>
   `;
 
-  // ===== Состояние и элементы =====
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#ctx-start");
   const btnStop  = mount.querySelector("#ctx-stop");
@@ -39,6 +37,11 @@ export async function render(mount) {
     console.log(msg);
   }
 
+  function logError(err) {
+    console.error(err);
+    log('❌ Ошибка: ' + (err?.message || String(err)));
+  }
+
   function logLink(prefix, url, text) {
     const line = document.createElement("div");
     line.append(document.createTextNode(prefix + " "));
@@ -52,60 +55,71 @@ export async function render(mount) {
     console.log(prefix + " " + url);
   }
 
-  // ===== Старт записи =====
   btnStart.onclick = async () => {
-    ws = new WebSocket(WS_URL);
-    ws.binaryType = "arraybuffer";
+    try {
+      ws = new WebSocket(WS_URL);
+      ws.binaryType = "arraybuffer";
 
-    ws.onmessage = (e) => {
-      const msg = String(e.data);
-      if (msg.startsWith("SESSION:")) {
-        sessionId = msg.split(":")[1];
-        log('📩 SESSION:' + sessionId);
-      } else {
-        log('📩 ' + msg);
-      }
-    };
+      ws.onmessage = (e) => {
+        const msg = String(e.data);
+        if (msg.startsWith("SESSION:")) {
+          sessionId = msg.split(":")[1];
+          log('📩 SESSION:' + sessionId);
+        } else {
+          log('📩 ' + msg);
+        }
+      };
 
-    ws.onclose = () => log('❌ Disconnected');
+      ws.onclose = () => log('❌ Disconnected');
 
-    audioCtx = new AudioContext();
-    sampleRate = audioCtx.sampleRate;
-    log('🎛 Detected SampleRate: ' + sampleRate + ' Hz');
-    // recorder-worklet.js лежит в той же папке, поэтому путь такой
-    await audioCtx.audioWorklet.addModule('./recorder-worklet.js');
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sampleRate = audioCtx.sampleRate;
+      log('🎛 Detected SampleRate: ' + sampleRate + ' Hz');
 
-    ws.onopen = () => {
-      log('✅ Connected to WebSocket server');
-      ws.send(JSON.stringify({ type: 'meta', sampleRate }));
-    };
+      // ❗ ВАЖНО: путь относительно index.html в /smart/
+      // поэтому указываем "context/recorder-worklet.js"
+      await audioCtx.audioWorklet.addModule('context/recorder-worklet.js');
 
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { noiseSuppression: false, echoCancellation: false, autoGainControl: false }
-    });
+      ws.onopen = () => {
+        log('✅ Connected to WebSocket server');
+        ws.send(JSON.stringify({ type: 'meta', sampleRate }));
+      };
 
-    const source = audioCtx.createMediaStreamSource(stream);
-    worklet = new AudioWorkletNode(audioCtx, 'recorder-processor');
-    source.connect(worklet);
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: false, echoCancellation: false, autoGainControl: false }
+      });
 
-    const INTERVAL = 2000;
-    lastSend = performance.now();
+      const source = audioCtx.createMediaStreamSource(stream);
+      worklet = new AudioWorkletNode(audioCtx, 'recorder-processor');
+      source.connect(worklet);
 
-    worklet.port.onmessage = (e) => {
-      const chunk = e.data;
-      buffer.push(chunk);
-      total += chunk.length;
+      const INTERVAL = 2000;
+      lastSend = performance.now();
 
-      const now = performance.now();
-      if (now - lastSend >= INTERVAL) {
-        sendBlock();
-        lastSend = now;
-      }
-    };
+      worklet.port.onmessage = (e) => {
+        const chunk = e.data;
+        buffer.push(chunk);
+        total += chunk.length;
 
-    log('🎙️ Recording started');
-    btnStart.disabled = true;
-    btnStop.disabled = false;
+        const now = performance.now();
+        if (now - lastSend >= INTERVAL) {
+          sendBlock();
+          lastSend = now;
+        }
+      };
+
+      log('🎙️ Recording started');
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    } catch (err) {
+      logError(err);
+      // откатываем состояние
+      try { if (audioCtx) await audioCtx.close(); } catch {}
+      try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
+      try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch {}
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+    }
   };
 
   function concat(chunks) {
@@ -132,7 +146,7 @@ export async function render(mount) {
       }
     }
 
-    if (ws.readyState === WebSocket.OPEN) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(full.buffer);
       log('🎧 Sent ' + full.byteLength + ' bytes @ ' + sampleRate + ' Hz');
     }
@@ -141,49 +155,52 @@ export async function render(mount) {
     total = 0;
   }
 
-  // ===== Стоп и цепочка merge → whisper → tts =====
   btnStop.onclick = () => {
-    sendBlock(true);
-    if (audioCtx) audioCtx.close();
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-    log('⏹️ Stopped');
-    btnStart.disabled = false;
-    btnStop.disabled = true;
+    try {
+      sendBlock(true);
+      if (audioCtx) audioCtx.close();
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      log('⏹️ Stopped');
+      btnStart.disabled = false;
+      btnStop.disabled = true;
 
-    setTimeout(async () => {
-      try {
-        if (!sessionId) {
-          log('❔ Session ID неизвестен — невозможно объединить');
-          return;
+      setTimeout(async () => {
+        try {
+          if (!sessionId) {
+            log('❔ Session ID неизвестен — невозможно объединить');
+            return;
+          }
+
+          log('🧩 Отправляем запрос на объединение...');
+          const res = await fetch('/merge?session=' + encodeURIComponent(sessionId));
+          if (!res.ok) throw new Error(await res.text());
+
+          const mergedUrl = location.origin + '/' + sessionId + '_merged.wav';
+          logLink('💾 Готово:', mergedUrl, mergedUrl);
+
+          // 🧠 Whisper
+          log('🧠 Отправляем в Whisper...');
+          const w = await fetch('/whisper?session=' + encodeURIComponent(sessionId));
+          const data = await w.json();
+          if (!w.ok) throw new Error(data?.error || 'Whisper error');
+          log('🧠 Whisper → ' + (data.text || ''));
+
+          // 🔊 TTS — озвучка текста
+          if (data.text) {
+            log('🔊 Отправляем текст в TTS...');
+            const ttsRes = await fetch('/tts?session=' + encodeURIComponent(sessionId) + '&text=' + encodeURIComponent(data.text));
+            const ttsData = await ttsRes.json();
+            if (!ttsRes.ok) throw new Error(ttsData?.error || 'TTS error');
+            logLink('🔊 Озвучка:', ttsData.url, ttsData.url);
+          }
+
+        } catch (e) {
+          logError(e);
         }
-
-        log('🧩 Отправляем запрос на объединение...');
-        const res = await fetch('/merge?session=' + encodeURIComponent(sessionId));
-        if (!res.ok) throw new Error(await res.text());
-
-        const mergedUrl = location.origin + '/' + sessionId + '_merged.wav';
-        logLink('💾 Готово:', mergedUrl, mergedUrl);
-
-        // 🧠 Whisper
-        log('🧠 Отправляем в Whisper...');
-        const w = await fetch('/whisper?session=' + encodeURIComponent(sessionId));
-        const data = await w.json();
-        if (!w.ok) throw new Error(data?.error || 'Whisper error');
-        log('🧠 Whisper → ' + (data.text || ''));
-
-        // 🔊 TTS — озвучка текста
-        if (data.text) {
-          log('🔊 Отправляем текст в TTS...');
-          const ttsRes = await fetch('/tts?session=' + encodeURIComponent(sessionId) + '&text=' + encodeURIComponent(data.text));
-          const ttsData = await ttsRes.json();
-          if (!ttsRes.ok) throw new Error(ttsData?.error || 'TTS error');
-          logLink('🔊 Озвучка:', ttsData.url, ttsData.url);
-        }
-
-      } catch (e) {
-        log('❌ Ошибка: ' + e.message);
-      }
-    }, 800);
+      }, 800);
+    } catch (e) {
+      logError(e);
+    }
   };
 }
