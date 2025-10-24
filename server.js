@@ -13,15 +13,17 @@ const ROOT = path.resolve(".");
 const app = express();
 app.use(express.json());
 
-// ✅ два независимых сайта
-app.use(express.static(ROOT)); // основной сайт на /
-app.use("/smart", express.static(path.join(ROOT, "smart"))); // Smart Vision на /smart
+// ✅ порядок важен: сначала smart, потом корень
+app.use("/smart", express.static(path.join(ROOT, "smart"))); // отдельный проект
+app.use(express.static(ROOT)); // главный сайт в корне
 
-const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
+const server = app.listen(PORT, () =>
+  console.log(`🚀 Server started on port ${PORT}`)
+);
 const wss = new WebSocketServer({ server });
 
+// === WebSocket ===
 let sessionCounter = 1;
-
 wss.on("connection", (ws) => {
   ws.sampleRate = 44100;
   ws.sessionId = `sess-${sessionCounter++}`;
@@ -57,6 +59,8 @@ wss.on("connection", (ws) => {
 app.get("/merge", (req, res) => {
   try {
     const session = req.query.session;
+    if (!session) return res.status(400).send("No session");
+
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
       .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
@@ -66,7 +70,8 @@ app.get("/merge", (req, res) => {
     const first = fs.readFileSync(files[0]);
     const sr = first.readUInt32LE(24);
     const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
-    const merged = makeWav(Buffer.concat(pcms), sr);
+    const totalPCM = Buffer.concat(pcms);
+    const merged = makeWav(totalPCM, sr);
     const outFile = `${session}_merged.wav`;
     fs.writeFileSync(outFile, merged);
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
@@ -80,6 +85,8 @@ app.get("/whisper", async (req, res) => {
   try {
     const session = req.query.session;
     const file = `${session}_merged.wav`;
+    if (!fs.existsSync(file)) return res.status(404).send("No file");
+
     const form = new FormData();
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
@@ -87,7 +94,7 @@ app.get("/whisper", async (req, res) => {
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: form
+      body: form,
     });
     const data = await r.json();
     res.json({ text: data.text });
@@ -100,6 +107,8 @@ app.get("/whisper", async (req, res) => {
 app.post("/gpt", async (req, res) => {
   try {
     const { text, mode, langPair } = req.body;
+    if (!text) return res.status(400).send("No text");
+
     let prompt = text;
     if (mode === "translate") {
       const [from, to] = langPair.split("-");
@@ -112,13 +121,14 @@ app.post("/gpt", async (req, res) => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }]
-      })
+        messages: [{ role: "user", content: prompt }],
+      }),
     });
+
     const data = await r.json();
     res.json({ text: data.choices[0].message.content });
   } catch (e) {
@@ -130,18 +140,21 @@ app.post("/gpt", async (req, res) => {
 app.get("/tts", async (req, res) => {
   try {
     const { text, session, voice } = req.query;
+    if (!text) return res.status(400).send("No text");
+
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
         voice: voice || "alloy",
-        input: text
-      })
+        input: text,
+      }),
     });
+
     const audio = await r.arrayBuffer();
     const file = `${session}_tts.mp3`;
     fs.writeFileSync(file, Buffer.from(audio));
