@@ -1,59 +1,54 @@
-// ======== Context Module (v1.6 — voice bar + lang detect) ========
+// ======== Context Module (v1.5 — add voice selector) ========
 
 export async function render(mount) {
-  // === глобальный селектор голоса (всегда видим) ===
-  const voiceBar = document.createElement("div");
-  voiceBar.innerHTML = `
-    <div style="position:fixed;top:10px;left:10px;z-index:9999;
-                background:#fff;padding:6px 12px;border-radius:8px;
-                box-shadow:0 2px 6px rgba(0,0,0,0.15);font-size:14px;">
-      🧑 Голос:
-      <select id="global-voice" style="padding:4px 8px;">
-        <option value="alloy">Alloy</option>
-        <option value="verse">Verse</option>
-        <option value="echo">Echo</option>
-        <option value="breeze">Breeze</option>
-        <option value="coral">Coral</option>
-      </select>
-    </div>`;
-  document.body.appendChild(voiceBar);
-  const voiceSelGlobal = voiceBar.querySelector("#global-voice");
-  voiceSelGlobal.value = localStorage.getItem("voice") || "alloy";
-  voiceSelGlobal.onchange = () => localStorage.setItem("voice", voiceSelGlobal.value);
-
-  // === внутренняя разметка ===
   mount.innerHTML = `
-    <div style="background:#f2f2f2;border-radius:12px;padding:18px;margin-top:60px;">
-      <h2>🎧 Context v1 — Audio → Whisper → GPT → TTS</h2>
-      <div style="text-align:center;margin-bottom:10px;">
+    <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
+      <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Whisper → GPT → TTS</h2>
+
+      <div style="text-align:center; margin-bottom:10px;">
+        <label style="font-weight:600;">🧑 Голос озвучки:</label>
+        <select id="voice-select" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+          <option value="alloy">Alloy (универсальный)</option>
+          <option value="verse">Verse (бархатный мужской)</option>
+          <option value="echo">Echo (низкий тембр)</option>
+          <option value="breeze">Breeze (лёгкий мужской)</option>
+          <option value="coral">Coral (мягкий мужской)</option>
+        </select>
+      </div>
+
+      <div style="text-align:center; margin-bottom:10px;">
         <label for="capture-mode" style="font-weight:600;">Режим захвата:</label>
-        <select id="capture-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
+        <select id="capture-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
           <option value="raw">🎧 RAW — без обработки</option>
           <option value="agc">🧠 AGC — автоусиление и шумоподавление</option>
           <option value="gain">📢 GAIN — ручное усиление</option>
         </select>
       </div>
-      <div style="text-align:center;margin-bottom:10px;">
+
+      <div style="text-align:center; margin-bottom:10px;">
         <label for="process-mode" style="font-weight:600;">Режим обработки:</label>
-        <select id="process-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
+        <select id="process-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
           <option value="recognize">🎧 Только распознавание</option>
           <option value="translate">🔤 Перевод через GPT</option>
           <option value="assistant">🤖 Ответ ассистента</option>
         </select>
       </div>
-      <div style="text-align:center;margin-bottom:10px;">
+
+      <div style="text-align:center; margin-bottom:10px;">
         <label for="lang-pair" style="font-weight:600;">Языковая пара:</label>
-        <select id="lang-pair" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
+        <select id="lang-pair" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
           <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
           <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
           <option value="fr-ru">🇫🇷 FR ↔ 🇷🇺 RU</option>
           <option value="de-ru">🇩🇪 DE ↔ 🇷🇺 RU</option>
         </select>
       </div>
-      <div style="text-align:center;margin-bottom:10px;">
+
+      <div class="controls" style="text-align:center; margin-bottom:10px;">
         <button id="ctx-start" style="padding:10px 20px;border:none;border-radius:8px;background:#4caf50;color:#fff;">Start</button>
-        <button id="ctx-stop" style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
+        <button id="ctx-stop"  style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
       </div>
+
       <div id="ctx-log" style="white-space:pre-wrap;background:#fff;padding:10px;border-radius:8px;min-height:300px;border:1px solid #ccc;font-size:14px;overflow:auto;"></div>
     </div>
   `;
@@ -64,6 +59,7 @@ export async function render(mount) {
   const modeSel  = mount.querySelector("#capture-mode");
   const procSel  = mount.querySelector("#process-mode");
   const langSel  = mount.querySelector("#lang-pair");
+  const voiceSel = mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
@@ -109,23 +105,14 @@ export async function render(mount) {
     total = 0;
   }
 
-  // === определяем язык по алфавиту ===
-  function detectLang(text) {
-    if (/[а-яё]/i.test(text)) return "ru";
-    if (/[äöüß]/i.test(text)) return "de";
-    if (/[éèêàùç]/i.test(text)) return "fr";
-    if (/[áéíóúñ¿¡]/i.test(text)) return "es";
-    if (/[a-z]/i.test(text)) return "en";
-    return "en";
-  }
-
   btnStart.onclick = async () => {
     try {
       const mode = modeSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
-      const voice = localStorage.getItem("voice") || "alloy";
+      const voice = voiceSel.value;
       log(`🎚️ Захват: ${mode.toUpperCase()} | 🧠 Обработка: ${processMode} | 🌐 Пара: ${langPair} | 🗣️ Голос: ${voice}`);
+
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       ws.onmessage = (e) => {
@@ -136,23 +123,29 @@ export async function render(mount) {
         } else log("📩 " + msg);
       };
       ws.onclose = () => log("❌ Disconnected");
+
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       sampleRate = audioCtx.sampleRate;
       log("🎛 Detected SampleRate: " + sampleRate + " Hz");
       await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
+
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
         log("✅ Connected to WebSocket server");
       };
+
       const constraints = (mode === "agc")
         ? { audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } }
         : { audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false } };
+
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       source.connect(worklet);
+
       const INTERVAL = 2000;
       lastSend = performance.now();
+
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         buffer.push(chunk);
@@ -163,10 +156,13 @@ export async function render(mount) {
           lastSend = now;
         }
       };
+
       log("🎙️ Recording started");
       btnStart.disabled = true;
       btnStop.disabled = false;
-    } catch (err) { log("❌ " + err.message); }
+    } catch (err) {
+      log("❌ " + err.message);
+    }
   };
 
   btnStop.onclick = () => {
@@ -182,21 +178,24 @@ export async function render(mount) {
       setTimeout(async () => {
         try {
           if (!sessionId) return log("❔ Нет sessionId");
+
           log("🧩 Объединяем чанки...");
           const merge = await fetch(`/merge?session=${sessionId}`);
           if (!merge.ok) throw new Error(await merge.text());
           const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
           log(`💾 Файл готов: ${mergedUrl}`);
+
           log("🧠 Whisper → Распознаём...");
           const w = await fetch(`/whisper?session=${sessionId}`);
           const data = await w.json();
           if (!w.ok) throw new Error(data?.error || "Whisper error");
           const text = data.text || "";
           log("🧠 Whisper → " + text);
+
           let finalText = text;
           const processMode = procSel.value;
           const langPair = langSel.value;
-          const voice = localStorage.getItem("voice") || "alloy";
+          const voice = voiceSel.value;
 
           if (processMode === "translate" || processMode === "assistant") {
             log("🤖 Отправляем в GPT...");
@@ -213,16 +212,18 @@ export async function render(mount) {
           }
 
           if (finalText) {
-            const lang = detectLang(finalText);
-            log("🌐 Язык результата: " + lang);
             log("🔊 TTS → Озвучка...");
-            const tts = await fetch(`/tts?session=${sessionId}&text=${encodeURIComponent(finalText)}&voice=${voice}&lang=${lang}`);
+            const tts = await fetch(`/tts?session=${sessionId}&text=${encodeURIComponent(finalText)}&voice=${voice}`);
             const ttsData = await tts.json();
             if (!tts.ok) throw new Error(ttsData?.error || "TTS error");
             log(`🔊 Готово: ${ttsData.url}`);
           }
-        } catch (e) { log("❌ " + e.message); }
+        } catch (e) {
+          log("❌ " + e.message);
+        }
       }, 800);
-    } catch (e) { log("❌ " + e.message); }
+    } catch (e) {
+      log("❌ " + e.message);
+    }
   };
 }
