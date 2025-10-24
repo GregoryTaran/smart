@@ -1,4 +1,4 @@
-// ======== Smart Vision INDEX (v2.3 — Context авто-высота iframe) ========
+// ======== Smart Vision INDEX (v2.4 — Context без дублирования заголовка) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
@@ -129,14 +129,12 @@ function renderMain() {
         <p>Добро пожаловать в ваш Smart Vision Dashboard.</p>
       </section>`,
 
-    // ✅ Context теперь сам регулирует высоту (через postMessage)
+    // ✅ Исправлено: убран внешний заголовок и фон, оставлен только iframe
     context: `
       <section class="main-block">
-        <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
-          <h2 style="margin-top:0;">🎧 Context v1 — Audio → Server → Whisper</h2>
-          <iframe id="contextFrame" src="context/context.html"
-                  style="width:100%;border:none;border-radius:12px;background:#fff;"></iframe>
-        </div>
+        <iframe id="contextFrame"
+                src="context/context.html"
+                style="width:100%;border:none;border-radius:12px;background:#fff;"></iframe>
       </section>`,
 
     notfound: `<section class="main-block"><h2>Страница не найдена</h2></section>`
@@ -145,7 +143,7 @@ function renderMain() {
   root.main.innerHTML = content[STATE.page] || content.notfound;
   updateEnvButton();
 
-  // ✅ Слушаем сообщения от iframe, чтобы менять его высоту
+  // слушаем сообщения от iframe для авто-высоты
   const frame = document.getElementById("contextFrame");
   if (frame) {
     window.addEventListener("message", (e) => {
