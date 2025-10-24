@@ -1,4 +1,4 @@
-// ======== Smart Vision INDEX (v2.4 — Context без дублирования заголовка) ========
+// ======== Smart Vision INDEX (v2.4.1 — fix: iframe allow microphone) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
@@ -129,12 +129,13 @@ function renderMain() {
         <p>Добро пожаловать в ваш Smart Vision Dashboard.</p>
       </section>`,
 
-    // ✅ Исправлено: убран внешний заголовок и фон, оставлен только iframe
+    // ✅ ОСТАЛАСЬ ТОЛЬКО ОБЁРТКА iframe + разрешение на микрофон
     context: `
       <section class="main-block">
         <iframe id="contextFrame"
-                src="context/context.html"
-                style="width:100%;border:none;border-radius:12px;background:#fff;"></iframe>
+                src="context/context.html?v=${encodeURIComponent(CONFIG.VERSION)}"
+                allow="microphone; autoplay; clipboard-read; clipboard-write"
+                style="width:100%;border:none;border-radius:12px;background:#fff;position:relative;z-index:1;"></iframe>
       </section>`,
 
     notfound: `<section class="main-block"><h2>Страница не найдена</h2></section>`
@@ -143,7 +144,7 @@ function renderMain() {
   root.main.innerHTML = content[STATE.page] || content.notfound;
   updateEnvButton();
 
-  // слушаем сообщения от iframe для авто-высоты
+  // авто-высота из iframe
   const frame = document.getElementById("contextFrame");
   if (frame) {
     window.addEventListener("message", (e) => {
