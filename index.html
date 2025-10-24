@@ -34,6 +34,7 @@
   <p>Любая визия может стать дорогой.</p>
   <p>А дорога — источником внутреннего света.</p>
   <button id='contextBtn'>Перейти к контексту</button>
+  <button id="goToProjectBtn" style="margin-top:20px;background:#007BFF;color:white;border:none;border-radius:12px;padding:14px 30px;font-size:18px;">Перейти к проекту</button> <!-- Кнопка для перехода на проект -->
   <button id='testNotifyBtn' style='margin-top:20px;background:#fff;color:#000;border:2px solid #000;border-radius:10px;padding:12px 24px;font-size:16px;cursor:pointer;'>📨 Отправить уведомление: Вы прекрасны!</button>
   <footer>Грег Таран | 2025</footer>
   <script>
@@ -51,6 +52,11 @@
       document.body.appendChild(notifSection);
       function showDeniedMessage(){notifSection.innerHTML='<p>🔕 Уведомления отключены в настройках браузера.<br>Чтобы включить — перейдите в настройки сайта → <b>«Разрешить уведомления»</b>.</p><button id="openSettingsBtn">Открыть инструкцию</button>';const btn=notifSection.querySelector('#openSettingsBtn');btn.style='margin-top:10px;background:#ddd;color:#333;border:none;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;';btn.onclick=()=>{alert('Перейди в адресную строку → значок замка → Разрешения → Уведомления → Разрешить');};}}
     const testBtn=document.getElementById('testNotifyBtn');if(testBtn){testBtn.addEventListener('click',async()=>{if(Notification.permission==='granted'){new Notification('Smart Vision',{body:'Вы прекрасны! 💫',icon:'/icons/icon-192.png'});}else if(Notification.permission==='default'){const perm=await Notification.requestPermission();if(perm==='granted'){new Notification('Smart Vision',{body:'Вы прекрасны! 💫',icon:'/icons/icon-192.png'});}else{alert('Разреши уведомления, чтобы услышать комплимент 😉');}}else{alert('🔕 Уведомления отключены. Разреши их в настройках браузера.');}});}
+    
+    // Кнопка для перехода на проект
+    document.getElementById('goToProjectBtn').addEventListener('click', function() {
+      window.location.href = '/smart';  // Путь к проекту в папке smart
+    });
   </script>
 </body>
 </html>
