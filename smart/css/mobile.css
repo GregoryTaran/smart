@@ -1,11 +1,11 @@
-/* ======== Smart Vision Mobile (v3.9 – menu closed by default) ======== */
+/* ======== Smart Vision Mobile (v4 – простота) ======== */
 
 :root {
-  --menu-mobile: 80%;
-  --gray-bg: #f2f2f2;
+  --menu-mobile: 80%;  /* меню на 80% */
+  --content-mobile: 100%;  /* контент остаётся на 100% */
 }
 
-/* ---------- ОСНОВА ---------- */
+/* ---------- ОСНОВНАЯ СТРУКТУРА ---------- */
 body[data-env="mobile"] {
   display: flex;
   flex-direction: column;
@@ -17,6 +17,50 @@ body[data-env="mobile"] {
   overflow-x: hidden;
 }
 
+/* ---------- ОБЕРТКА ВСЕГО САЙТА ---------- */
+#wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* ---------- МЕНЮ ---------- */
+#side-menu {
+  width: var(--menu-mobile); /* меню на 80% */
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: #fff;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+  z-index: 1000;
+}
+
+/* Показать меню */
+body[data-env="mobile"].menu-open #side-menu {
+  transform: translateX(0); /* меню выезжает */
+}
+
+/* overlay */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 999;
+}
+body[data-env="mobile"].menu-open #overlay {
+  opacity: 1;
+  pointer-events: all;
+}
+
 /* ---------- ХЕДЕР ---------- */
 body[data-env="mobile"] header {
   display: flex;
@@ -26,7 +70,8 @@ body[data-env="mobile"] header {
   border-bottom: 1px solid #ddd;
   background: #fff;
   position: relative;
-  z-index: 11; /* шапка ниже меню и overlay */
+  z-index: 11;
+  padding-left: 16px; /* отступ для кнопки меню */
 }
 
 #menu-toggle {
@@ -46,57 +91,13 @@ body[data-env="mobile"] header {
   object-fit: contain;
 }
 
-/* ---------- МЕНЮ ---------- */
-#side-menu {
-  width: var(--menu-mobile);
-  height: 100vh;
-  position: fixed;
-  top: 0;
-  left: 0;
-  background: #fff;
-  box-shadow: 4px 0 15px rgba(0,0,0,0.1);
-  transform: translateX(-100%);
-  transition: transform 0.4s ease;
-  z-index: 1000; /* 🔼 меню всегда поверх всего на мобиле */
-}
-
-body[data-env="mobile"].menu-open #side-menu {
-  transform: translateX(0);
-}
-
-/* overlay */
-#overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.15);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-  z-index: 999; /* 🔼 overlay ниже меню, но выше шапки/контента */
-}
-body[data-env="mobile"].menu-open #overlay {
-  opacity: 1;
-  pointer-events: all;
-}
-
-/* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
+/* ---------- КОНТЕНТ ---------- */
 body[data-env="mobile"] main {
   flex: 1 0 auto;
   padding: 30px 20px 80px;
   text-align: center;
-}
-.main-block {
-  max-width: 600px;
-  margin: 0 auto;
-}
-.main-block h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 16px;
-}
-.main-block p {
-  font-size: 15px;
-  margin-bottom: 12px;
+  width: var(--content-mobile); /* контент остаётся на 100% */
+  margin-left: 0; /* контент не сдвигается */
 }
 
 /* ---------- ФУТЕР ---------- */
@@ -111,24 +112,6 @@ body[data-env="mobile"] footer {
   text-align: center;
   font-size: 14px;
   z-index: 9;
-}
-
-.env-btn {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 10px 18px;
-  font-size: 14px;
-  font-weight: 600;
-  background: #fff;
-  color: #000;
-  border: 1px solid #ccc;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-.env-btn:hover {
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
 /* ---------- МЕНЮ СПИСОК ---------- */
@@ -159,6 +142,7 @@ body[data-env="mobile"] footer {
   background: #eaeaea;
   font-weight: bold;
 }
+
 .menu-close {
   position: absolute;
   top: 16px;
@@ -171,5 +155,5 @@ body[data-env="mobile"] footer {
 
 /* ---------- ПРЕЛОАД ---------- */
 body.preload #side-menu {
-  transition: none !important; /* без анимации до инициализации JS */
+  transition: none !important;
 }
