@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import express from "express";
 import { WebSocketServer } from "ws";
 import fetch from "node-fetch";
@@ -7,25 +8,26 @@ import FormData from "form-data";
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
+const ROOT = path.resolve(".");
 
 const app = express();
 app.use(express.json());
 
-// ✅ раздаём папку smart как корень сайта
-app.use(express.static("smart"));
+// ✅ два независимых сайта
+app.use(express.static(ROOT)); // основной сайт на /
+app.use("/smart", express.static(path.join(ROOT, "smart"))); // Smart Vision на /smart
 
-const server = app.listen(PORT, () =>
-  console.log(`🚀 Server started on ${PORT}`)
-);
+const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
 const wss = new WebSocketServer({ server });
 
-// === WebSocket ===
 let sessionCounter = 1;
+
 wss.on("connection", (ws) => {
   ws.sampleRate = 44100;
   ws.sessionId = `sess-${sessionCounter++}`;
   ws.chunkCounter = 0;
   ws.send(`SESSION:${ws.sessionId}`);
+  console.log(`🎧 New connection: ${ws.sessionId}`);
 
   ws.on("message", (data) => {
     if (typeof data === "string") {
@@ -47,6 +49,8 @@ wss.on("connection", (ws) => {
       ws.send(`💾 Saved ${filename}`);
     }
   });
+
+  ws.on("close", () => console.log(`❌ Closed ${ws.sessionId}`));
 });
 
 // === Merge ===
@@ -56,6 +60,8 @@ app.get("/merge", (req, res) => {
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
       .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
+    if (!files.length) return res.status(404).send("No chunks");
+
     const headerSize = 44;
     const first = fs.readFileSync(files[0]);
     const sr = first.readUInt32LE(24);
@@ -145,6 +151,7 @@ app.get("/tts", async (req, res) => {
   }
 });
 
+// === helpers ===
 function floatToWav(f32, sampleRate) {
   const buffer = Buffer.alloc(44 + f32.length * 2);
   const view = new DataView(buffer.buffer);
