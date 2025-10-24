@@ -1,13 +1,22 @@
-// ======== Context Module (v1.7 — стабильная версия под smart/context) ========
+// ======== Context Module (v1.8 — возвращён выбор режима захвата RAW/AGC/GAIN) ========
 
 export async function render(mount) {
   mount.innerHTML = `
-    <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Whisper → GPT → TTS</h2>
+    <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
+      <h2 style="margin:0 0 12px 0;">🎧 Context — Audio → Whisper → GPT → TTS</h2>
 
-      <div style="text-align:center; margin-bottom:10px;">
+      <div style="text-align:center;margin-bottom:10px;">
+        <label style="font-weight:600;">🎙️ Режим захвата:</label>
+        <select id="capture-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
+          <option value="raw">RAW — без обработки</option>
+          <option value="agc">AGC — автоусиление и шумоподавление</option>
+          <option value="gain">GAIN — ручное усиление</option>
+        </select>
+      </div>
+
+      <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
-        <select id="voice-select" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+        <select id="voice-select" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
           <option value="alloy">Alloy (универсальный)</option>
           <option value="verse">Verse (бархатный мужской)</option>
           <option value="echo">Echo (низкий тембр)</option>
@@ -17,18 +26,18 @@ export async function render(mount) {
         </select>
       </div>
 
-      <div style="text-align:center; margin-bottom:10px;">
+      <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">Режим обработки:</label>
-        <select id="process-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+        <select id="process-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
           <option value="recognize">🎧 Только распознавание</option>
           <option value="translate">🔤 Перевод через GPT</option>
           <option value="assistant">🤖 Ответ ассистента</option>
         </select>
       </div>
 
-      <div style="text-align:center; margin-bottom:10px;">
+      <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">Языковая пара:</label>
-        <select id="lang-pair" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+        <select id="lang-pair" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
           <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
           <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
           <option value="fr-ru">🇫🇷 FR ↔ 🇷🇺 RU</option>
@@ -36,7 +45,7 @@ export async function render(mount) {
         </select>
       </div>
 
-      <div style="text-align:center; margin-bottom:10px;">
+      <div style="text-align:center;margin-bottom:10px;">
         <button id="ctx-start" style="padding:10px 20px;border:none;border-radius:8px;background:#4caf50;color:#fff;">Start</button>
         <button id="ctx-stop"  style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
       </div>
@@ -48,24 +57,25 @@ export async function render(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#ctx-start");
   const btnStop  = mount.querySelector("#ctx-stop");
+  const captureSel = mount.querySelector("#capture-mode");
   const procSel  = mount.querySelector("#process-mode");
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
-  let ws, audioCtx, worklet, stream, sessionId = null, sampleRate = 44100;
-  let buffer = [], lastSend = 0;
+  let ws, audioCtx, worklet, stream, gainNode;
+  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 
   function log(msg) {
     const div = document.createElement("div");
     div.innerHTML = msg.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
     logEl.appendChild(div);
     logEl.scrollTop = logEl.scrollHeight;
-    console.log(msg);
   }
 
   btnStart.onclick = async () => {
     try {
+      const mode = captureSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
@@ -83,30 +93,37 @@ export async function render(mount) {
       sampleRate = audioCtx.sampleRate;
       log("🎛 SampleRate: " + sampleRate + " Hz");
 
-      // ✅ путь для smart/context/
       await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
 
-
-
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "meta", sampleRate, processMode, langPair, voice }));
+        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
         log("✅ Connected to WebSocket");
       };
 
-      const streamConstraints = { audio: true };
-      stream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+      const constraints = {
+        audio: {
+          echoCancellation: mode === "agc",
+          noiseSuppression: mode === "agc",
+          autoGainControl: mode === "agc"
+        }
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-      source.connect(worklet);
 
-      const INTERVAL = 2000;
-      lastSend = performance.now();
+      if (mode === "gain") {
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = 2.0; // ручное усиление
+        source.connect(gainNode).connect(worklet);
+      } else {
+        source.connect(worklet);
+      }
 
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         buffer.push(chunk);
         const now = performance.now();
-        if (now - lastSend >= INTERVAL) {
+        if (now - lastSend >= 2000) {
           sendBlock();
           lastSend = now;
         }
