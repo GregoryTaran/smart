@@ -10,7 +10,9 @@ const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 
 const app = express();
 app.use(express.json());
-app.use(express.static("."));
+
+// ✅ теперь сервер раздаёт папку "smart" как корень сайта
+app.use(express.static("smart"));
 
 const server = app.listen(PORT, () => console.log(`🚀 Server started on ${PORT}`));
 const wss = new WebSocketServer({ server });
