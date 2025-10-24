@@ -1,4 +1,4 @@
-// ======== Smart Vision INDEX (v2.1 — добавлен Context как страница) ========
+// ======== Smart Vision INDEX (v2.3 — Context авто-высота iframe) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
@@ -14,11 +14,10 @@ const STATE = {
 
 const root = {};
 
-// Генерация уникального ID пользователя (оставляем, просто не выводим)
-let userCode = localStorage.getItem('userCode');
+let userCode = localStorage.getItem("userCode");
 if (!userCode) {
-  userCode = 'user-' + Math.random().toString(36).substring(2, 10);
-  localStorage.setItem('userCode', userCode);
+  userCode = "user-" + Math.random().toString(36).substring(2, 10);
+  localStorage.setItem("userCode", userCode);
 }
 STATE.user = { name: userCode };
 
@@ -48,6 +47,7 @@ function init() {
     setTimeout(() => (root.menu.style.transition = ""), 100);
   }
 
+  setPageFromHash();
   renderApp();
   attachGlobalEvents();
   initSwipe();
@@ -57,7 +57,6 @@ function init() {
   console.log(`✅ Smart Vision initialized (${STATE.env})`);
 }
 
-// ---------- RENDER ----------
 function renderApp() {
   renderHeader();
   renderMenuBlock();
@@ -66,7 +65,6 @@ function renderApp() {
   updateEnvButton();
 }
 
-// ---------- HEADER ----------
 function renderHeader() {
   root.header.innerHTML = `
     <button id="menu-toggle" aria-label="Открыть меню">☰</button>
@@ -75,14 +73,29 @@ function renderHeader() {
   document.getElementById("menu-toggle").onclick = toggleMenu;
 }
 
-// ---------- MENU ----------
 function renderMenuBlock() {
   root.menu.innerHTML = renderMenu(STATE.page, STATE.user);
   const closeBtn = document.getElementById("menu-close");
   if (closeBtn) closeBtn.onclick = closeMenu;
+
+  root.menu.addEventListener(
+    "click",
+    (e) => {
+      const a = e.target.closest("a[data-page]");
+      if (!a) return;
+      const next = a.dataset.page;
+      if (next && next !== STATE.page) {
+        STATE.page = next;
+        renderApp();
+        if (STATE.env === "mobile") closeMenu();
+        root.main.scrollIntoView({ behavior: "smooth", block: "start" });
+        e.preventDefault();
+      }
+    },
+    { once: true }
+  );
 }
 
-// ---------- MAIN ----------
 function renderMain() {
   const content = {
     home: `
@@ -90,56 +103,59 @@ function renderMain() {
         <h2>Главная страница</h2>
         <p>Добро пожаловать в Smart Vision — место, где ясность превращается в действие.</p>
       </section>`,
-
     about: `
       <section class="main-block">
         <h2>О нас</h2>
         <p>Smart Vision — проект ясности, фокуса и интеллекта как формы присутствия.</p>
       </section>`,
-
     policy: `
       <section class="main-block">
         <h2>Политика конфиденциальности</h2>
         <p>Smart Vision уважает вашу конфиденциальность и обрабатывает данные ответственно.</p>
       </section>`,
-
     terms: `
       <section class="main-block">
         <h2>Условия использования</h2>
         <p>Используя Smart Vision, вы соглашаетесь с нашими принципами ясности и ответственности.</p>
       </section>`,
-
     contacts: `
       <section class="main-block">
         <h2>Контакты</h2>
         <p>Связаться: <a href="mailto:info@smartvision.life">info@smartvision.life</a></p>
       </section>`,
-
     dashboard: `
       <section class="main-block">
         <h2>Личный кабинет</h2>
         <p>Добро пожаловать в ваш Smart Vision Dashboard.</p>
       </section>`,
 
-    // ✅ ДОБАВЛЕНО: новая страница Context (встраивает context.html внутрь main)
+    // ✅ Context теперь сам регулирует высоту (через postMessage)
     context: `
       <section class="main-block">
-        <h2>🎧 Context Audio → Whisper</h2>
-        <iframe src="context/context.html"
-                style="width:100%;height:80vh;border:none;border-radius:12px;background:#fff;"></iframe>
+        <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
+          <h2 style="margin-top:0;">🎧 Context v1 — Audio → Server → Whisper</h2>
+          <iframe id="contextFrame" src="context/context.html"
+                  style="width:100%;border:none;border-radius:12px;background:#fff;"></iframe>
+        </div>
       </section>`,
 
-    notfound: `
-      <section class="main-block">
-        <h2>Страница не найдена</h2>
-      </section>`
+    notfound: `<section class="main-block"><h2>Страница не найдена</h2></section>`
   };
 
   root.main.innerHTML = content[STATE.page] || content.notfound;
   updateEnvButton();
+
+  // ✅ Слушаем сообщения от iframe, чтобы менять его высоту
+  const frame = document.getElementById("contextFrame");
+  if (frame) {
+    window.addEventListener("message", (e) => {
+      if (e.data && e.data.type === "contextHeight") {
+        frame.style.height = e.data.height + "px";
+      }
+    });
+  }
 }
 
-// ---------- FOOTER ----------
 function renderFooter() {
   root.footer.innerHTML = `
     <a href="#policy">Политика конфиденциальности</a><br>
@@ -151,7 +167,6 @@ function renderFooter() {
   `;
 }
 
-// ---------- STATE BUTTON ----------
 function formatState() {
   const { env, user, page, uiFlags } = STATE;
   return `{ env:${env}, user:${user ? user.name : "guest"}, page:${page}, menu:${uiFlags.menuOpen} }`;
@@ -162,7 +177,6 @@ function updateEnvButton() {
   if (btn) btn.textContent = formatState();
 }
 
-// ---------- EVENTS ----------
 function attachGlobalEvents() {
   root.overlay.onclick = closeMenu;
   window.addEventListener("hashchange", setPageFromHash);
@@ -190,16 +204,15 @@ function setPageFromHash() {
   if (STATE.env === "mobile") closeMenu();
 }
 
-// ---------- SWIPE ----------
 let touchStartX = 0;
 let touchEndX = 0;
 
 function initSwipe() {
   if (STATE.env !== "mobile") return;
-  window.addEventListener("touchstart", e => {
+  window.addEventListener("touchstart", (e) => {
     touchStartX = e.changedTouches[0].screenX;
   });
-  window.addEventListener("touchend", e => {
+  window.addEventListener("touchend", (e) => {
     touchEndX = e.changedTouches[0].screenX;
     handleSwipe();
   });
