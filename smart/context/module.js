@@ -1,10 +1,18 @@
-// ======== Context Module (v1.1 — fix worklet path + errors) ========
+// ======== Context Module (v1.2 — add capture mode selector) ========
 // Встраивание без iframe. Recorder Worklet грузим из /smart/context/
 
 export async function render(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2; border-radius:12px; padding:18px;">
       <h2 style="margin:0 0 12px 0;">🎧 Context v1 — Audio → Server → Whisper</h2>
+      <div style="text-align:center; margin-bottom:10px;">
+        <label for="capture-mode" style="font-weight:600;">Режим захвата:</label>
+        <select id="capture-mode" style="margin-left:8px; padding:6px 10px; border-radius:6px;">
+          <option value="raw">🎧 RAW — без обработки (чистый микрофон)</option>
+          <option value="agc">🧠 AGC — автоусиление и шумоподавление</option>
+          <option value="gain">📢 GAIN — ручное усиление (громче, без фильтров)</option>
+        </select>
+      </div>
       <div class="controls" style="text-align:center; margin-bottom:10px;">
         <button id="ctx-start" style="padding:10px 20px;border:none;border-radius:8px;background:#4caf50;color:#fff;">Start</button>
         <button id="ctx-stop"  style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
@@ -16,6 +24,7 @@ export async function render(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#ctx-start");
   const btnStop  = mount.querySelector("#ctx-stop");
+  const modeSel  = mount.querySelector("#capture-mode");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
@@ -26,10 +35,7 @@ export async function render(mount) {
   let sessionId = null;
 
   function log(msg) {
-    const linked = msg.replace(
-      /(https?:\/\/[^\s]+)/g,
-      (url) => '<a href="' + url + '" target="_blank">' + url + '</a>'
-    );
+    const linked = msg.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     const line = document.createElement("div");
     line.innerHTML = linked;
     logEl.appendChild(line);
@@ -57,6 +63,9 @@ export async function render(mount) {
 
   btnStart.onclick = async () => {
     try {
+      const mode = modeSel.value;
+      log(`🎚️ Выбран режим: ${mode.toUpperCase()}`);
+
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
 
@@ -76,21 +85,29 @@ export async function render(mount) {
       sampleRate = audioCtx.sampleRate;
       log('🎛 Detected SampleRate: ' + sampleRate + ' Hz');
 
-      // ❗ ВАЖНО: путь относительно index.html в /smart/
-      // поэтому указываем "context/recorder-worklet.js"
       await audioCtx.audioWorklet.addModule('context/recorder-worklet.js');
 
       ws.onopen = () => {
         log('✅ Connected to WebSocket server');
-        ws.send(JSON.stringify({ type: 'meta', sampleRate }));
+        ws.send(JSON.stringify({ type: 'meta', sampleRate, mode }));
       };
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { noiseSuppression: false, echoCancellation: false, autoGainControl: false }
-      });
+      // выбираем параметры по режиму
+      let constraints;
+      if (mode === 'agc') {
+        constraints = { audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } };
+      } else {
+        constraints = { audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false } };
+      }
+
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, 'recorder-processor');
+
+      // передаём режим в worklet
+      worklet.port.postMessage({ mode });
+
       source.connect(worklet);
 
       const INTERVAL = 2000;
@@ -113,7 +130,6 @@ export async function render(mount) {
       btnStop.disabled = false;
     } catch (err) {
       logError(err);
-      // откатываем состояние
       try { if (audioCtx) await audioCtx.close(); } catch {}
       try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
       try { if (ws && ws.readyState === WebSocket.OPEN) ws.close(); } catch {}
@@ -179,14 +195,12 @@ export async function render(mount) {
           const mergedUrl = location.origin + '/' + sessionId + '_merged.wav';
           logLink('💾 Готово:', mergedUrl, mergedUrl);
 
-          // 🧠 Whisper
           log('🧠 Отправляем в Whisper...');
           const w = await fetch('/whisper?session=' + encodeURIComponent(sessionId));
           const data = await w.json();
           if (!w.ok) throw new Error(data?.error || 'Whisper error');
           log('🧠 Whisper → ' + (data.text || ''));
 
-          // 🔊 TTS — озвучка текста
           if (data.text) {
             log('🔊 Отправляем текст в TTS...');
             const ttsRes = await fetch('/tts?session=' + encodeURIComponent(sessionId) + '&text=' + encodeURIComponent(data.text));
