@@ -12,7 +12,7 @@ app.use(express.json());
 
 const PUBLIC_BASE_URL = (process.env.BASE_PUBLIC_URL || "https://test.smartvision.life").replace(/\/$/, "");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY; // (не используется в /tts после замены)
 
 let sessionCounter = 1;
 
@@ -128,7 +128,7 @@ app.get("/whisper", async (req, res) => {
   }
 });
 
-// 🤖 GPT — перевод или ответ ассистента (улучшенная версия)
+// 🤖 GPT — перевод или ответ ассистента (двунаправленно по паре)
 app.post("/gpt", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
@@ -171,37 +171,35 @@ app.post("/gpt", async (req, res) => {
   }
 });
 
-// 🔊 TTS — Google Cloud
+// 🔊 TTS — OpenAI (gpt-4o-mini-tts)
 app.get("/tts", async (req, res) => {
   try {
-    if (!GOOGLE_API_KEY) return res.status(500).send("Missing GOOGLE_API_KEY");
+    if (!OPENAI_API_KEY) return res.status(500).send("Missing OPENAI_API_KEY");
     const text = (req.query.text || "").trim();
     const session = (req.query.session || "tts").trim();
     if (!text) return res.status(400).send("No text provided");
 
-    const body = {
-      input: { text },
-      voice: { languageCode: "ru-RU", name: "ru-RU-Wavenet-D" },
-      audioConfig: { audioEncoding: "MP3", speakingRate: 1.0 },
-    };
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice: "alloy",     // варианты: alloy, verse, echo, shimmer, breeze, coral, etc.
+        format: "mp3",
+        input: text
+      })
+    });
 
-    const r = await fetch(
-      `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }
-    );
-
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || "TTS error");
-
-    const audio = Buffer.from(data.audioContent, "base64");
+    if (!r.ok) throw new Error(await r.text());
+    const arrayBuffer = await r.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
     const outFile = `${session}_tts.mp3`;
-    fs.writeFileSync(outFile, audio);
+    fs.writeFileSync(outFile, buffer);
     const url = `${PUBLIC_BASE_URL}/${outFile}`;
-    console.log(`🔊 TTS ready: ${url}`);
+    console.log(`🔊 OpenAI TTS ready: ${url}`);
     res.json({ url });
   } catch (e) {
     console.error("❌ TTS error:", e);
@@ -227,7 +225,7 @@ function floatToWav(float32Array, sampleRate = 44100) {
   view.setUint32(36, 0x64617461, false);
   view.setUint32(40, float32Array.length * 2, true);
 
-  let offset = 44;
+    let offset = 44;
   for (let i = 0; i < float32Array.length; i++) {
     let s = Math.max(-1, Math.min(1, float32Array[i]));
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
