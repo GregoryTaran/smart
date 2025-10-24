@@ -1,4 +1,4 @@
-// ======== Context Module (v1.5 — voice selector + OpenAI TTS integration) ========
+// ======== Context Module (v1.6 — voice selector + OpenAI TTS integration, fixed path) ========
 
 export async function render(mount) {
   mount.innerHTML = `
@@ -67,7 +67,7 @@ export async function render(mount) {
   let buffer = [], total = 0, lastSend = 0, sampleRate = 44100, sessionId = null;
 
   function log(msg) {
-    const linked = msg.replace(/(https?:\/\/[^\\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
+    const linked = msg.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a href="${url}" target="_blank">${url}</a>`);
     const line = document.createElement("div");
     line.innerHTML = linked;
     logEl.appendChild(line);
@@ -100,11 +100,10 @@ export async function render(mount) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       sampleRate = audioCtx.sampleRate;
       log("🎛 Detected SampleRate: " + sampleRate + " Hz");
-      await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
+      await audioCtx.audioWorklet.addModule("recorder-worklet.js"); // ✅ исправлен путь
 
       ws.onopen = () => {
         log("✅ Connected to WebSocket server");
-        // отправляем voice вместе с метаданными (не ломает сервер, даже если он не использует voice)
         ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
       };
 
@@ -189,7 +188,7 @@ export async function render(mount) {
           const merge = await fetch(`/merge?session=${sessionId}`);
           if (!merge.ok) throw new Error(await merge.text());
           const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
-          log(\`💾 Файл готов: \${mergedUrl}\`);
+          log(`💾 Файл готов: ${mergedUrl}`);
 
           log("🧠 Whisper → Распознаём...");
           const w = await fetch(`/whisper?session=${sessionId}`);
@@ -222,7 +221,7 @@ export async function render(mount) {
             const tts = await fetch(`/tts?session=${sessionId}&voice=${encodeURIComponent(voice)}&text=${encodeURIComponent(finalText)}`);
             const ttsData = await tts.json();
             if (!tts.ok) throw new Error(ttsData?.error || "TTS error");
-            log(\`🔊 Готово: \${ttsData.url}\`);
+            log(`🔊 Готово: ${ttsData.url}`);
           }
         } catch (e) {
           logError(e);
