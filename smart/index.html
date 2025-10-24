@@ -8,28 +8,36 @@
   <!-- 1️⃣ Базовый стиль -->
   <link rel="stylesheet" href="css/base.css" />
 
-  <!-- 2️⃣ Автоподключение нужного env-стиля -->
+  <!-- 2️⃣ Автоподключение нужного env-стиля с надёжной инициализацией -->
   <script>
-    const env = window.innerWidth <= 768 ? "mobile" : "desktop";
-    document.documentElement.setAttribute("data-env", env);
-    window.SMART_ENV = env;
+    (function() {
+      const env = window.innerWidth <= 768 ? "mobile" : "desktop";
+      document.documentElement.setAttribute("data-env", env);
+      window.SMART_ENV = env;
 
-    // Создаём ссылку на нужный стиль
-    const envStyle = document.createElement("link");
-    envStyle.rel = "stylesheet";
-    envStyle.href = `css/${env}.css`;
+      const envStyle = document.createElement("link");
+      envStyle.rel = "stylesheet";
+      envStyle.href = `css/${env}.css`;
 
-    // Когда стиль загружен — подключаем JS
-    envStyle.addEventListener("load", () => {
-      console.log(`🎨 Стиль ${env}.css загружен`);
-      const app = document.createElement("script");
-      app.type = "module";
-      app.src = "js/index.js";
-      document.head.appendChild(app);
-    });
+      function startApp() {
+        console.log(`🎨 ${env}.css загружен и применён`);
+        setTimeout(() => {
+          const app = document.createElement("script");
+          app.type = "module";
+          app.src = "js/index.js";
+          document.head.appendChild(app);
+        }, 200); // 👈 пауза 200мс, Render успевает применить CSS
+      }
 
-    // Добавляем стиль до DOMContentLoaded — браузер начнёт загрузку сразу
-    document.head.appendChild(envStyle);
+      // проверка загрузки
+      envStyle.onload = startApp;
+      envStyle.onerror = () => {
+        console.warn("⚠️ Ошибка загрузки CSS, повтор через 300мс...");
+        setTimeout(() => document.head.appendChild(envStyle.cloneNode()), 300);
+      };
+
+      document.head.appendChild(envStyle);
+    })();
   </script>
 </head>
 
