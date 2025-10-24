@@ -80,7 +80,35 @@ app.get("/merge", (req, res) => {
   }
 });
 
+
 // === Whisper ===
+app.get("/whisper", async (req, res) => {
+  try {
+    const session = req.query.session;
+    const file = `${session}_merged.wav`;
+    if (!fs.existsSync(file)) return res.status(404).send("No file");
+
+    const form = new FormData();
+    form.append("file", fs.createReadStream(file));
+    form.append("model", "whisper-1");
+
+    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+    });
+    const data = await r.json();
+
+    // Get detected language from Whisper's result
+    const detectedLang = data.language || "unknown";
+    console.log("Detected language:", detectedLang);  // For debugging purposes
+
+    res.json({ text: data.text, language: detectedLang });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/whisper", async (req, res) => {
   try {
     const session = req.query.session;
@@ -103,7 +131,56 @@ app.get("/whisper", async (req, res) => {
   }
 });
 
+
 // === GPT ===
+app.post("/gpt", async (req, res) => {
+  try {
+    const { text, mode, langPair, detectedLang } = req.body;
+    if (!text) return res.status(400).send("No text");
+
+    let prompt = text;
+    const [from, to] = langPair.split("-");
+
+    // Determine the direction of translation based on detected language
+    let fromLang = detectedLang;
+    let toLang = to;
+
+    // If the detected language matches the first language in langPair, use that for 'from'
+    if (from === detectedLang) {
+      fromLang = from;
+      toLang = to;
+    } else {
+      // If it's the reverse direction, swap
+      fromLang = to;
+      toLang = from;
+    }
+
+    // Modify prompt based on the translation direction
+    if (mode === "translate") {
+      prompt = `Translate from ${fromLang.toUpperCase()} to ${toLang.toUpperCase()}: ${text}`;
+    } else if (mode === "assistant") {
+      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
+    }
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await r.json();
+    res.json({ text: data.choices[0].message.content });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post("/gpt", async (req, res) => {
   try {
     const { text, mode, langPair } = req.body;
