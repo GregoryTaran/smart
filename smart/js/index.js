@@ -12,11 +12,11 @@ const STATE = {
 
 const root = {};
 
-// Генерация уникального ID пользователя
+// Генерация уникального ID пользователя (оставляем, просто не выводим)
 let userCode = localStorage.getItem('userCode');
 if (!userCode) {
-  userCode = 'user-' + Math.random().toString(36).substring(2, 10); // Генерация случайного ID
-  localStorage.setItem('userCode', userCode); // Сохраняем в localStorage
+  userCode = 'user-' + Math.random().toString(36).substring(2, 10);
+  localStorage.setItem('userCode', userCode);
 }
 STATE.user = { name: userCode };
 
@@ -36,16 +36,14 @@ function init() {
 
   document.body.dataset.env = STATE.env;
 
-  // 🔹 Меню по умолчанию закрыто
   document.body.classList.remove("menu-open");
   STATE.uiFlags.menuOpen = false;
 
-  // 🔹 Если desktop — открываем без анимации
   if (STATE.env === "desktop") {
     root.menu.style.transition = "none";
     document.body.classList.add("menu-open");
     STATE.uiFlags.menuOpen = true;
-    setTimeout(() => (root.menu.style.transition = ""), 100); // возвращаем плавность
+    setTimeout(() => (root.menu.style.transition = ""), 100);
   }
 
   renderApp();
@@ -68,11 +66,9 @@ function renderApp() {
 
 // ---------- HEADER ----------
 function renderHeader() {
-  const userLabel = STATE.user ? STATE.user.name : "Гость";
   root.header.innerHTML = `
     <button id="menu-toggle" aria-label="Открыть меню">☰</button>
     <div id="logo-wrap"><img src="assets/logo400.jpg" alt="Smart Vision" id="logo"></div>
-    <div class="user-label">${userLabel}</div>
   `;
   document.getElementById("menu-toggle").onclick = toggleMenu;
 }
@@ -159,7 +155,7 @@ function attachGlobalEvents() {
 function toggleMenu() {
   STATE.uiFlags.menuOpen = !STATE.uiFlags.menuOpen;
   document.body.classList.toggle("menu-open", STATE.uiFlags.menuOpen);
-  document.body.classList.toggle("menu-closed", !STATE.uiFlags.menuOpen);  // Добавлено
+  document.body.classList.toggle("menu-closed", !STATE.uiFlags.menuOpen);
   updateEnvButton();
 }
 

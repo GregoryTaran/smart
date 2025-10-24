@@ -1,34 +1,44 @@
-/* ======== Smart Vision Desktop (v4 – fixed 1000 layout) ======== */
+/* ======== Smart Vision Desktop (v10 – proportional layout 30/70, scroll fixed) ======== */
 
 :root {
-  --menu-desktop: 350px;
-  --page-width: 1000px;
-  --gray-bg: #f2f2f2;
+  --layout-width: 1000px; /* общая ширина сайта */
 }
 
 /* ---------- ОСНОВА ---------- */
+html, body {
+  height: 100%;
+  overflow-y: auto; /* включает прокрутку */
+}
+
 body[data-env="desktop"] {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  min-height: 100vh;
   background: #fff;
   color: #111;
   font-family: "Open Sans", system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
   overflow-x: hidden;
+}
+
+/* ---------- КАРКАС ---------- */
+#wrapper {
+  width: var(--layout-width);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start; /* контент не тянется на всю высоту */
+  height: auto;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
 }
 
 /* ---------- МЕНЮ ---------- */
 #side-menu {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: var(--menu-desktop);
-  height: 100vh;
+  width: 30%; /* меню занимает 30% ширины */
   background: #fff;
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
-  z-index: 10;
-  padding-top: 70px;
+  border-right: 1px solid #ddd;
+  min-height: 100vh;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .menu-header {
@@ -49,6 +59,7 @@ body[data-env="desktop"] {
   text-decoration: none;
   font-size: 16px;
   border-bottom: 1px solid #f1f1f1;
+  transition: background 0.25s;
 }
 .menu-list a:hover {
   background: #f8f8f8;
@@ -57,15 +68,17 @@ body[data-env="desktop"] {
   background: #eaeaea;
   font-weight: bold;
 }
+.menu-close {
+  display: none; /* стрелка не нужна на ПК */
+}
 
-/* ---------- КОНТЕНТНАЯ ОБЛАСТЬ ---------- */
-#wrapper {
-  margin-left: var(--menu-desktop);
-  max-width: var(--page-width);
-  width: 100%;
+/* ---------- КОНТЕНТ ---------- */
+.content-zone {
+  width: 70%; /* контентная зона — 70% */
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* ---------- HEADER ---------- */
@@ -76,17 +89,11 @@ body[data-env="desktop"] header {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: sticky;
-  top: 0;
-  z-index: 5;
 }
-
 #menu-toggle {
   display: none; /* меню всегда открыто */
 }
-
 #logo {
-  display: block;
   max-width: 300px;
   height: auto;
   object-fit: contain;
@@ -94,8 +101,8 @@ body[data-env="desktop"] header {
 
 /* ---------- MAIN ---------- */
 body[data-env="desktop"] main {
-  flex: 1 0 auto;
-  padding: 60px 40px 80px;
+  flex: 1;
+  padding: 40px 30px 60px;
   text-align: center;
 }
 
@@ -108,7 +115,7 @@ body[data-env="desktop"] footer {
   font-size: 14px;
 }
 
-/* ---------- ДРУГОЕ ---------- */
+/* ---------- КНОПКА СОСТОЯНИЯ ---------- */
 .env-btn {
   margin-top: 8px;
   padding: 10px 18px;
@@ -123,6 +130,7 @@ body[data-env="desktop"] footer {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+/* ---------- OVERLAY ---------- */
 #overlay {
   display: none;
 }
