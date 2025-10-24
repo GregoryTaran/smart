@@ -1,25 +1,21 @@
-/* ======== Smart Vision Desktop (v3.9 – unified visual style) ======== */
+/* ======== Smart Vision Desktop (v4 – fixed 1000 layout) ======== */
 
 :root {
-  --menu-desktop: 350px; /* ширина меню */
+  --menu-desktop: 350px;
+  --page-width: 1000px;
   --gray-bg: #f2f2f2;
 }
 
 /* ---------- ОСНОВА ---------- */
 body[data-env="desktop"] {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  justify-content: center;
   min-height: 100vh;
   background: #fff;
   color: #111;
   font-family: "Open Sans", system-ui, sans-serif;
-  line-height: 1.5;
   overflow-x: hidden;
-}
-
-/* ---------- Контейнер оборачивает весь контент */
-#wrapper {
-  transition: transform 0.4s ease; /* плавный сдвиг */
 }
 
 /* ---------- МЕНЮ ---------- */
@@ -30,91 +26,11 @@ body[data-env="desktop"] {
   width: var(--menu-desktop);
   height: 100vh;
   background: #fff;
-  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
-  transform: translateX(-100%);
-  transition: transform 0.4s ease;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
   z-index: 10;
+  padding-top: 70px;
 }
 
-body[data-env="desktop"].menu-open #side-menu {
-  transform: translateX(0);
-}
-
-/* ---------- HEADER ---------- */
-body[data-env="desktop"] header {
-  position: fixed;
-  top: 0;
-  left: var(--menu-desktop);
-  right: 0;
-  height: 70px;
-  background: #fff;
-  border-bottom: 1px solid #ddd;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9;
-}
-
-/* кнопка меню */
-#menu-toggle {
-  position: absolute;
-  left: 24px;
-  font-size: 26px;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-#logo {
-  display: block;
-  max-width: 300px;
-  height: auto;
-  object-fit: contain;
-}
-
-/* ---------- MAIN ---------- */
-body[data-env="desktop"] main {
-  padding: 100px 40px 80px;
-  text-align: center;
-  transition: transform 0.4s ease; /* плавный сдвиг */
-}
-
-/* ---------- Сдвиг контента (весь wrapper) ---------- */
-body[data-env="desktop"].menu-open #wrapper {
-  transform: translateX(var(--menu-desktop)); /* сдвигаем контейнер */
-}
-
-/* ---------- FOOTER ---------- */
-body[data-env="desktop"] footer {
-  border-top: 1px solid #ddd;
-  background: #fff;
-  text-align: center;
-  padding: 14px 0 16px;
-  font-size: 14px;
-  position: relative;
-  z-index: 8;
-}
-
-/* ---------- КНОПКИ И СТИЛИ ---------- */
-.env-btn {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 10px 18px;
-  font-size: 14px;
-  font-weight: 600;
-  background: #fff;
-  color: #000;
-  border: 1px solid #ccc;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-.env-btn:hover {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* ---------- МЕНЮ СПИСОК ---------- */
 .menu-header {
   font-weight: bold;
   padding: 16px;
@@ -133,7 +49,6 @@ body[data-env="desktop"] footer {
   text-decoration: none;
   font-size: 16px;
   border-bottom: 1px solid #f1f1f1;
-  transition: background 0.25s;
 }
 .menu-list a:hover {
   background: #f8f8f8;
@@ -142,16 +57,72 @@ body[data-env="desktop"] footer {
   background: #eaeaea;
   font-weight: bold;
 }
-.menu-close {
-  display: none; /* не нужно на десктопе */
+
+/* ---------- КОНТЕНТНАЯ ОБЛАСТЬ ---------- */
+#wrapper {
+  margin-left: var(--menu-desktop);
+  max-width: var(--page-width);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-/* ---------- OVERLAY ---------- */
+/* ---------- HEADER ---------- */
+body[data-env="desktop"] header {
+  height: 70px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+#menu-toggle {
+  display: none; /* меню всегда открыто */
+}
+
+#logo {
+  display: block;
+  max-width: 300px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* ---------- MAIN ---------- */
+body[data-env="desktop"] main {
+  flex: 1 0 auto;
+  padding: 60px 40px 80px;
+  text-align: center;
+}
+
+/* ---------- FOOTER ---------- */
+body[data-env="desktop"] footer {
+  border-top: 1px solid #ddd;
+  background: #fff;
+  text-align: center;
+  padding: 14px 0 16px;
+  font-size: 14px;
+}
+
+/* ---------- ДРУГОЕ ---------- */
+.env-btn {
+  margin-top: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.env-btn:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
 #overlay {
   display: none;
-}
-
-/* ---------- ПРЕЛОАД ---------- */
-body.preload #side-menu {
-  transition: none !important;
 }
