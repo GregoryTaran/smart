@@ -1,11 +1,10 @@
-// ======== Smart Vision CONFIG (v2.3 — добавлен модуль Translator) ========
+// ======== Smart Vision CONFIG (v3.0 — явные пути модулей) ========
 
 export const CONFIG = {
   BASE_URL: "https://test.smartvision.life/",
-  VERSION: "2.3.0",
+  VERSION: "3.0.0",
   PROJECT_NAME: "Smart Vision Design",
 
-  // Основные страницы
   PAGES: [
     { id: "home", label: "Главная" },
     { id: "policy", label: "Политика конфиденциальности" },
@@ -14,10 +13,10 @@ export const CONFIG = {
     { id: "contacts", label: "Контакты" },
     { id: "dashboard", label: "Личный кабинет" },
 
-    // 🎧 Context — старый модуль
-    { id: "context", label: "🎧 Context Audio", module: "context" },
+    // 🎧 Context
+    { id: "context", label: "🎧 Context Audio", module: "context/module.js" },
 
-    // 🗣️ Translator — новый модуль "Переводчик-Суфлёр"
-    { id: "translator", label: "🗣️ Переводчик-Суфлёр", module: "translator" }
+    // 🗣️ Translator
+    { id: "translator", label: "🗣️ Переводчик-Суфлёр", module: "translator/translator.js" }
   ]
 };

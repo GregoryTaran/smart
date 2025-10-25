@@ -1,4 +1,4 @@
-// ======== Smart Vision INDEX (v2.7 — ленивый импорт Translator) ========
+// ======== Smart Vision INDEX (v3.0 — универсальная загрузка модулей) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
@@ -100,23 +100,16 @@ function renderMenuBlock() {
 async function renderMain() {
   const pageCfg = CONFIG.PAGES.find((p) => p.id === STATE.page);
 
-  // 🟢 Ленивый импорт translator.js
-  if (STATE.page === "translator") {
-    root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
-    const mount = document.getElementById("module-root");
-    const { renderTranslator } = await import("../translator/translator.js");
-    renderTranslator(mount);
-    return;
-  }
-
+  // Универсальная логика: если у страницы есть модуль → грузим по пути
   if (pageCfg && pageCfg.module) {
     root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
     const mount = document.getElementById("module-root");
-    loadModule(pageCfg.module, mount);
+    await loadModule(pageCfg.module, mount);
     updateEnvButton();
     return;
   }
 
+  // Статические страницы
   const content = {
     home: `
       <section class="main-block">
@@ -155,12 +148,15 @@ async function renderMain() {
   updateEnvButton();
 }
 
-async function loadModule(moduleName, mountEl) {
+async function loadModule(modulePath, mountEl) {
   try {
-    const url = `../${moduleName}/module.js?v=${encodeURIComponent(CONFIG.VERSION)}`;
+    const url = `../${modulePath}?v=${encodeURIComponent(CONFIG.VERSION)}`;
     const mod = await import(url);
+
     if (typeof mod.render === "function") {
       await mod.render(mountEl);
+    } else if (typeof mod.renderTranslator === "function") {
+      await mod.renderTranslator(mountEl);
     } else {
       mountEl.innerHTML = "<p>Модуль не содержит render()</p>";
     }
