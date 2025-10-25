@@ -259,6 +259,11 @@ app.get("/tts", async (req, res) => {
     const file = `${session}_tts.mp3`;
     fs.writeFileSync(file, Buffer.from(audio));
     res.json({ url: `${BASE_URL}/${file}` });
+
+    // Добавляем слово "ХОРОШО" после завершения
+    const message = "ХОРОШО";
+    console.log(`Отправка на клиент: ${message}`);
+    ws.send(message); // Отправляем "ХОРОШО" на клиент
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
