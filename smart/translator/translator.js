@@ -3,7 +3,7 @@
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр</h2>
+      <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр 1</h2>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
