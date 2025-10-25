@@ -102,6 +102,7 @@ export async function renderTranslator(mount) {
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         buffer.push(chunk);
+        checkSilence(chunk); // 💡 проверяем тишину на каждом чанке
         const now = performance.now();
         if (now - lastSend >= 1000) { // Отправляем чанки каждую секунду
           sendBlock();
@@ -129,7 +130,7 @@ export async function renderTranslator(mount) {
     return out;
   }
 
-  function sendBlock() {
+  function sendBlock(force = false) {
     if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
     const full = concat(buffer);
     ws.send(full.buffer);
@@ -139,15 +140,20 @@ export async function renderTranslator(mount) {
 
   // Отправляем сигнал серверу, когда клиент замолкает
   let silenceTimer = null;
-  function checkSilence() {
-    const level = rms(buffer[buffer.length - 1]);
+  function checkSilence(chunk) {
+    const level = rms(chunk);
     if (level < 0.01) {
       if (!silenceTimer) {
         silenceTimer = setTimeout(() => {
-          // Отправляем сигнал серверу для склеивания
           ws.send(JSON.stringify({ type: "silence" }));
+          log("🤫 Detected silence — sending signal to server");
           silenceTimer = null;
         }, 2000); // Ждём 2 секунды молчания
+      }
+    } else {
+      if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
       }
     }
   }
