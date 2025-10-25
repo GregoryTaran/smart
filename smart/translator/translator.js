@@ -63,7 +63,7 @@ export async function renderTranslator(mount) {
   let lastVoiceTs = 0;              // время последнего "звучащего" фрейма
   let processing = false;           // чтобы не запускать обработку параллельно
   const SILENCE_MS = 2000;          // 2 секунды
-  const SEND_EVERY_MS = 250;        // чаще слать чанки на сервер
+  const SEND_EVERY_MS = 1000;        // чаще слать чанки на сервер
   const VOICE_RMS = 0.01;           // порог голоса (простая VAD)
   let lastSend = 0;
 
