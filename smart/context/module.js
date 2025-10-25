@@ -1,4 +1,4 @@
-// ======== Context Module (v1.9 — добавлено определение языка Whisper) ========
+// ======== Context Module (v2.0 — передаётся langPair в Whisper) ========
 
 export async function render(mount) {
   mount.innerHTML = `
@@ -186,7 +186,7 @@ export async function render(mount) {
       log("💾 " + mergedUrl);
 
       log("🧠 Whisper...");
-      const w = await fetch(`/whisper?session=${sessionId}`);
+      const w = await fetch(`/whisper?session=${sessionId}&langPair=${encodeURIComponent(langPair)}`); // ✅ теперь передаём langPair
       const data = await w.json();
       const text = data.text || "";
       const detectedLang = data.detectedLang || null;
