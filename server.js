@@ -12,8 +12,6 @@ const ROOT = path.resolve(".");
 
 const app = express();
 app.use(express.json());
-
-// ✅ порядок важен
 app.use("/smart", express.static(path.join(ROOT, "smart")));
 app.use(express.static(ROOT));
 
@@ -60,7 +58,6 @@ app.get("/merge", (req, res) => {
   try {
     const session = req.query.session;
     if (!session) return res.status(400).send("No session");
-
     const files = fs.readdirSync(".")
       .filter(f => f.startsWith(`${session}_chunk_`))
       .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
@@ -81,7 +78,6 @@ app.get("/merge", (req, res) => {
 });
 
 // === Whisper ===
-// === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
     const { session, langPair } = req.query;
@@ -92,7 +88,7 @@ app.get("/whisper", async (req, res) => {
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
-    form.append("task", "transcribe"); // ✅ принудительно просим не переводить
+    form.append("task", "transcribe"); // ✅ запрещаем переводы
 
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
@@ -107,7 +103,7 @@ app.get("/whisper", async (req, res) => {
     console.log("🧠 Whisper response:", data);
     console.log("🌐 Detected language:", detectedLang || "none");
 
-    // ——— умная коррекция языка ———
+    // ——— коррекция языка ———
     const [a, b] = (langPair || "en-ru").split("-");
     if (!detectedLang || ![a, b].includes(detectedLang)) {
       console.log(`⚠️ Whisper misdetected (${detectedLang}), checking with GPT...`);
@@ -141,7 +137,6 @@ app.get("/whisper", async (req, res) => {
   }
 });
 
-
 // === GPT ===
 app.post("/gpt", async (req, res) => {
   try {
@@ -152,8 +147,14 @@ app.post("/gpt", async (req, res) => {
 
     if (mode === "translate") {
       const [a, b] = langPair.split("-");
-      const from = detectedLang === a ? a : b;
-      const to   = from === a ? b : a;
+      let from;
+      if (detectedLang && [a, b].includes(detectedLang)) {
+        from = detectedLang;
+      } else {
+        console.log(`⚠️ GPT fallback: detectedLang (${detectedLang}) not in pair, using ${a}`);
+        from = a;
+      }
+      const to = from === a ? b : a;
       prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
     } else if (mode === "assistant") {
       prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
@@ -206,7 +207,7 @@ app.get("/tts", async (req, res) => {
   }
 });
 
-// === helpers ===
+// === Helpers ===
 function floatToWav(f32, sampleRate) {
   const buffer = Buffer.alloc(44 + f32.length * 2);
   const view = new DataView(buffer.buffer);
