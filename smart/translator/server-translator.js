@@ -123,3 +123,94 @@ app.get("/whisper", async (req, res) => {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const resCheck = await check.json();
+      const corrected = resCheck.choices?.[0]?.message?.content?.trim().toLowerCase();
+      if (corrected && [a, b].includes(corrected)) {
+        detectedLang = corrected;
+        console.log(`🧠 GPT corrected language → ${detectedLang}`);
+      } else {
+        console.log("⚠️ GPT could not correct language, fallback to", a);
+        detectedLang = a;
+      }
+    }
+
+    res.json({ text, detectedLang });
+  } catch (e) {
+    console.error("❌ Whisper error:", e.message);
+    res.status(500).json({ error: e.message, detectedLang: null, text: "" });
+  }
+});
+
+// === GPT ===
+app.post("/gpt", async (req, res) => {
+  try {
+    const { text, mode, langPair, detectedLang } = req.body;
+    if (!text) return res.status(400).send("No text");
+
+    let prompt = text;
+    if (mode === "translate") {
+      const [a, b] = langPair.split("-");
+      let from;
+      if (detectedLang && [a, b].includes(detectedLang)) from = detectedLang;
+      else from = a;
+      const to = from === a ? b : a;
+      prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
+    } else if (mode === "assistant") {
+      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
+    }
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await r.json();
+    res.json({ text: data.choices?.[0]?.message?.content ?? "" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === TTS ===
+app.get("/tts", async (req, res) => {
+  try {
+    const { text, session, voice } = req.query;
+    if (!text) return res.status(400).send("No text");
+
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice: voice || "alloy",
+        input: text,
+      }),
+    });
+
+    const audio = await r.arrayBuffer();
+    const file = `${session}_tts.mp3`;
+    fs.writeFileSync(file, Buffer.from(audio));
+    res.json({ url: `${BASE_URL}/${file}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === Helpers ===
+function floatToWav(f32, sampleRate) {
+  const buffer = Buffer.alloc(44 + f32.length * 2);
+  const view = new DataView(buffer.buffer);
+  view.setUint32(0, 0x52494646, false);
+  view.setUint32
