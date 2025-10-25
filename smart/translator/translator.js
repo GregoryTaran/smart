@@ -1,4 +1,4 @@
-// ======== Translator Module (v2.0 — авто-сегментация по тишине, без остановки WS) ========
+// ======== Translator Module (v2.1 — чанки 1 секунда, стабильная отправка) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
@@ -45,26 +45,25 @@ export async function renderTranslator(mount) {
     </div>
   `;
 
-  const logEl   = mount.querySelector("#ctx-log");
-  const btnStart= mount.querySelector("#translator-record-btn");
+  const logEl = mount.querySelector("#ctx-log");
+  const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
   const procSel = mount.querySelector("#process-mode");
   const langSel = mount.querySelector("#lang-pair");
-  const voiceSel= mount.querySelector("#voice-select");
+  const voiceSel = mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
 
   // ---- STATE -------------------------------------------------------------
-  // idle → recording (streaming) → processing(segment) → recording ...
   let state = "idle";
   let ws, audioCtx, worklet, stream;
-  let buffer = [];                  // локальный буфер Float32Array (для метрик)
+  let buffer = [];
   let sessionId = null, sampleRate = 44100;
-  let lastVoiceTs = 0;              // время последнего "звучащего" фрейма
-  let processing = false;           // чтобы не запускать обработку параллельно
-  const SILENCE_MS = 2000;          // 2 секунды
-  const SEND_EVERY_MS = 1000;        // чаще слать чанки на сервер
-  const VOICE_RMS = 0.01;           // порог голоса (простая VAD)
+  let lastVoiceTs = 0;
+  let processing = false;
+  const SILENCE_MS = 2000;
+  const SEND_EVERY_MS = 1000; // ⭐ отправляем чанки раз в секунду
+  const VOICE_RMS = 0.01;
   let lastSend = 0;
 
   function setState(next) {
@@ -87,26 +86,23 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // ---------- RMS (простая VAD) ----------
   function rms(frame) {
     let s = 0;
-    for (let i = 0; i < frame.length; i++) {
-      const v = frame[i];
-      s += v * v;
-    }
+    for (let i = 0; i < frame.length; i++) s += frame[i] * frame[i];
     return Math.sqrt(s / frame.length);
   }
 
-  // ---------- Конкатенация ----------
   function concat(chunks) {
     const total = chunks.reduce((a, b) => a + b.length, 0);
     const out = new Float32Array(total);
     let offset = 0;
-    for (const part of chunks) { out.set(part, offset); offset += part.length; }
+    for (const part of chunks) {
+      out.set(part, offset);
+      offset += part.length;
+    }
     return out;
   }
 
-  // ---------- Отправка блока на сервер ----------
   function sendBlock(force = false) {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const now = performance.now();
@@ -124,7 +120,7 @@ export async function renderTranslator(mount) {
     if (state !== "idle") return;
     try {
       setState("recording");
-      const mode = "agc"; // ⚙️ фиксированный режим захвата (AGC)
+      const mode = "agc";
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
@@ -149,36 +145,30 @@ export async function renderTranslator(mount) {
         log("✅ Connected to WebSocket");
       };
 
-      const constraints = {
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      };
+      const constraints = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       source.connect(worklet);
 
-      lastVoiceTs = performance.now(); // стартуем как будто голос был
+      lastVoiceTs = performance.now();
       processing = false;
 
       worklet.port.onmessage = (e) => {
-        const chunk = e.data;      // Float32Array
+        const chunk = e.data;
         buffer.push(chunk);
 
-        // VAD
         const level = rms(chunk);
         const now = performance.now();
         if (level >= VOICE_RMS) lastVoiceTs = now;
 
-        // стримим чаще
-        sendBlock(false);
+        // ⭐ обновлено — отправка чанков строго раз в 1 секунду
+        if (now - lastSend >= SEND_EVERY_MS) sendBlock();
 
-        // если тишина ≥ 2с и не идёт обработка — запускаем сегмент
         if (!processing && now - lastVoiceTs >= SILENCE_MS) {
           processing = true;
-          // на всякий случай досылаем хвост
           sendBlock(true);
           processSegment().finally(() => {
-            // сегмент обработан — ждём следующую речь
             lastVoiceTs = performance.now();
             processing = false;
           });
@@ -198,7 +188,7 @@ export async function renderTranslator(mount) {
       setState("idle");
       sendBlock(true);
       if (audioCtx) audioCtx.close();
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (stream) stream.getTracks().forEach((t) => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
       log("⏹️ Recording stopped");
     } catch (e) {
@@ -206,7 +196,6 @@ export async function renderTranslator(mount) {
     }
   };
 
-  // -------- Обработка одного сегмента (после тишины) --------
   async function processSegment() {
     try {
       if (!sessionId) return log("❔ Нет sessionId");
@@ -247,8 +236,6 @@ export async function renderTranslator(mount) {
         const tData = await t.json();
         log(`🔊 ${tData.url}`);
       }
-
-      // Готовы к следующей фразе — ничего не останавливаем.
     } catch (e) {
       log("❌ Segment error: " + e.message);
     }
