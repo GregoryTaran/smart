@@ -1,15 +1,7 @@
-// ======== Translator Module (v1.2 — активная кнопка записи) ========
+// ======== Translator Module (v1.3 — кнопка записи согласована с base.css) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
-    <style>
-      #ctx-start.active {
-        transform: scale(1.2);
-        background: #2e7d32;
-        transition: all 0.25s ease;
-      }
-    </style>
-
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр</h2>
 
@@ -45,8 +37,8 @@ export async function renderTranslator(mount) {
       </div>
 
       <div style="text-align:center;margin-bottom:10px;">
-        <button id="ctx-start" style="padding:10px 20px;border:none;border-radius:8px;background:#4caf50;color:#fff;">Start</button>
-        <button id="ctx-stop"  style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
+        <button id="translator-record-btn">Start</button>
+        <button id="ctx-stop" style="padding:10px 20px;border:none;border-radius:8px;background:#f44336;color:#fff;" disabled>Stop</button>
       </div>
 
       <div id="ctx-log" style="white-space:pre-wrap;background:#fff;padding:10px;border-radius:8px;min-height:300px;border:1px solid #ccc;font-size:14px;overflow:auto;"></div>
@@ -54,7 +46,7 @@ export async function renderTranslator(mount) {
   `;
 
   const logEl = mount.querySelector("#ctx-log");
-  const btnStart = mount.querySelector("#ctx-start");
+  const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop  = mount.querySelector("#ctx-stop");
   const procSel  = mount.querySelector("#process-mode");
   const langSel  = mount.querySelector("#lang-pair");
@@ -73,12 +65,12 @@ export async function renderTranslator(mount) {
 
   btnStart.onclick = async () => {
     try {
-      const mode = "agc"; // ⚙️ режим фиксирован
+      const mode = "agc";
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
 
-      btnStart.classList.add("active"); // 🟢 визуальный отклик
+      btnStart.classList.add("active"); // 💡 анимация из base.css
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       ws.onmessage = (e) => {
@@ -100,16 +92,11 @@ export async function renderTranslator(mount) {
       };
 
       const constraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-
       source.connect(worklet);
 
       worklet.port.onmessage = (e) => {
@@ -157,7 +144,7 @@ export async function renderTranslator(mount) {
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
 
-      btnStart.classList.remove("active"); // 🔴 возвращаем нормальный вид
+      btnStart.classList.remove("active");
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
