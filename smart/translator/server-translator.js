@@ -83,7 +83,14 @@ wss.on("connection", (ws) => {
       console.log(`📊 Амплитуда чанка: ${averageAmplitude}`);
 
       // Анализируем чанк на тишину ДО сохранения
-      const chunkDescription = isSilence(f32) ? "пустой" : "громкий";
+      let chunkDescription;
+      if (isSilence(f32)) {
+        chunkDescription = "пустой";
+      } else if (averageAmplitude > SILENCE_THRESHOLD) {
+        chunkDescription = "громкий";
+      } else {
+        chunkDescription = "не понятно"; // Выводим "не понятно", если не можем классифицировать чанк
+      }
 
       // Логируем, какой чанк был определён
       console.log(`🎧 Чанк ${chunkDescription}`);
