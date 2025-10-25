@@ -1,4 +1,4 @@
-// ======== Translator Module (v1.3 — кнопка записи согласована с base.css) ========
+// ======== Translator Module (v2.0 — авто-сегментация по тишине, без остановки WS) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
@@ -20,8 +20,8 @@ export async function renderTranslator(mount) {
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">Режим обработки:</label>
         <select id="process-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
-          <option value="recognize">🎧 Только распознавание</option>
           <option value="translate">🔤 Перевод через GPT</option>
+          <option value="recognize">🎧 Только распознавание</option>
           <option value="assistant">🤖 Ответ ассистента</option>
         </select>
       </div>
@@ -45,16 +45,40 @@ export async function renderTranslator(mount) {
     </div>
   `;
 
-  const logEl = mount.querySelector("#ctx-log");
-  const btnStart = mount.querySelector("#translator-record-btn");
-  const btnStop  = mount.querySelector("#ctx-stop");
-  const procSel  = mount.querySelector("#process-mode");
-  const langSel  = mount.querySelector("#lang-pair");
-  const voiceSel = mount.querySelector("#voice-select");
+  const logEl   = mount.querySelector("#ctx-log");
+  const btnStart= mount.querySelector("#translator-record-btn");
+  const btnStop = mount.querySelector("#ctx-stop");
+  const procSel = mount.querySelector("#process-mode");
+  const langSel = mount.querySelector("#lang-pair");
+  const voiceSel= mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
+
+  // ---- STATE -------------------------------------------------------------
+  // idle → recording (streaming) → processing(segment) → recording ...
+  let state = "idle";
   let ws, audioCtx, worklet, stream;
-  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
+  let buffer = [];                  // локальный буфер Float32Array (для метрик)
+  let sessionId = null, sampleRate = 44100;
+  let lastVoiceTs = 0;              // время последнего "звучащего" фрейма
+  let processing = false;           // чтобы не запускать обработку параллельно
+  const SILENCE_MS = 2000;          // 2 секунды
+  const SEND_EVERY_MS = 250;        // чаще слать чанки на сервер
+  const VOICE_RMS = 0.01;           // порог голоса (простая VAD)
+  let lastSend = 0;
+
+  function setState(next) {
+    state = next;
+    if (state === "recording") {
+      btnStart.classList.add("active");
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    } else if (state === "idle") {
+      btnStart.classList.remove("active");
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+    }
+  }
 
   function log(msg) {
     const div = document.createElement("div");
@@ -63,14 +87,48 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
+  // ---------- RMS (простая VAD) ----------
+  function rms(frame) {
+    let s = 0;
+    for (let i = 0; i < frame.length; i++) {
+      const v = frame[i];
+      s += v * v;
+    }
+    return Math.sqrt(s / frame.length);
+  }
+
+  // ---------- Конкатенация ----------
+  function concat(chunks) {
+    const total = chunks.reduce((a, b) => a + b.length, 0);
+    const out = new Float32Array(total);
+    let offset = 0;
+    for (const part of chunks) { out.set(part, offset); offset += part.length; }
+    return out;
+  }
+
+  // ---------- Отправка блока на сервер ----------
+  function sendBlock(force = false) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const now = performance.now();
+    if (!force && now - lastSend < SEND_EVERY_MS) return;
+    if (!buffer.length) return;
+
+    const full = concat(buffer);
+    ws.send(full.buffer);
+    buffer = [];
+    lastSend = now;
+    log(`🎧 Sent ${full.length} samples`);
+  }
+
   btnStart.onclick = async () => {
+    if (state !== "idle") return;
     try {
-      const mode = "agc";
+      setState("recording");
+      const mode = "agc"; // ⚙️ фиксированный режим захвата (AGC)
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
 
-      btnStart.classList.add("active"); // 💡 анимация из base.css
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       ws.onmessage = (e) => {
@@ -99,71 +157,65 @@ export async function renderTranslator(mount) {
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       source.connect(worklet);
 
+      lastVoiceTs = performance.now(); // стартуем как будто голос был
+      processing = false;
+
       worklet.port.onmessage = (e) => {
-        const chunk = e.data;
+        const chunk = e.data;      // Float32Array
         buffer.push(chunk);
+
+        // VAD
+        const level = rms(chunk);
         const now = performance.now();
-        if (now - lastSend >= 2000) {
-          sendBlock();
-          lastSend = now;
+        if (level >= VOICE_RMS) lastVoiceTs = now;
+
+        // стримим чаще
+        sendBlock(false);
+
+        // если тишина ≥ 2с и не идёт обработка — запускаем сегмент
+        if (!processing && now - lastVoiceTs >= SILENCE_MS) {
+          processing = true;
+          // на всякий случай досылаем хвост
+          sendBlock(true);
+          processSegment().finally(() => {
+            // сегмент обработан — ждём следующую речь
+            lastVoiceTs = performance.now();
+            processing = false;
+          });
         }
       };
 
-      log("🎙️ Recording started (AGC)");
-      btnStart.disabled = true;
-      btnStop.disabled = false;
+      log("🎙️ Recording started (AGC, continuous)");
     } catch (e) {
-      btnStart.classList.remove("active");
+      setState("idle");
       log("❌ Ошибка: " + e.message);
     }
   };
 
-  function concat(chunks) {
-    const total = chunks.reduce((a, b) => a + b.length, 0);
-    const out = new Float32Array(total);
-    let offset = 0;
-    for (const part of chunks) {
-      out.set(part, offset);
-      offset += part.length;
-    }
-    return out;
-  }
-
-  function sendBlock() {
-    if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
-    const full = concat(buffer);
-    ws.send(full.buffer);
-    buffer = [];
-    log(`🎧 Sent ${full.length} samples`);
-  }
-
   btnStop.onclick = async () => {
+    if (state !== "recording") return;
     try {
-      sendBlock();
+      setState("idle");
+      sendBlock(true);
       if (audioCtx) audioCtx.close();
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-
-      btnStart.classList.remove("active");
       log("⏹️ Recording stopped");
-      btnStart.disabled = false;
-      btnStop.disabled = true;
-
-      if (!sessionId) return log("❔ Нет sessionId");
-      await processSession();
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
   };
 
-  async function processSession() {
+  // -------- Обработка одного сегмента (после тишины) --------
+  async function processSegment() {
     try {
+      if (!sessionId) return log("❔ Нет sessionId");
       const voice = voiceSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
 
-      log("🧩 Объединяем чанки...");
-      await fetch(`/merge?session=${sessionId}`);
+      log("🧩 Объединяем чанки сегмента...");
+      await fetch(`/merge?session=${sessionId}&clean=1`);
       const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
       log("💾 " + mergedUrl);
 
@@ -195,8 +247,10 @@ export async function renderTranslator(mount) {
         const tData = await t.json();
         log(`🔊 ${tData.url}`);
       }
+
+      // Готовы к следующей фразе — ничего не останавливаем.
     } catch (e) {
-      log("❌ Ошибка: " + e.message);
+      log("❌ Segment error: " + e.message);
     }
   }
 }
