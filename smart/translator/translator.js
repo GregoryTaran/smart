@@ -50,8 +50,8 @@ export async function renderTranslator(mount) {
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
 
-  // Автоматическое подключение через WebSocket с правильным доменом и портом
-  const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`; // Это подхватывает правильный URL WebSocket
+  // Подключение к серверу на порту 4000 (server-translator.js)
+  const WS_URL = `wss://test.smartvision.life:4000/ws`; // Порт 4000 для server-translator.js
   let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 
