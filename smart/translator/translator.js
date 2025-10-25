@@ -1,5 +1,3 @@
-// ======== Translator Module (v1.3 — кнопка записи согласована с base.css) ========
-
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
@@ -52,7 +50,8 @@ export async function renderTranslator(mount) {
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
 
-  const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
+  // Обновлённый URL WebSocket для подключения к server-translator.js
+  const WS_URL = `ws://localhost:4000/ws`; // Порт 4000 для server-translator.js
   let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 
