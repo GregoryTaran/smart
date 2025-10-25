@@ -42,10 +42,8 @@ wss.on("connection", (ws) => {
           return ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
         }
         if (meta.type === "silence") {
-          // Запрос на склеивание
-          const session = ws.sessionId;
-          console.log(`🧩 [${session}] Silence detected, merging chunks`);
-          mergeChunks(session);
+          console.log(`🧩 [${ws.sessionId}] Silence detected, merging chunks...`);
+          mergeChunks(ws.sessionId); // Запрос на склеивание
         }
       } catch {}
     } else {
@@ -63,6 +61,7 @@ wss.on("connection", (ws) => {
 
 // === Merge ===
 function mergeChunks(session) {
+  console.log(`🧩 [${session}] Starting chunk merge...`);
   const files = fs.readdirSync(".")
     .filter(f => f.startsWith(`${session}_chunk_`))
     .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
@@ -78,7 +77,7 @@ function mergeChunks(session) {
   const outFile = `${session}_merged.wav`;
   fs.writeFileSync(outFile, merged);
 
-  console.log(`🧩 Merged ${files.length} chunks into ${outFile}`);
+  console.log(`🧩 [${session}] Merged ${files.length} chunks into ${outFile}`);
   // Удаление чанков
   files.forEach(f => fs.unlinkSync(f));
 }
