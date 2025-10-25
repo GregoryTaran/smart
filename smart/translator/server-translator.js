@@ -105,10 +105,10 @@ wss.on("connection", (ws) => {
       // Логируем сохранение чанка с пометкой громкости/тишины
       console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
 
-      // Отправляем информацию о чанке на клиент через WebSocket с добавлением "ТЕСТ"
-      const message = `💾 Saved ${filename} — ${chunkDescription} | Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude} ТЕСТ`;
-      console.log(`Отправка сообщения на клиент: ${message}`);  // Log before sending
-      ws.send(message);  // Send the message to the client
+      // Отправляем информацию о чанке на клиент через WebSocket с добавлением "ТЕСТ" отдельно
+      const message = `💾 Saved ${filename} — ${chunkDescription} | Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude}`;
+      console.log(`Отправка сообщения на клиент: ${message} ТЕСТ`);  // Log before sending
+      ws.send(`${message} ТЕСТ`);  // Send the message to the client with "ТЕСТ" added separately
     }
   });
 
