@@ -102,7 +102,12 @@ wss.on("connection", (ws) => {
       console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
       
       // Отправляем информацию о чанке на клиент через WebSocket
-      ws.send(`💾 Saved ${filename} — ${chunkDescription}`);
+      
+    // Correctly send the chunk info to the client in the same format as the other messages
+    const message = `💾 Saved ${filename} — ${chunkDescription}`;
+    console.log(`Отправка сообщения на клиент: ${message}`);  // Log before sending
+    ws.send(message);  // Send the message to the client
+    
     }
   });
 
