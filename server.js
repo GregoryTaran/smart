@@ -13,9 +13,9 @@ const ROOT = path.resolve(".");
 const app = express();
 app.use(express.json());
 
-// ✅ порядок важен: сначала smart, потом корень
-app.use("/smart", express.static(path.join(ROOT, "smart"))); // отдельный проект
-app.use(express.static(ROOT)); // главный сайт в корне
+// ✅ порядок важен
+app.use("/smart", express.static(path.join(ROOT, "smart")));
+app.use(express.static(ROOT));
 
 const server = app.listen(PORT, () =>
   console.log(`🚀 Server started on port ${PORT}`)
@@ -80,11 +80,10 @@ app.get("/merge", (req, res) => {
   }
 });
 
-
 // === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
-    const session = req.query.session;
+    const { session } = req.query;
     const file = `${session}_merged.wav`;
     if (!fs.existsSync(file)) return res.status(404).send("No file");
 
@@ -98,39 +97,14 @@ app.get("/whisper", async (req, res) => {
       body: form,
     });
     const data = await r.json();
+    const detectedLang = data.language || null;
+    console.log("🌐 Detected language:", detectedLang);
 
-    // Get detected language from Whisper's result
-    const detectedLang = data.language || "unknown";
-    console.log("Detected language:", detectedLang);  // For debugging purposes
-
-    res.json({ text: data.text, language: detectedLang });
+    res.json({ text: data.text || "", detectedLang });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
-
-app.get("/whisper", async (req, res) => {
-  try {
-    const session = req.query.session;
-    const file = `${session}_merged.wav`;
-    if (!fs.existsSync(file)) return res.status(404).send("No file");
-
-    const form = new FormData();
-    form.append("file", fs.createReadStream(file));
-    form.append("model", "whisper-1");
-
-    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-      body: form,
-    });
-    const data = await r.json();
-    res.json({ text: data.text });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 
 // === GPT ===
 app.post("/gpt", async (req, res) => {
@@ -139,56 +113,11 @@ app.post("/gpt", async (req, res) => {
     if (!text) return res.status(400).send("No text");
 
     let prompt = text;
-    const [from, to] = langPair.split("-");
 
-    // Determine the direction of translation based on detected language
-    let fromLang = detectedLang;
-    let toLang = to;
-
-    // If the detected language matches the first language in langPair, use that for 'from'
-    if (from === detectedLang) {
-      fromLang = from;
-      toLang = to;
-    } else {
-      // If it's the reverse direction, swap
-      fromLang = to;
-      toLang = from;
-    }
-
-    // Modify prompt based on the translation direction
     if (mode === "translate") {
-      prompt = `Translate from ${fromLang.toUpperCase()} to ${toLang.toUpperCase()}: ${text}`;
-    } else if (mode === "assistant") {
-      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
-    }
-
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    const data = await r.json();
-    res.json({ text: data.choices[0].message.content });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.post("/gpt", async (req, res) => {
-  try {
-    const { text, mode, langPair } = req.body;
-    if (!text) return res.status(400).send("No text");
-
-    let prompt = text;
-    if (mode === "translate") {
-      const [from, to] = langPair.split("-");
+      const [a, b] = langPair.split("-");
+      const from = detectedLang === a ? a : b;
+      const to   = from === a ? b : a;
       prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
     } else if (mode === "assistant") {
       prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
@@ -207,7 +136,7 @@ app.post("/gpt", async (req, res) => {
     });
 
     const data = await r.json();
-    res.json({ text: data.choices[0].message.content });
+    res.json({ text: data.choices?.[0]?.message?.content ?? "" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

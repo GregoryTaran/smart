@@ -1,4 +1,4 @@
-// ======== Context Module (v1.8 — возвращён выбор режима захвата RAW/AGC/GAIN) ========
+// ======== Context Module (v1.9 — добавлено определение языка Whisper) ========
 
 export async function render(mount) {
   mount.innerHTML = `
@@ -113,7 +113,7 @@ export async function render(mount) {
 
       if (mode === "gain") {
         gainNode = audioCtx.createGain();
-        gainNode.gain.value = 2.0; // ручное усиление
+        gainNode.gain.value = 2.0;
         source.connect(gainNode).connect(worklet);
       } else {
         source.connect(worklet);
@@ -189,12 +189,14 @@ export async function render(mount) {
       const w = await fetch(`/whisper?session=${sessionId}`);
       const data = await w.json();
       const text = data.text || "";
+      const detectedLang = data.detectedLang || null;
       log("🧠 → " + text);
+      log("🌐 Detected language: " + (detectedLang || "none"));
 
       let finalText = text;
       if (processMode !== "recognize") {
         log("🤖 GPT...");
-        const body = { text, mode: processMode, langPair };
+        const body = { text, mode: processMode, langPair, detectedLang };
         const g = await fetch("/gpt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
