@@ -90,7 +90,7 @@ app.get("/whisper", async (req, res) => {
     const form = new FormData();
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
-    form.append("response_format", "verbose_json"); // ✅ добавлено для возврата языка
+    form.append("response_format", "verbose_json");
 
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
@@ -99,14 +99,19 @@ app.get("/whisper", async (req, res) => {
     });
 
     const data = await r.json();
-    const detectedLang = data.language || null;
+
+    // безопасное извлечение
+    const detectedLang = (data && data.language) ? data.language : null;
+    const text = (data && data.text) ? data.text : "";
 
     console.log("🧠 Whisper response:", data);
-    console.log("🌐 Detected language:", detectedLang);
+    console.log("🌐 Detected language:", detectedLang || "none");
 
-    res.json({ text: data.text || "", detectedLang });
+    // возвращаем даже если языка нет
+    res.json({ text, detectedLang });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("❌ Whisper error:", e.message);
+    res.status(500).json({ error: e.message, detectedLang: null, text: "" });
   }
 });
 
