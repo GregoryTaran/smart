@@ -1,11 +1,17 @@
-// ======== Translator Module (v1.1 — Переводчик-Суфлёр, без выбора режима захвата) ========
+// ======== Translator Module (v1.2 — активная кнопка записи) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
+    <style>
+      #ctx-start.active {
+        transform: scale(1.2);
+        background: #2e7d32;
+        transition: all 0.25s ease;
+      }
+    </style>
+
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр</h2>
-
-      <!-- ⚙️ Удалён блок выбора "Режим захвата" — теперь используется AGC по умолчанию -->
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -55,7 +61,7 @@ export async function renderTranslator(mount) {
   const voiceSel = mount.querySelector("#voice-select");
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
-  let ws, audioCtx, worklet, stream, gainNode;
+  let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 
   function log(msg) {
@@ -67,11 +73,12 @@ export async function renderTranslator(mount) {
 
   btnStart.onclick = async () => {
     try {
-      const mode = "agc"; // ⚙️ mode: fixed to "agc"
+      const mode = "agc"; // ⚙️ режим фиксирован
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
 
+      btnStart.classList.add("active"); // 🟢 визуальный отклик
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       ws.onmessage = (e) => {
@@ -115,10 +122,11 @@ export async function renderTranslator(mount) {
         }
       };
 
-      log("🎙️ Recording started (mode: AGC)");
+      log("🎙️ Recording started (AGC)");
       btnStart.disabled = true;
       btnStop.disabled = false;
     } catch (e) {
+      btnStart.classList.remove("active");
       log("❌ Ошибка: " + e.message);
     }
   };
@@ -149,6 +157,7 @@ export async function renderTranslator(mount) {
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
 
+      btnStart.classList.remove("active"); // 🔴 возвращаем нормальный вид
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
