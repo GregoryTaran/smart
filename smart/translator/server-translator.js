@@ -94,15 +94,19 @@ wss.on("connection", (ws) => {
       // Логируем, какой чанк был определён
       console.log(`🎧 Чанк ${chunkDescription}`);
 
+      // Дополнительная информация о чанке для логирования
+      const chunkSize = f32.length;
+      console.log(`Отправка информации: ${filename} — ${chunkDescription} | Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude}`);
+
       const wav = floatToWav(f32, ws.sampleRate);
       const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
       fs.writeFileSync(filename, wav);
 
       // Логируем сохранение чанка с пометкой громкости/тишины
       console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
-      
+
       // Отправляем информацию о чанке на клиент через WebSocket
-      const message = `💾 Saved ${filename} — ${chunkDescription}`;
+      const message = `💾 Saved ${filename} — ${chunkDescription} | Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude}`;
       console.log(`Отправка сообщения на клиент: ${message}`);  // Log before sending
       ws.send(message);  // Send the message to the client
     }
