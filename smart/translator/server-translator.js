@@ -6,7 +6,7 @@ import fetch from "node-fetch";
 import FormData from "form-data";
 
 // === НАСТРОЙКИ ===
-const PORT = 4000; // 🔹 свой порт
+const PORT = 4000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ROOT = path.resolve(".");
 const BASE_URL = `http://localhost:${PORT}`;
@@ -14,7 +14,7 @@ const APP_DIR = path.join(ROOT, "translator");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(APP_DIR)); // обслуживаем только папку translator
+app.use(express.static(APP_DIR));
 
 // === СТАРТ СЕРВЕРА ===
 const server = app.listen(PORT, () =>
@@ -73,6 +73,16 @@ app.get("/merge", (req, res) => {
     const merged = makeWav(totalPCM, sr);
     const outFile = `${session}_merged.wav`;
     fs.writeFileSync(outFile, merged);
+
+    // ⭐ ДОБАВЛЕНО: поддержка ?clean=1 для авто-сегментации
+    const clean = String(req.query.clean || "0") === "1";
+    if (clean) {
+      for (const f of files) {
+        try { fs.unlinkSync(f); } catch {}
+      }
+      console.log(`🧹 Cleaned ${files.length} chunks for ${session}`);
+    }
+
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
   } catch (err) {
     res.status(500).send("Merge error");
@@ -102,12 +112,11 @@ app.get("/whisper", async (req, res) => {
     let detectedLang = data.language || null;
     const text = data.text || "";
 
-    console.log("🧠 Whisper response:", data);
+    console.log("🧠 Whisper:", text);
     console.log("🌐 Detected language:", detectedLang || "none");
 
     const [a, b] = (langPair || "en-ru").split("-");
     if (!detectedLang || ![a, b].includes(detectedLang)) {
-      console.log(`⚠️ Whisper misdetected (${detectedLang}), checking with GPT...`);
       const prompt = `Text: """${text}"""\nDecide which of these two languages it is written in: ${a} or ${b}. Return only one code (${a} or ${b}).`;
       const check = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -121,14 +130,11 @@ app.get("/whisper", async (req, res) => {
         }),
       });
       const resCheck = await check.json();
-      const corrected = resCheck.choices?.[0]?.message?.content?.trim().toLowerCase();
+      const corrected = resCheck.choices?.[0]?.message?.content?.trim()?.toLowerCase();
       if (corrected && [a, b].includes(corrected)) {
         detectedLang = corrected;
-        console.log(`🧠 GPT corrected language → ${detectedLang}`);
-      } else {
-        console.log("⚠️ GPT could not correct language, fallback to", a);
-        detectedLang = a;
-      }
+        console.log(`🧠 GPT corrected → ${detectedLang}`);
+      } else detectedLang = a;
     }
 
     res.json({ text, detectedLang });
@@ -147,9 +153,7 @@ app.post("/gpt", async (req, res) => {
     let prompt = text;
     if (mode === "translate") {
       const [a, b] = langPair.split("-");
-      let from;
-      if (detectedLang && [a, b].includes(detectedLang)) from = detectedLang;
-      else from = a;
+      const from = detectedLang && [a, b].includes(detectedLang) ? detectedLang : a;
       const to = from === a ? b : a;
       prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
     } else if (mode === "assistant") {
