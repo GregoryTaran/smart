@@ -83,7 +83,7 @@ app.get("/merge", (req, res) => {
 // === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
-    const { session } = req.query;
+    const { session, langPair } = req.query;
     const file = `${session}_merged.wav`;
     if (!fs.existsSync(file)) return res.status(404).send("No file");
 
@@ -99,15 +99,39 @@ app.get("/whisper", async (req, res) => {
     });
 
     const data = await r.json();
-
-    // безопасное извлечение
-    const detectedLang = (data && data.language) ? data.language : null;
-    const text = (data && data.text) ? data.text : "";
+    let detectedLang = data.language || null;
+    const text = data.text || "";
 
     console.log("🧠 Whisper response:", data);
     console.log("🌐 Detected language:", detectedLang || "none");
 
-    // возвращаем даже если языка нет
+    // ——— умная коррекция языка ———
+    const [a, b] = (langPair || "en-ru").split("-");
+    if (!detectedLang || ![a, b].includes(detectedLang)) {
+      console.log(`⚠️ Whisper misdetected (${detectedLang}), checking with GPT...`);
+      const prompt = `Text: """${text}"""\nDecide which of these two languages it is written in: ${a} or ${b}. Return only one code (${a} or ${b}).`;
+      const check = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const resCheck = await check.json();
+      const corrected = resCheck.choices?.[0]?.message?.content?.trim().toLowerCase();
+      if (corrected && [a, b].includes(corrected)) {
+        detectedLang = corrected;
+        console.log(`🧠 GPT corrected language → ${detectedLang}`);
+      } else {
+        console.log("⚠️ GPT could not correct language, fallback to", a);
+        detectedLang = a;
+      }
+    }
+
     res.json({ text, detectedLang });
   } catch (e) {
     console.error("❌ Whisper error:", e.message);
