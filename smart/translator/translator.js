@@ -1,18 +1,11 @@
-// ======== Translator Module (v1.0 — Переводчик-Суфлёр) ========
+// ======== Translator Module (v1.1 — Переводчик-Суфлёр, без выбора режима захвата) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр</h2>
 
-      <div style="text-align:center;margin-bottom:10px;">
-        <label style="font-weight:600;">🎙️ Режим захвата:</label>
-        <select id="capture-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
-          <option value="raw">RAW — без обработки</option>
-          <option value="agc">AGC — автоусиление и шумоподавление</option>
-          <option value="gain">GAIN — ручное усиление</option>
-        </select>
-      </div>
+      <!-- ⚙️ Удалён блок выбора "Режим захвата" — теперь используется AGC по умолчанию -->
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -57,7 +50,6 @@ export async function renderTranslator(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#ctx-start");
   const btnStop  = mount.querySelector("#ctx-stop");
-  const captureSel = mount.querySelector("#capture-mode");
   const procSel  = mount.querySelector("#process-mode");
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
@@ -75,7 +67,7 @@ export async function renderTranslator(mount) {
 
   btnStart.onclick = async () => {
     try {
-      const mode = captureSel.value;
+      const mode = "agc"; // ⚙️ mode: fixed to "agc"
       const processMode = procSel.value;
       const langPair = langSel.value;
       const voice = voiceSel.value;
@@ -102,22 +94,16 @@ export async function renderTranslator(mount) {
 
       const constraints = {
         audio: {
-          echoCancellation: mode === "agc",
-          noiseSuppression: mode === "agc",
-          autoGainControl: mode === "agc"
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
         }
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       const source = audioCtx.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
 
-      if (mode === "gain") {
-        gainNode = audioCtx.createGain();
-        gainNode.gain.value = 2.0;
-        source.connect(gainNode).connect(worklet);
-      } else {
-        source.connect(worklet);
-      }
+      source.connect(worklet);
 
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
@@ -129,7 +115,7 @@ export async function renderTranslator(mount) {
         }
       };
 
-      log("🎙️ Recording started");
+      log("🎙️ Recording started (mode: AGC)");
       btnStart.disabled = true;
       btnStop.disabled = false;
     } catch (e) {
