@@ -1,8 +1,7 @@
-// ======== Smart Vision INDEX (v2.6 — добавлен модуль Translator) ========
+// ======== Smart Vision INDEX (v2.7 — ленивый импорт Translator) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
-import { renderTranslator } from "../translator/translator.js"; // 🟢 импортируем модуль переводчика
 
 console.log(`🌍 Smart Vision (${CONFIG.PROJECT_NAME}) v${CONFIG.VERSION}`);
 
@@ -98,13 +97,14 @@ function renderMenuBlock() {
   );
 }
 
-function renderMain() {
+async function renderMain() {
   const pageCfg = CONFIG.PAGES.find((p) => p.id === STATE.page);
 
-  // 🟢 Если выбрана страница translator
+  // 🟢 Ленивый импорт translator.js
   if (STATE.page === "translator") {
     root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
     const mount = document.getElementById("module-root");
+    const { renderTranslator } = await import("../translator/translator.js");
     renderTranslator(mount);
     return;
   }
