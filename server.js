@@ -90,14 +90,18 @@ app.get("/whisper", async (req, res) => {
     const form = new FormData();
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
+    form.append("response_format", "verbose_json"); // ✅ добавлено для возврата языка
 
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
       body: form,
     });
+
     const data = await r.json();
     const detectedLang = data.language || null;
+
+    console.log("🧠 Whisper response:", data);
     console.log("🌐 Detected language:", detectedLang);
 
     res.json({ text: data.text || "", detectedLang });
@@ -105,6 +109,7 @@ app.get("/whisper", async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
 
 // === GPT ===
 app.post("/gpt", async (req, res) => {
