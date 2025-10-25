@@ -6,7 +6,7 @@ import fetch from "node-fetch";
 import FormData from "form-data";
 
 // === НАСТРОЙКИ ===
-const PORT = 4000;
+const PORT = 4000; // 🔹 свой порт
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ROOT = path.resolve(".");
 const BASE_URL = `http://localhost:${PORT}`;
@@ -14,7 +14,7 @@ const APP_DIR = path.join(ROOT, "translator");
 
 const app = express();
 app.use(express.json());
-app.use(express.static(APP_DIR));
+app.use(express.static(APP_DIR)); // обслуживаем только папку translator
 
 // === СТАРТ СЕРВЕРА ===
 const server = app.listen(PORT, () =>
@@ -39,8 +39,10 @@ wss.on("connection", (ws) => {
           ws.sampleRate = meta.sampleRate;
           ws.processMode = meta.processMode;
           ws.langPair = meta.langPair;
+          ws.voice = meta.voice;
           return ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
         }
+
         if (meta.type === "silence") {
           console.log(`🧩 [${ws.sessionId}] Silence detected, merging chunks...`);
           mergeChunks(ws.sessionId); // Запрос на склеивание
@@ -85,7 +87,7 @@ function mergeChunks(session) {
 // === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
-    const { session } = req.query;
+    const { session, langPair } = req.query;
     const file = `${session}_merged.wav`;
     if (!fs.existsSync(file)) return res.status(404).send("No file");
 
@@ -102,19 +104,22 @@ app.get("/whisper", async (req, res) => {
     });
 
     const data = await r.json();
+    let detectedLang = data.language || null;
     const text = data.text || "";
-    res.json({ text });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
-// === GPT ===
-app.post("/gpt", async (req, res) => {
-  try {
-    const { text } = req.body;
-    const r = await fetch("https://api.openai.com/v1/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "text-davi
+    console.log("🧠 Whisper response:", data);
+    console.log("🌐 Detected language:", detectedLang || "none");
+
+    const [a, b] = (langPair || "en-ru").split("-");
+    if (!detectedLang || ![a, b].includes(detectedLang)) {
+      console.log(`⚠️ Whisper misdetected (${detectedLang}), checking with GPT...`);
+      const prompt = `Text: """${text}"""\nDecide which of these two languages it is written in: ${a} or ${b}. Return only one code (${a} or ${b}).`;
+      const check = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
