@@ -52,9 +52,8 @@ export async function renderTranslator(mount) {
 
   const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
-  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
+  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = Date.now();
 
-  // Функция для логирования сообщений
   function log(msg) {
     const div = document.createElement("div");
     div.innerHTML = msg.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
@@ -62,7 +61,6 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Обработчик кнопки Start
   btnStart.onclick = async () => {
     try {
       const mode = "agc";
@@ -70,7 +68,7 @@ export async function renderTranslator(mount) {
       const langPair = langSel.value;
       const voice = voiceSel.value;
 
-      btnStart.classList.add("active"); // 💡 анимация из base.css
+      btnStart.classList.add("active");
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       ws.onmessage = (e) => {
@@ -101,14 +99,12 @@ export async function renderTranslator(mount) {
 
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
-        log("🎧 Chunk received: " + chunk.length + " samples");
         buffer.push(chunk);
-        checkSilence(chunk); // Проверка на молчание
-
-        const now = performance.now();
-        if (now - lastSend >= 1000) { // Отправляем чанки каждую секунду
+        
+        const now = Date.now(); // Получаем текущее время в миллисекундах
+        if (now - lastSend >= 1000) { // Проверяем, прошло ли 1000 миллисекунд
           sendBlock();
-          lastSend = now;
+          lastSend = now; // Обновляем время последней отправки
         }
       };
 
@@ -121,7 +117,6 @@ export async function renderTranslator(mount) {
     }
   };
 
-  // Объединение чанков
   function concat(chunks) {
     const total = chunks.reduce((a, b) => a + b.length, 0);
     const out = new Float32Array(total);
@@ -133,47 +128,14 @@ export async function renderTranslator(mount) {
     return out;
   }
 
-  // Отправка блоков на сервер
-  function sendBlock(force = false) {
+  function sendBlock() {
     if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
-    
-    // Собираем все данные из буфера
     const full = concat(buffer);
-    log("🎧 Sending block of size: " + full.length + " samples");
-    ws.send(full.buffer); // Отправляем на сервер
-    buffer = [];  // Очистка буфера
+    ws.send(full.buffer);
+    buffer = [];
+    log(`🎧 Sent ${full.length} samples`);
   }
 
-  // Функция для вычисления RMS (уровня громкости)
-  function rms(chunk) {
-    let sum = 0;
-    for (let i = 0; i < chunk.length; i++) {
-      sum += chunk[i] * chunk[i];
-    }
-    return Math.sqrt(sum / chunk.length);
-  }
-
-  // Проверка на молчание
-  let silenceTimer = null;
-  function checkSilence(chunk) {
-    const level = rms(chunk);
-    if (level < 0.01) {  // Если уровень слишком низкий (тишина)
-      if (!silenceTimer) {
-        silenceTimer = setTimeout(() => {
-          ws.send(JSON.stringify({ type: "silence" }));
-          log("🤫 Detected silence — sending signal to server");
-          silenceTimer = null;
-        }, 2000);  // Ждём 2 секунды молчания
-      }
-    } else {
-      if (silenceTimer) {
-        clearTimeout(silenceTimer);
-        silenceTimer = null;  // Если звук есть, сбрасываем таймер
-      }
-    }
-  }
-
-  // Обработчик кнопки Stop
   btnStop.onclick = async () => {
     try {
       sendBlock();
@@ -193,7 +155,6 @@ export async function renderTranslator(mount) {
     }
   };
 
-  // Обработка сессии
   async function processSession() {
     try {
       const voice = voiceSel.value;
