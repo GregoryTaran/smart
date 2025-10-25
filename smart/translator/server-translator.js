@@ -16,6 +16,27 @@ const app = express();
 app.use(express.json());
 app.use(express.static(APP_DIR)); // обслуживаем только папку translator
 
+// === Пороги для анализа тишины ===
+const SILENCE_THRESHOLD = 0.01; // Порог для амплитуды, ниже которого считаем тишиной
+const SILENCE_SAMPLE_SIZE = 128; // Размер выборки для анализа (например, 128 сэмплов)
+
+// Функция для анализа тишины в чанк данных
+function isSilence(chunk) {
+  let totalAmplitude = 0;
+  let sampleCount = Math.min(chunk.length, SILENCE_SAMPLE_SIZE);
+
+  // Проходим по всем сэмплам чанка и суммируем амплитуду
+  for (let i = 0; i < sampleCount; i++) {
+    totalAmplitude += Math.abs(chunk[i]); // Суммируем абсолютные значения амплитуды
+  }
+
+  // Вычисляем среднюю амплитуду
+  const averageAmplitude = totalAmplitude / sampleCount;
+
+  // Если средняя амплитуда ниже порога, считаем чанк тишиной
+  return averageAmplitude < SILENCE_THRESHOLD;
+}
+
 // === СТАРТ СЕРВЕРА ===
 const server = app.listen(PORT, () =>
   console.log(`🚀 Translator server started on port ${PORT}`)
@@ -45,10 +66,17 @@ wss.on("connection", (ws) => {
     } else {
       const buf = Buffer.from(data);
       const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+
+      // Анализируем чанк на тишину
+      const chunkDescription = isSilence(f32) ? "пустой" : "громкий";
+
       const wav = floatToWav(f32, ws.sampleRate);
       const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
       fs.writeFileSync(filename, wav);
-      ws.send(`💾 Saved ${filename}`);
+
+      // Логируем сохранение чанка с пометкой громкости/тишины
+      console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
+      ws.send(`💾 Saved ${filename} — ${chunkDescription}`);
     }
   });
 
