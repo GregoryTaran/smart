@@ -41,6 +41,12 @@ wss.on("connection", (ws) => {
           ws.langPair = meta.langPair;
           return ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
         }
+        if (meta.type === "silence") {
+          // Запрос на склеивание
+          const session = ws.sessionId;
+          console.log(`🧩 [${session}] Silence detected, merging chunks`);
+          mergeChunks(session);
+        }
       } catch {}
     } else {
       const buf = Buffer.from(data);
@@ -56,43 +62,31 @@ wss.on("connection", (ws) => {
 });
 
 // === Merge ===
-app.get("/merge", (req, res) => {
-  try {
-    const session = req.query.session;
-    if (!session) return res.status(400).send("No session");
-    const files = fs.readdirSync(".")
-      .filter(f => f.startsWith(`${session}_chunk_`))
-      .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
-    if (!files.length) return res.status(404).send("No chunks");
+function mergeChunks(session) {
+  const files = fs.readdirSync(".")
+    .filter(f => f.startsWith(`${session}_chunk_`))
+    .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
 
-    const headerSize = 44;
-    const first = fs.readFileSync(files[0]);
-    const sr = first.readUInt32LE(24);
-    const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
-    const totalPCM = Buffer.concat(pcms);
-    const merged = makeWav(totalPCM, sr);
-    const outFile = `${session}_merged.wav`;
-    fs.writeFileSync(outFile, merged);
+  if (!files.length) return console.log("No chunks to merge");
 
-    // ⭐ ДОБАВЛЕНО: поддержка ?clean=1 для авто-сегментации
-    const clean = String(req.query.clean || "0") === "1";
-    if (clean) {
-      for (const f of files) {
-        try { fs.unlinkSync(f); } catch {}
-      }
-      console.log(`🧹 Cleaned ${files.length} chunks for ${session}`);
-    }
+  const headerSize = 44;
+  const first = fs.readFileSync(files[0]);
+  const sr = first.readUInt32LE(24);
+  const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
+  const totalPCM = Buffer.concat(pcms);
+  const merged = makeWav(totalPCM, sr);
+  const outFile = `${session}_merged.wav`;
+  fs.writeFileSync(outFile, merged);
 
-    res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
-  } catch (err) {
-    res.status(500).send("Merge error");
-  }
-});
+  console.log(`🧩 Merged ${files.length} chunks into ${outFile}`);
+  // Удаление чанков
+  files.forEach(f => fs.unlinkSync(f));
+}
 
 // === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
-    const { session, langPair } = req.query;
+    const { session } = req.query;
     const file = `${session}_merged.wav`;
     if (!fs.existsSync(file)) return res.status(404).send("No file");
 
@@ -109,71 +103,29 @@ app.get("/whisper", async (req, res) => {
     });
 
     const data = await r.json();
-    let detectedLang = data.language || null;
     const text = data.text || "";
-
-    console.log("🧠 Whisper:", text);
-    console.log("🌐 Detected language:", detectedLang || "none");
-
-    const [a, b] = (langPair || "en-ru").split("-");
-    if (!detectedLang || ![a, b].includes(detectedLang)) {
-      const prompt = `Text: """${text}"""\nDecide which of these two languages it is written in: ${a} or ${b}. Return only one code (${a} or ${b}).`;
-      const check = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      const resCheck = await check.json();
-      const corrected = resCheck.choices?.[0]?.message?.content?.trim()?.toLowerCase();
-      if (corrected && [a, b].includes(corrected)) {
-        detectedLang = corrected;
-        console.log(`🧠 GPT corrected → ${detectedLang}`);
-      } else detectedLang = a;
-    }
-
-    res.json({ text, detectedLang });
+    res.json({ text });
   } catch (e) {
-    console.error("❌ Whisper error:", e.message);
-    res.status(500).json({ error: e.message, detectedLang: null, text: "" });
+    res.status(500).json({ error: e.message });
   }
 });
 
 // === GPT ===
 app.post("/gpt", async (req, res) => {
   try {
-    const { text, mode, langPair, detectedLang } = req.body;
-    if (!text) return res.status(400).send("No text");
-
-    let prompt = text;
-    if (mode === "translate") {
-      const [a, b] = langPair.split("-");
-      const from = detectedLang && [a, b].includes(detectedLang) ? detectedLang : a;
-      const to = from === a ? b : a;
-      prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
-    } else if (mode === "assistant") {
-      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
-    }
-
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const { text } = req.body;
+    const r = await fetch("https://api.openai.com/v1/completions", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
+        model: "text-davinci-003",
+        prompt: text,
+        max_tokens: 150,
       }),
     });
 
     const data = await r.json();
-    res.json({ text: data.choices?.[0]?.message?.content ?? "" });
+    res.json({ text: data.choices[0].text });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -182,24 +134,15 @@ app.post("/gpt", async (req, res) => {
 // === TTS ===
 app.get("/tts", async (req, res) => {
   try {
-    const { text, session, voice } = req.query;
-    if (!text) return res.status(400).send("No text");
-
+    const { text } = req.query;
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini-tts",
-        voice: voice || "alloy",
-        input: text,
-      }),
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "gpt-4o-mini-tts", input: text }),
     });
 
     const audio = await r.arrayBuffer();
-    const file = `${session}_tts.mp3`;
+    const file = `${req.query.session}_tts.mp3`;
     fs.writeFileSync(file, Buffer.from(audio));
     res.json({ url: `${BASE_URL}/${file}` });
   } catch (e) {
@@ -208,31 +151,6 @@ app.get("/tts", async (req, res) => {
 });
 
 // === Helpers ===
-function floatToWav(f32, sampleRate) {
-  const buffer = Buffer.alloc(44 + f32.length * 2);
-  const view = new DataView(buffer.buffer);
-  view.setUint32(0, 0x52494646, false);
-  view.setUint32(4, 36 + f32.length * 2, true);
-  view.setUint32(8, 0x57415645, false);
-  view.setUint32(12, 0x666d7420, false);
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  view.setUint32(36, 0x64617461, false);
-  view.setUint32(40, f32.length * 2, true);
-  let off = 44;
-  for (let i = 0; i < f32.length; i++) {
-    let s = Math.max(-1, Math.min(1, f32[i]));
-    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    off += 2;
-  }
-  return buffer;
-}
-
 function makeWav(pcm, sr) {
   const header = Buffer.alloc(44);
   header.write("RIFF", 0);

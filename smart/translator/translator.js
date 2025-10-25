@@ -1,4 +1,4 @@
-// ======== Translator Module (v3.0 — клиент решает когда обрабатывать) ========
+// ======== Translator Module (v3.0 — клиент решает, когда обрабатывать) ========
 
 export async function renderTranslator(mount) {
   mount.innerHTML = `
@@ -24,7 +24,7 @@ export async function renderTranslator(mount) {
   let sessionId = null, sampleRate = 44100;
   let lastVoiceTs = 0;
   let silenceTimer = null;
-  const SILENCE_MS = 2000;     // 2 секунды тишины = конец фразы
+  const SILENCE_MS = 2000;     // 2 секунды молчания = конец фразы
   const SEND_EVERY_MS = 1000;  // отправляем чанки раз в секунду
   const VOICE_RMS = 0.01;
   let lastSend = 0;
