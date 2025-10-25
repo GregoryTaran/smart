@@ -33,6 +33,9 @@ function isSilence(chunk) {
   // Вычисляем среднюю амплитуду
   const averageAmplitude = totalAmplitude / sampleCount;
 
+  // Логируем амплитуду чанка для отладки
+  console.log(`Амплитуда чанка: ${averageAmplitude}`);
+
   // Если средняя амплитуда ниже порога, считаем чанк тишиной
   return averageAmplitude < SILENCE_THRESHOLD;
 }
@@ -67,8 +70,23 @@ wss.on("connection", (ws) => {
       const buf = Buffer.from(data);
       const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
 
-      // Анализируем чанк на тишину
+      // Логируем размер чанка и первые 10 сэмплов для диагностики
+      console.log(`📥 Получен чанк размером: ${f32.length} сэмплов`);
+      console.log(`Первые 10 сэмплов чанка:`, f32.slice(0, 10));
+
+      // Логируем амплитуду для диагностики
+      let totalAmplitude = 0;
+      for (let i = 0; i < f32.length; i++) {
+        totalAmplitude += Math.abs(f32[i]);
+      }
+      const averageAmplitude = totalAmplitude / f32.length;
+      console.log(`📊 Амплитуда чанка: ${averageAmplitude}`);
+
+      // Анализируем чанк на тишину ДО сохранения
       const chunkDescription = isSilence(f32) ? "пустой" : "громкий";
+
+      // Логируем, какой чанк был определён
+      console.log(`🎧 Чанк ${chunkDescription}`);
 
       const wav = floatToWav(f32, ws.sampleRate);
       const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
