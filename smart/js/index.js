@@ -1,7 +1,8 @@
-// ======== Smart Vision INDEX (v2.5.1 — фикс обновления хэша) ========
+// ======== Smart Vision INDEX (v2.6 — добавлен модуль Translator) ========
 
 import { CONFIG } from "./config.js";
 import { renderMenu } from "./menu1.js";
+import { renderTranslator } from "../translator/translator.js"; // 🟢 импортируем модуль переводчика
 
 console.log(`🌍 Smart Vision (${CONFIG.PROJECT_NAME}) v${CONFIG.VERSION}`);
 
@@ -78,7 +79,6 @@ function renderMenuBlock() {
   const closeBtn = document.getElementById("menu-close");
   if (closeBtn) closeBtn.onclick = closeMenu;
 
-  // Навигация без необходимости двойного клика
   root.menu.addEventListener(
     "click",
     (e) => {
@@ -87,7 +87,7 @@ function renderMenuBlock() {
       const next = a.dataset.page;
       if (next && next !== STATE.page) {
         STATE.page = next;
-        window.location.hash = next; // ✅ теперь хэш снова обновляется
+        window.location.hash = next;
         renderApp();
         if (STATE.env === "mobile") closeMenu();
         root.main.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -99,7 +99,16 @@ function renderMenuBlock() {
 }
 
 function renderMain() {
-  const pageCfg = CONFIG.PAGES.find(p => p.id === STATE.page);
+  const pageCfg = CONFIG.PAGES.find((p) => p.id === STATE.page);
+
+  // 🟢 Если выбрана страница translator
+  if (STATE.page === "translator") {
+    root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
+    const mount = document.getElementById("module-root");
+    renderTranslator(mount);
+    return;
+  }
+
   if (pageCfg && pageCfg.module) {
     root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
     const mount = document.getElementById("module-root");
