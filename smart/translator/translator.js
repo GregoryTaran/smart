@@ -1,3 +1,6 @@
+// Импортируем функцию для работы с тишиной
+import { checkSilence } from './silenceHandler.js';
+
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
@@ -43,7 +46,7 @@ export async function renderTranslator(mount) {
     </div>
   `;
 
-  // Задержка, чтобы убедиться, что элементы DOM загружены
+  // Убедимся, что элементы DOM загружены
   document.addEventListener('DOMContentLoaded', () => {
     const logEl = mount.querySelector("#ctx-log");
     const btnStart = mount.querySelector("#translator-record-btn");
@@ -53,7 +56,7 @@ export async function renderTranslator(mount) {
     const voiceSel = mount.querySelector("#voice-select");
 
     // Проверяем наличие кнопки перед установкой обработчика
-    if (btnStart) {
+    if (btnStart && btnStop) {
       const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
       let ws, audioCtx, worklet, stream;
       let buffer = [], sessionId = null, sampleRate = 44100, lastSend = Date.now();
@@ -65,6 +68,7 @@ export async function renderTranslator(mount) {
         logEl.scrollTop = logEl.scrollHeight;
       }
 
+      // Обработчик кнопки Start
       btnStart.onclick = async () => {
         try {
           const mode = "agc";
@@ -73,6 +77,9 @@ export async function renderTranslator(mount) {
           const voice = voiceSel.value;
 
           btnStart.classList.add("active");
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+
           ws = new WebSocket(WS_URL);
           ws.binaryType = "arraybuffer";
           ws.onmessage = (e) => {
@@ -121,6 +128,7 @@ export async function renderTranslator(mount) {
         }
       };
 
+      // Функция для объединения чанков
       function concat(chunks) {
         const total = chunks.reduce((a, b) => a + b.length, 0);
         const out = new Float32Array(total);
@@ -132,6 +140,7 @@ export async function renderTranslator(mount) {
         return out;
       }
 
+      // Отправка блока данных на сервер
       function sendBlock() {
         if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
         const full = concat(buffer);
@@ -140,6 +149,7 @@ export async function renderTranslator(mount) {
         log(`🎧 Sent ${full.length} samples`);
       }
 
+      // Обработчик кнопки Stop
       btnStop.onclick = async () => {
         try {
           sendBlock();
@@ -148,9 +158,9 @@ export async function renderTranslator(mount) {
           if (ws && ws.readyState === WebSocket.OPEN) ws.close();
 
           btnStart.classList.remove("active");
-          log("⏹️ Recording stopped");
           btnStart.disabled = false;
           btnStop.disabled = true;
+          log("⏹️ Recording stopped");
 
           if (!sessionId) return log("❔ Нет sessionId");
           await processSession();
@@ -159,6 +169,7 @@ export async function renderTranslator(mount) {
         }
       };
 
+      // Обработка сессии
       async function processSession() {
         try {
           const voice = voiceSel.value;
@@ -203,7 +214,7 @@ export async function renderTranslator(mount) {
         }
       }
     } else {
-      log("❌ Кнопка не найдена.");
+      log("❌ Кнопки не найдены.");
     }
   });
 }
