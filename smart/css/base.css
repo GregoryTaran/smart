@@ -71,5 +71,5 @@ body.menu-open #overlay {
 
 #translator-record-btn.active {
   transform: scale(1.25);
-  background: #2e7d32;
+  background: #007bff; /* 🔵 ярко-синяя во время записи */
 }
