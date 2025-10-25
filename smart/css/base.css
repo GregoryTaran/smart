@@ -58,3 +58,18 @@ body.menu-open #overlay {
   opacity: 1;
   pointer-events: all;
 }
+
+/* 🎙️ Translator Record Button */
+#translator-record-btn {
+  background: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  transition: all 0.25s ease;
+}
+
+#translator-record-btn.active {
+  transform: scale(1.25);
+  background: #2e7d32;
+}
