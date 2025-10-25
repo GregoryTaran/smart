@@ -103,7 +103,7 @@ export async function renderTranslator(mount) {
         const chunk = e.data;
         buffer.push(chunk);
         const now = performance.now();
-        if (now - lastSend >= 2000) {
+        if (now - lastSend >= 1000) {
           sendBlock();
           lastSend = now;
         }
