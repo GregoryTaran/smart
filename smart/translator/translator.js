@@ -1,5 +1,3 @@
-// ======== Translator Module (v1.3 — клиент решает, когда обрабатывать) ========
-
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
@@ -138,11 +136,12 @@ export async function renderTranslator(mount) {
   // Отправка блоков на сервер
   function sendBlock(force = false) {
     if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
+    
+    // Собираем все данные из буфера
     const full = concat(buffer);
-    log("🎧 Sending block: " + full.length + " samples");
-    ws.send(full.buffer);
-    buffer = [];
-    lastSend = performance.now();
+    log("🎧 Sending block of size: " + full.length + " samples");
+    ws.send(full.buffer); // Отправляем на сервер
+    buffer = [];  // Очистка буфера
   }
 
   // Функция для вычисления RMS (уровня громкости)
@@ -158,18 +157,18 @@ export async function renderTranslator(mount) {
   let silenceTimer = null;
   function checkSilence(chunk) {
     const level = rms(chunk);
-    if (level < 0.01) { // Если уровень слишком низкий (тишина)
+    if (level < 0.01) {  // Если уровень слишком низкий (тишина)
       if (!silenceTimer) {
         silenceTimer = setTimeout(() => {
           ws.send(JSON.stringify({ type: "silence" }));
           log("🤫 Detected silence — sending signal to server");
           silenceTimer = null;
-        }, 2000); // Ждём 2 секунды молчания
+        }, 2000);  // Ждём 2 секунды молчания
       }
     } else {
       if (silenceTimer) {
-        clearTimeout(silenceTimer); // Если уровень голоса нормальный, сбрасываем таймер
-        silenceTimer = null;
+        clearTimeout(silenceTimer);
+        silenceTimer = null;  // Если звук есть, сбрасываем таймер
       }
     }
   }
