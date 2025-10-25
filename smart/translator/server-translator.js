@@ -22,7 +22,7 @@ const SILENCE_THRESHOLD = 0.01; // Порог для амплитуды, ниж�
 // Функция для анализа тишины в чанк данных
 function isSilence(chunk) {
   let totalAmplitude = 0;
-  let sampleCount = chunk.length; // Теперь анализируем все сэмплы в чанке (1 секунда)
+  let sampleCount = chunk.length; // Теперь анализируем все сэмплы чанка (1 секунда)
 
   // Проходим по всем сэмплам чанка и суммируем амплитуду
   for (let i = 0; i < sampleCount; i++) {
@@ -102,12 +102,9 @@ wss.on("connection", (ws) => {
       console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
       
       // Отправляем информацию о чанке на клиент через WebSocket
-      
-    // Correctly send the chunk info to the client in the same format as the other messages
-    const message = `💾 Saved ${filename} — ${chunkDescription}`;
-    console.log(`Отправка сообщения на клиент: ${message}`);  // Log before sending
-    ws.send(message);  // Send the message to the client
-    
+      const message = `💾 Saved ${filename} — ${chunkDescription}`;
+      console.log(`Отправка сообщения на клиент: ${message}`);  // Log before sending
+      ws.send(message);  // Send the message to the client
     }
   });
 
@@ -134,7 +131,8 @@ app.get("/merge", (req, res) => {
     fs.writeFileSync(outFile, merged);
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
   } catch (err) {
-    res.status(500).send("Merge error");
+    console.error(`❌ Merge error: ${err.message}`);
+    res.status(500).send(`Merge error: ${err.message}`);
   }
 });
 
