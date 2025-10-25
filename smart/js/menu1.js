@@ -4,8 +4,18 @@ import { CONFIG } from "./config.js";
 
 export function renderMenu(activePage = "home", user = null) {
   const { PAGES } = CONFIG;
+
+  // 🔹 Добавляем пункт "Переводчик-суфлёр", если его нет
+  const hasTranslator = PAGES.some(p => p.id === "translator");
+  if (!hasTranslator) {
+    PAGES.push({
+      id: "translator",
+      label: "Переводчик-суфлёр",
+    });
+  }
+
   const menuItems = PAGES
-    .filter(p => (user ? true : p.id !== "dashboard")) // скрываем кабинет, если не вошёл
+    .filter(p => (user ? true : p.id !== "dashboard"))
     .map(
       p => `
       <li>
