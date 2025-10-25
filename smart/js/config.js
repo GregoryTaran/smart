@@ -1,8 +1,8 @@
-// ======== Smart Vision CONFIG (v2.2 — добавлен модуль для Context) ========
+// ======== Smart Vision CONFIG (v2.3 — добавлен модуль Translator) ========
 
 export const CONFIG = {
   BASE_URL: "https://test.smartvision.life/",
-  VERSION: "2.2.0",
+  VERSION: "2.3.0",
   PROJECT_NAME: "Smart Vision Design",
 
   // Основные страницы
@@ -14,7 +14,10 @@ export const CONFIG = {
     { id: "contacts", label: "Контакты" },
     { id: "dashboard", label: "Личный кабинет" },
 
-    // ✅ ДОБАВЛЕНО: страница Context подключается как модуль из папки /context/
-    { id: "context", label: "🎧 Context Audio", module: "context" }
+    // 🎧 Context — старый модуль
+    { id: "context", label: "🎧 Context Audio", module: "context" },
+
+    // 🗣️ Translator — новый модуль "Переводчик-Суфлёр"
+    { id: "translator", label: "🗣️ Переводчик-Суфлёр", module: "translator" }
   ]
 };
