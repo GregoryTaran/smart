@@ -81,6 +81,7 @@ app.get("/merge", (req, res) => {
 });
 
 // === Whisper ===
+// === Whisper ===
 app.get("/whisper", async (req, res) => {
   try {
     const { session, langPair } = req.query;
@@ -91,6 +92,7 @@ app.get("/whisper", async (req, res) => {
     form.append("file", fs.createReadStream(file));
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
+    form.append("task", "transcribe"); // ✅ принудительно просим не переводить
 
     const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
