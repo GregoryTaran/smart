@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { floatToWav } from "./utils"; // Утилита для конвертации в WAV
+import { floatToWav } from "./floatToWav"; // Заменить на свой путь, если нужно
 const TMP_DIR = path.join("smart", "translator", "tmp"); // Путь для временных файлов
 
 // Логирование с уровнями и временными метками
@@ -8,7 +8,7 @@ function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${level}] ${message}\n`;
   fs.appendFileSync("server.log", logMessage);
-  console.log(logMessage);
+  console.log(logMessage);  // Логируем в консоль для отладки
 }
 
 // Основная функция для обработки бинарных данных
