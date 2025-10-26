@@ -30,11 +30,19 @@ wss.on("connection", (ws) => {
   ws.module = null;
   ws.sessionId = null;
 
+  // подтверждение соединения
+  ws.send("✅ Connected to Smart Vision WS");
+
   ws.on("pong", () => (ws.isAlive = true));
 
   ws.on("message", (msg) => {
-    // попытка парсить JSON
     try {
+      // поддержка ping/pong от клиента
+      if (msg.toString() === "ping-init" || msg.toString() === "ping") {
+        ws.send("pong");
+        return;
+      }
+
       const data = JSON.parse(msg);
 
       // регистрация клиента
@@ -53,23 +61,32 @@ wss.on("connection", (ws) => {
       // else if (ws.module === "vision") registerVision.handle(ws, data);
       else ws.send("❔ Unknown module");
     } catch (e) {
-      // не JSON — вероятно бинарные данные
+      // бинарные данные
       if (ws.module === "translator") registerTranslator.handleBinary(ws, msg);
       else if (ws.module === "context") registerContext.handleBinary(ws, msg);
+      else ws.send("⚠️ Binary message ignored (no module)");
     }
   });
 
   ws.on("close", () =>
     console.log(`❌ WS closed (${ws.module || "unknown"}): ${ws.sessionId}`)
   );
+
+  ws.on("error", (err) => {
+    console.warn(`⚠️ WS error: ${err.message}`);
+  });
 });
 
-// === Периодический ping для Render ===
+// === ЭКО: мягкий пинг (Render-friendly) ===
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (!ws.isAlive) return ws.terminate();
     ws.isAlive = false;
-    ws.ping();
+    try {
+      ws.ping();
+    } catch {
+      ws.terminate();
+    }
   });
 }, 15000);
 
