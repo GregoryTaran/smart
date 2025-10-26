@@ -56,7 +56,7 @@ export async function renderTranslator(mount) {
     const storedSessionId = sessionStorage.getItem('sessionId');
     if (storedSessionId) {
       sessionId = storedSessionId; // Если сессия существует, используем ее
-      sessionIdEl.textContent = `Session ID: ${sessionId}`;
+      sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId первой строкой
       log("📩 Возобновлена сессия: " + sessionId);
     } else {
       createSession(); // Если сессия не существует, создаем новую
@@ -89,6 +89,11 @@ export async function renderTranslator(mount) {
 
   // Проверяем сессию при загрузке страницы
   window.onload = checkSession;
+
+  // Обработчик события закрытия страницы
+  window.onbeforeunload = () => {
+    finalizeSession();  // Завершаем сессию при закрытии вкладки
+  };
 
   btnStart.onclick = async () => {
     try {
