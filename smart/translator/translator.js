@@ -1,11 +1,18 @@
-const randomNumber = Math.floor(Math.random() * 1000);  // Генерация случайного числа
-const customSessionId = "sess-" + Date.now();  // Генерация customSessionId
+export async function renderTranslator(mount) {
+  const randomNumber = Math.floor(Math.random() * 1000);  // Генерация случайного числа
 
-mount.innerHTML = `
-  <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-    <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
-    <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим customSessionId сразу после случайного числа -->
-    <h2>🎙️ Переводчик — Суфлёр</h2>
+  // Проверка и создание customSessionId
+  let customSessionId = localStorage.getItem("customSessionId");
+  if (!customSessionId) {
+    customSessionId = "sess-" + Date.now();  // Генерация customSessionId
+    localStorage.setItem("customSessionId", customSessionId);  // Сохраняем в localStorage
+  }
+
+  mount.innerHTML = `
+    <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
+      <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
+      <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим customSessionId сразу после случайного числа -->
+      <h2>🎙️ Переводчик — Суфлёр</h2>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -50,7 +57,7 @@ mount.innerHTML = `
   const voiceSel = mount.querySelector("#voice-select");
   const langSel = mount.querySelector("#lang-pair");
 
-  let ws, audioCtx, stream, customSessionId = null;
+  let ws, audioCtx, stream;
 
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
 
@@ -61,56 +68,11 @@ mount.innerHTML = `
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Проверка и создание customSessionId
-  function createSession() {
-    customSessionId = localStorage.getItem("customSessionId");
-    console.log("Checking sessionId in localStorage:", customSessionId); // Логируем, что у нас есть в localStorage
-    if (!customSessionId) {
-      customSessionId = "sess-" + Date.now();  // Генерация уникального customSessionId
-      localStorage.setItem("customSessionId", customSessionId);  // Сохраняем customSessionId в localStorage
-      console.log("New sessionId generated:", customSessionId); // Логируем, что мы создали новый sessionId
-    }
+  // Логируем customSessionId на странице
+  sessionIdDisplay.textContent = customSessionId;
+  sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;
 
-    // Логируем customSessionId в консоль
-    console.log("Custom Session ID:", customSessionId);
-
-    // Отображаем customSessionId на странице
-    sessionIdDisplay.textContent = customSessionId;  // Выводим sessionId под кнопкой Start
-    sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;  // Выводим sessionId в логе
-  }
-
-  // Проверяем наличие customSessionId при загрузке страницы
-  function checkSession() {
-    const storedCustomSessionId = localStorage.getItem("customSessionId");
-    console.log("Session ID from localStorage:", storedCustomSessionId); // Логируем, что мы получили из localStorage
-    if (storedCustomSessionId) {
-      customSessionId = storedCustomSessionId;  // Если сессия существует, используем ее
-      sessionIdDisplay.textContent = customSessionId;
-      sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;
-      log("📩 Возобновлена сессия: " + customSessionId);
-    } else {
-      createSession(); // Если сессия не существует, создаем новую
-    }
-  }
-
-  // Проверка сессии при загрузке страницы
-  window.onload = () => {
-    checkSession();  // Проверка сессии сразу при загрузке страницы
-  };
-
-  // Завершение сессии
-  function finalizeSession() {
-    localStorage.removeItem("customSessionId");  // Удаляем customSessionId из localStorage при завершении
-    sessionIdDisplay.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
-    sessionIdEl.textContent = "";  // Очищаем отображение sessionId в логе
-    log(`Сессия ${customSessionId} завершена`);
-  }
-
-  // Обработчик события закрытия страницы
-  window.onbeforeunload = () => {
-    finalizeSession();  // Завершаем сессию при закрытии вкладки
-  };
-
+  // Далее идет остальной код...
   btnStart.onclick = async () => {
     try {
       const voice = voiceSel.value;
