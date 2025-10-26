@@ -12,7 +12,7 @@ export async function renderTranslator(mount) {
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
 
-  const WS_URL = location.origin.replace(/^http/, "ws") + "/translator/ws";
+  const WS_URL = location.origin.replace(/^http/, "wss") + "/translator/ws";
   let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 

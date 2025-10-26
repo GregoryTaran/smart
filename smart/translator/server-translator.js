@@ -13,6 +13,20 @@ export default function registerTranslator(app, wss) {
   const TMP_DIR = path.join("smart", "translator", "tmp");
   fs.mkdirSync(TMP_DIR, { recursive: true });
 
+  // === Поддержка активности соединений (Render ping/pong) ===
+  wss.on("connection", (ws) => {
+    ws.isAlive = true;
+    ws.on("pong", () => (ws.isAlive = true));
+  });
+
+  setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (!ws.isAlive) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 15000);
+
   // === WebSocket ===
   let sessionCounter = 1;
   wss.on("connection", (ws, req) => {
@@ -221,4 +235,3 @@ function makeWav(pcm, sr) {
   header.writeUInt32LE(pcm.length, 40);
   return Buffer.concat([header, pcm]);
 }
-  
