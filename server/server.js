@@ -39,10 +39,11 @@ wss.on("connection", (ws) => {
       console.log("📩 Received message:", msg);  // Логируем все сообщения
 
       const data = JSON.parse(msg);
-
       console.log("📡 Received data:", data); // Логируем содержимое данных
 
+      // Логируем регистрацию
       if (data.type === "register") {
+        console.log(`✅ Registering module: ${data.module}`);
         handleRegister(ws, data, sessionCounter++); // Обрабатываем регистрацию
         sessions.set(ws.sessionId, ws); // Сохраняем сессию
         return;
@@ -53,7 +54,10 @@ wss.on("connection", (ws) => {
         return;
       }
 
+      // Проверка перед обработкой бинарных данных
+      console.log("✅ Module for processing:", ws.module);
       if (ws.module === "translator") {
+        console.log("🎧 Processing binary data...");
         await handleBinaryData(ws, msg);  // Асинхронная обработка бинарных данных
       } else {
         ws.send("❔ Unknown module");
