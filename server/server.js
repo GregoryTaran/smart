@@ -1,9 +1,11 @@
-import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { WebSocketServer } from 'ws';
 import https from 'https';
 import { logToFile } from './utils.js';  // Импортируем логирование
+
+// Получаем путь к текущей директории
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 const PORT = process.env.PORT || 3000;
 const httpsOptions = {
@@ -42,7 +44,6 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(msg);
       if (data.type === "register") {
-        // Логика регистрации
         const sessionId = `sess-${sessionCounter++}`;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
@@ -58,12 +59,12 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    logToFile(`❌ Соединение закрыто: ${ws.sessionId}`);  // Логирование закрытия соединения
+    logToFile(`❌ Соединение закрыто: ${ws.sessionId}`);
     sessions.delete(ws.sessionId);
   });
 
   ws.on("error", (err) => {
-    logToFile(`⚠️ Ошибка соединения: ${err.message}`);  // Логирование ошибки соединения
+    logToFile(`⚠️ Ошибка соединения: ${err.message}`);
     console.warn(`⚠️ Ошибка соединения: ${err.message}`);
   });
 });
