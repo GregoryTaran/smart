@@ -1,5 +1,3 @@
-// messageHandler.js
-
 import fs from "fs";
 import path from "path";
 
@@ -105,5 +103,5 @@ export async function handleBinaryData(ws, data) {
   }
 }
 
-// Экспортируем функции
+// Экспортируем функции корректно
 export { handleBinaryData, floatToWav, logToFile };
