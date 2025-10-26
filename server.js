@@ -35,6 +35,9 @@ wss.on("connection", (ws) => {
 
   ws.on("message", (msg) => {
     try {
+      // Логируем полученное сообщение
+      console.log("📩 Received message:", msg);
+
       // Поддержка ping/pong от клиента
       if (msg.toString() === "ping-init" || msg.toString() === "ping") {
         ws.send("pong");
@@ -69,8 +72,9 @@ wss.on("connection", (ws) => {
       }
     } catch (e) {
       console.error("Error processing message:", e.message);
+      ws.send("⚠️ Error processing message");
 
-      // Обработка бинарных данных
+      // Обработка бинарных данных в случае ошибки
       if (ws.module === "translator" && typeof registerTranslator.handleBinary === "function") {
         registerTranslator.handleBinary(ws, msg);
       } else {
