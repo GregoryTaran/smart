@@ -66,8 +66,10 @@ export async function renderTranslator(mount) {
   let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 48000, lastSend = 0;
 
-  // === глобальный WebSocket ===
-  const WS_URL = location.origin.replace(/^http/, "wss");
+  // === глобальный WebSocket (исправленная схема) ===
+  const WS_URL = location.protocol === "https:"
+    ? "wss://" + location.host
+    : "ws://" + location.host;
 
   btnStart.onclick = async () => {
     try {
