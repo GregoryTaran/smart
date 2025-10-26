@@ -1,3 +1,5 @@
+// messageHandler.js
+
 import fs from "fs";
 import path from "path";
 
@@ -30,20 +32,24 @@ function floatToWav(f32, sampleRate) {
   view.setUint32(12, 0x666d7420, false); // "fmt "
   view.setUint32(16, 16, true); // Subchunk size
   view.setUint16(20, 1, true); // Audio format (1 = PCM)
-  view.setUint16(22, 1, true); // Number of channels
+  view.setUint16(22, 1, true); // Number of channels (Mono)
   view.setUint32(24, sampleRate, true); // Sample rate
   view.setUint32(28, sampleRate * 2, true); // Byte rate
   view.setUint16(32, 2, true); // Block align
-  view.setUint16(34, 16, true); // Bits per sample
+  view.setUint16(34, 16, true); // Bits per sample (16 bits)
+
+  // data header
   view.setUint32(36, 0x64617461, false); // "data"
   view.setUint32(40, f32.length * 2, true); // Data chunk size
-  
-  let off = 44;
+
+  // Audio data
+  let offset = 44;
   for (let i = 0; i < f32.length; i++) {
-    const s = Math.max(-1, Math.min(1, f32[i]));
-    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); // PCM conversion
-    off += 2;
+    let s = Math.max(-1, Math.min(1, f32[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
   }
+
   return buffer;
 }
 
@@ -65,11 +71,8 @@ export async function handleBinaryData(ws, data) {
       return;
     }
 
-    // Выравнивание смещения, чтобы оно было кратно 4
-    const offset = buf.byteOffset % 4 === 0 ? buf.byteOffset : buf.byteOffset + (4 - buf.byteOffset % 4);
-
     // Конвертируем буфер в Float32Array
-    const f32 = new Float32Array(buf.buffer, offset, Math.floor(buf.byteLength / 4));
+    const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
     logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`, "INFO");
 
     // Проверка на корректность данных
@@ -82,7 +85,7 @@ export async function handleBinaryData(ws, data) {
     // Логируем перед конвертацией в WAV
     logToFile(`🎧 Preparing WAV conversion for ${f32.length} samples`, "INFO");
 
-    // Конвертируем в WAV формат
+    // Преобразуем в WAV
     const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
     ws.chunkCounter = (ws.chunkCounter || 0) + 1;
@@ -101,3 +104,6 @@ export async function handleBinaryData(ws, data) {
     ws.send("❌ Binary handler crashed: " + err.message);
   }
 }
+
+// Экспортируем функции
+export { handleBinaryData, floatToWav, logToFile };
