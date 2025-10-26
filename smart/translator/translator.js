@@ -51,6 +51,45 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
+  // Проверяем, есть ли уже сессия в SessionStorage при загрузке страницы
+  function checkSession() {
+    const storedSessionId = sessionStorage.getItem('sessionId');
+    if (storedSessionId) {
+      sessionId = storedSessionId; // Если сессия существует, используем ее
+      sessionIdEl.textContent = `Session ID: ${sessionId}`;
+      log("📩 Возобновлена сессия: " + sessionId);
+    } else {
+      createSession(); // Если сессия не существует, создаем новую
+    }
+  }
+
+  // Создание сессии при загрузке страницы
+  function createSession() {
+    sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
+    sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
+    sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId в интерфейсе
+    log("📩 Сессия создана: " + sessionId);
+  }
+
+  // Добавление чанков в сессию
+  function addAudioChunk(chunk) {
+    const session = JSON.parse(sessionStorage.getItem(sessionId));
+    if (session) {
+      session.audioChunks.push(chunk);
+      sessionStorage.setItem(sessionId, JSON.stringify(session));  // Обновляем сессию
+    }
+  }
+
+  // Завершение сессии
+  function finalizeSession() {
+    sessionStorage.removeItem('sessionId');  // Удаляем sessionId из SessionStorage при завершении
+    sessionIdEl.textContent = "";  // Очищаем отображение sessionId
+    log(`Сессия ${sessionId} завершена`);
+  }
+
+  // Проверяем сессию при загрузке страницы
+  window.onload = checkSession;
+
   btnStart.onclick = async () => {
     try {
       const voice = voiceSel.value;
@@ -62,8 +101,7 @@ export async function renderTranslator(mount) {
       ws.onmessage = (e) => {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
-          sessionId = msg.split(":")[1]; // Получаем sessionId от сервера
-          sessionIdEl.textContent = `Session ID: ${sessionId}`; // Отображаем sessionId на клиенте
+          sessionId = msg.split(":")[1];
           log("📩 " + msg);
         } else {
           log(msg);
@@ -71,7 +109,6 @@ export async function renderTranslator(mount) {
       };
 
       ws.onopen = () => {
-        // Отправляем метаданные сессии
         ws.send(JSON.stringify({ type: "register", voice, langPair }));
         ws.send("ping-init");
         log("✅ Connected to WebSocket");
@@ -88,7 +125,7 @@ export async function renderTranslator(mount) {
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         if (ws.readyState === WebSocket.OPEN) {
-          // Передаем чанк с сессией
+          addAudioChunk(chunk);  // Добавляем чанк в сессию
           ws.send(chunk.buffer);
         }
       };
@@ -111,14 +148,15 @@ export async function renderTranslator(mount) {
 
       if (sessionId) {
         log(`🎧 Finished session: ${sessionId}`);
-        await processSession(sessionId); // Передаем sessionId в процессе обработки
+        await processSession();
+        finalizeSession();  // Завершаем сессию
       }
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
   };
 
-  async function processSession(sessionId) {
+  async function processSession() {
     try {
       const voice = voiceSel.value;
       const langPair = langSel.value;
