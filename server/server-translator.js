@@ -1,26 +1,19 @@
-const fs = require("fs");
-const fetch = require("node-fetch");
-const FormData = require("form-data");
+import fs from 'fs';
+import fetch from 'node-fetch';
+import FormData from 'form-data';
 
-function mergeChunks(session) {
+export function mergeChunks(session) {
   // Логика для слияния аудио-чанков
 }
 
-async function processWhisper(session) {
+export async function processWhisper(session) {
   // Логика для обработки Whisper API
 }
 
-async function processTTS(text, session) {
+export async function processTTS(text, session) {
   // Логика для генерации TTS
 }
 
-async function processGPT(text, mode, langPair, detectedLang) {
+export async function processGPT(text, mode, langPair, detectedLang) {
   // Логика для GPT
 }
-
-module.exports = {
-  mergeChunks,
-  processWhisper,
-  processTTS,
-  processGPT
-};
