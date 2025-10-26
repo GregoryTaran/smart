@@ -1,5 +1,8 @@
+import express from "express";
+import path from "path";  // Импортируем path
+import { WebSocketServer } from "ws";
 import registerTranslator from "./smart/translator/server-translator.js";
-// import registerContext from "./smart/context/server-context.js";  // Удаляем эту строку
+// import registerContext from "./smart/context/server-context.js";  // Оставляем закомментированным
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
