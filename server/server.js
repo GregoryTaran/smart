@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
-import { handleRegister, handleBinaryData } from "./messageHandler.js"; // Импортируем обработчики
+import { handleRegister, handleBinaryData } from "./server/messageHandler.js";
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
