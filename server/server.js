@@ -4,7 +4,7 @@ import path from 'path';
 import { WebSocketServer } from 'ws';
 import https from 'https';
 import { registerHandler } from './server-translator.js';
-import { logToFile } from './utils.js';
+import { logToFile } from './utils.js';  // Импортируем логирование
 
 const PORT = process.env.PORT || 3000;
 const httpsOptions = {
@@ -24,7 +24,7 @@ app.use(express.json());
 
 // Запуск сервера
 httpsServer.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  logToFile(`🚀 Сервер запущен на порту ${PORT}`);  // Логирование
   console.log("🌐 WebSocket и HTTPS серверы активированы.");
 });
 
@@ -50,16 +50,18 @@ wss.on("connection", (ws) => {
       }
     } catch (e) {
       console.error("Ошибка при обработке сообщения:", e.message);
+      logToFile(`Ошибка при обработке сообщения: ${e.message}`);  // Логирование ошибки
       ws.send("⚠️ Ошибка при обработке сообщения");
     }
   });
 
   ws.on("close", () => {
-    console.log(`❌ Соединение закрыто: ${ws.sessionId}`);
+    logToFile(`❌ Соединение закрыто: ${ws.sessionId}`);  // Логирование закрытия соединения
     sessions.delete(ws.sessionId);
   });
 
   ws.on("error", (err) => {
+    logToFile(`⚠️ Ошибка соединения: ${err.message}`);  // Логирование ошибки соединения
     console.warn(`⚠️ Ошибка соединения: ${err.message}`);
   });
 });
