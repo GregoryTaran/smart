@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
-import { handleRegister, handleBinaryData } from "./messageHandler.js"; // Импортируем обработчики
+import { handleRegister, handleBinaryData } from "./messageHandler.js";
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -34,41 +34,26 @@ wss.on("connection", (ws) => {
 
   ws.on("pong", () => (ws.isAlive = true));
 
-  // Обработка полученных сообщений
   ws.on("message", async (msg) => {
     try {
       console.log("📩 Received message:", msg);  // Логируем все сообщения
 
-      // Если это JSON сообщение, обрабатываем его
-      let data;
-      try {
-        data = JSON.parse(msg);  // Пробуем распарсить как JSON
-        console.log("📡 Received JSON data:", data); // Логируем содержимое данных
-      } catch (e) {
-        // Если не JSON, это бинарные данные, передаем их в обработчик
-        console.log("📡 Binary data received, passing to handler.");
-        await handleBinaryData(ws, msg);  // Передаем в обработчик бинарных данных
-        return;
-      }
+      const data = JSON.parse(msg);
 
-      // Если это сообщение типа "register", то обрабатываем регистрацию
+      console.log("📡 Received data:", data); // Логируем содержимое данных
+
       if (data.type === "register") {
-        console.log(`✅ Registering module: ${data.module}`);
         handleRegister(ws, data, sessionCounter++); // Обрабатываем регистрацию
         sessions.set(ws.sessionId, ws); // Сохраняем сессию
         return;
       }
 
-      // Если модуль не зарегистрирован, выходим
       if (!ws.module) {
         console.log("❌ No module found for processing");
         return;
       }
 
-      // Обработка бинарных данных
-      console.log("✅ Module for processing:", ws.module);
       if (ws.module === "translator") {
-        console.log("🎧 Processing binary data...");
         await handleBinaryData(ws, msg);  // Асинхронная обработка бинарных данных
       } else {
         ws.send("❔ Unknown module");
