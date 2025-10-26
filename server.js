@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
 import registerTranslator from "./smart/translator/server-translator.js";
-// import registerContext from "./smart/context/server-context.js";  // Оставляем закомментированным для отладки
+// import registerContext from "./smart/context/server-context.js";  // Закомментировано для отладки
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
