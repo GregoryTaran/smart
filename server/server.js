@@ -5,6 +5,9 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import { logToFile } from './utils.js';  // Импортируем логирование
 
+// Получаем путь к текущей директории
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+
 const PORT = process.env.PORT || 3000;
 
 const app = express();
