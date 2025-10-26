@@ -6,31 +6,54 @@ import FormData from "form-data";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 const TMP_DIR = path.join("smart", "translator", "tmp");
+const LOG_FILE = path.join("smart", "logs", "server.log");
 
-fs.mkdirSync(TMP_DIR, { recursive: true });
+// Проверка существования директории TMP_DIR и создание при необходимости
+if (!fs.existsSync(TMP_DIR)) {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  logToFile(`✔️ TMP_DIR created: ${TMP_DIR}`);
+} else {
+  logToFile(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
+}
+
+// Функция для записи логов в файл
+function logToFile(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  fs.appendFileSync(LOG_FILE, logMessage);
+}
 
 // === Безопасная обработка бинарных сообщений ===
 export function handleBinary(ws, data) {
   try {
+    logToFile(`📩 Binary chunk received from ${ws.sessionId}, ${data.length} bytes`);
+    
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
       return;
     }
 
-    console.log("📩 Binary chunk received:", ws.sessionId, buf.length, "bytes");
+    logToFile(`🎧 Buffer received: ${buf.length} bytes`);
 
+    // Преобразуем Buffer в Float32Array
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
-    const wav = floatToWav(f32, ws.sampleRate || 44100);
+    logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`);
 
+    // Преобразуем в WAV
+    const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
     ws.chunkCounter = (ws.chunkCounter || 0) + 1;
 
     const filePath = path.join(TMP_DIR, filename);
-    fs.writeFileSync(filePath, wav);
+    logToFile(`🎧 Saving to: ${filePath}`);
 
+    // Сохраняем WAV файл
+    fs.writeFileSync(filePath, wav);
+    logToFile(`💾 Saved ${filename}`);
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
+    logToFile(`❌ Binary handler error: ${err.message}`);
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
   }
@@ -49,7 +72,7 @@ export function handle(ws, data) {
 
 // === HTTP маршруты (Merge, Whisper, GPT, TTS) ===
 export default function registerTranslator(app) {
-  console.log("🔗 Translator module (API) connected.");
+  logToFile("🔗 Translator module (API) connected.");
 
   app.get("/translator/merge", (req, res) => {
     try {
@@ -71,8 +94,10 @@ export default function registerTranslator(app) {
       const outFile = `${session}_merged.wav`;
       fs.writeFileSync(path.join(TMP_DIR, outFile), merged);
 
+      logToFile(`💾 Merged chunks for session ${session}`);
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
+      logToFile(`❌ Merge error: ${err.message}`);
       console.error("❌ Merge error:", err);
       res.status(500).send("Merge error");
     }
@@ -83,7 +108,8 @@ export default function registerTranslator(app) {
       const { session, langPair } = req.query;
       const file = path.join(TMP_DIR, `${session}_merged.wav`);
       if (!fs.existsSync(file)) return res.status(404).send("No file");
-      console.log("🧠 Whisper: Processing...");
+      
+      logToFile(`🧠 Whisper: Processing for session ${session}...`);
 
       const form = new FormData();
       form.append("file", fs.createReadStream(file));
@@ -98,9 +124,10 @@ export default function registerTranslator(app) {
       });
 
       const data = await r.json();
+      logToFile(`🌐 Whisper result: ${data.text}`);
       res.json({ text: data.text || "", detectedLang: data.language || null });
-      console.log("🌐 Detected language:", data.language || "none");
     } catch (err) {
+      logToFile(`❌ Whisper error: ${err.message}`);
       console.error("❌ Whisper error:", err);
       res.status(500).json({ error: err.message });
     }
@@ -110,6 +137,8 @@ export default function registerTranslator(app) {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
       if (!text) return res.status(400).send("No text");
+
+      logToFile(`🤖 GPT processing for text: ${text}`);
 
       let prompt = text;
       if (mode === "translate") {
@@ -134,8 +163,10 @@ export default function registerTranslator(app) {
       });
 
       const data = await r.json();
+      logToFile(`🤖 GPT response: ${data.choices?.[0]?.message?.content ?? ""}`);
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
     } catch (err) {
+      logToFile(`❌ GPT error: ${err.message}`);
       console.error("❌ GPT error:", err);
       res.status(500).json({ error: err.message });
     }
@@ -146,7 +177,8 @@ export default function registerTranslator(app) {
       const { text, session, voice } = req.query;
       if (!text) return res.status(400).send("No text");
 
-      console.log("🔊 TTS: Processing...");
+      logToFile(`🔊 TTS: Processing for session ${session}...`);
+
       const r = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
         headers: {
@@ -163,8 +195,11 @@ export default function registerTranslator(app) {
       const audio = await r.arrayBuffer();
       const file = `${session}_tts.mp3`;
       fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
+
+      logToFile(`🔊 TTS saved as: ${file}`);
       res.json({ url: `${BASE_URL}/smart/translator/tmp/${file}` });
     } catch (err) {
+      logToFile(`❌ TTS error: ${err.message}`);
       console.error("❌ TTS error:", err);
       res.status(500).json({ error: err.message });
     }
