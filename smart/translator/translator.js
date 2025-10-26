@@ -38,7 +38,7 @@ export async function renderTranslator(mount) {
   `;
 
   const logEl = mount.querySelector("#ctx-log");
-  const sessionInfoEl = mount.querySelector("#session-info"); // Место для вывода customSessionId под кнопкой Start
+  const sessionInfoEl = mount.querySelector("#session-info");
   const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода customSessionId под кнопкой Start
   const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода customSessionId в логе
   const btnStart = mount.querySelector("#translator-record-btn");
@@ -60,22 +60,25 @@ export async function renderTranslator(mount) {
   // Проверка и создание customSessionId
   function createSession() {
     customSessionId = localStorage.getItem("customSessionId");
+    console.log("Checking sessionId in localStorage:", customSessionId); // Логируем, что у нас есть в localStorage
     if (!customSessionId) {
       customSessionId = "sess-" + Date.now();  // Генерация уникального customSessionId
       localStorage.setItem("customSessionId", customSessionId);  // Сохраняем customSessionId в localStorage
+      console.log("New sessionId generated:", customSessionId); // Логируем, что мы создали новый sessionId
     }
 
     // Логируем customSessionId в консоль
     console.log("Custom Session ID:", customSessionId);
 
     // Отображаем customSessionId на странице
-    sessionIdDisplay.textContent = customSessionId;  // Выводим customSessionId под кнопкой Start
-    sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;  // Выводим customSessionId в логе
+    sessionIdDisplay.textContent = customSessionId;  // Выводим sessionId под кнопкой Start
+    sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;  // Выводим sessionId в логе
   }
 
   // Проверяем наличие customSessionId при загрузке страницы
   function checkSession() {
     const storedCustomSessionId = localStorage.getItem("customSessionId");
+    console.log("Session ID from localStorage:", storedCustomSessionId); // Логируем, что мы получили из localStorage
     if (storedCustomSessionId) {
       customSessionId = storedCustomSessionId;  // Если сессия существует, используем ее
       sessionIdDisplay.textContent = customSessionId;
@@ -94,8 +97,8 @@ export async function renderTranslator(mount) {
   // Завершение сессии
   function finalizeSession() {
     localStorage.removeItem("customSessionId");  // Удаляем customSessionId из localStorage при завершении
-    sessionIdDisplay.textContent = "";  // Очищаем отображение customSessionId под кнопкой Start
-    sessionIdEl.textContent = "";  // Очищаем отображение customSessionId в логе
+    sessionIdDisplay.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
+    sessionIdEl.textContent = "";  // Очищаем отображение sessionId в логе
     log(`Сессия ${customSessionId} завершена`);
   }
 
