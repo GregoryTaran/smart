@@ -8,7 +8,7 @@ import fs from 'fs';  // Импортируем для проверки файл
 // Получаем путь к текущей директории
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Используем правильный порт, предоставленный платформой
 
 const app = express();
 const httpServer = http.createServer(app);  // Используем HTTP вместо HTTPS
@@ -51,7 +51,7 @@ app.get("/smart", (req, res) => {
 // Запуск сервера
 httpServer.listen(PORT, () => {
   logToFile(`🚀 Сервер запущен на порту ${PORT}`);  // Логирование
-  console.log("🌐 WebSocket и HTTP серверы активированы.");
+  console.log(`🌐 WebSocket и HTTP серверы активированы на порту ${PORT}`);
 });
 
 // Обработчик WebSocket-соединений
