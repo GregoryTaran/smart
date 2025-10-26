@@ -64,19 +64,20 @@ export async function handleBinaryData(ws, data) {
     // Логируем размер буфера
     console.log(`🎧 Buffer received: ${buf.length} bytes`);
 
+    // Проверка на минимальную длину данных (например, 1/10 секунды для 44100Hz)
+    const minLength = ws.sampleRate / 10;  // 1/10 секунды
+    if (buf.length / 2 < minLength) {  // делим на 2, так как каждый сэмпл в 16 бит занимает 2 байта
+      ws.send("⚠️ Invalid data length (too short), chunk discarded.");
+      logToFile(`⚠️ Invalid data length for session ${ws.sessionId}`, "WARN");
+      return;
+    }
+
     // Выравнивание смещения, чтобы оно было кратно 4
     const offset = buf.byteOffset % 4 === 0 ? buf.byteOffset : buf.byteOffset + (4 - buf.byteOffset % 4);
 
     // Конвертируем буфер в Float32Array
     const f32 = new Float32Array(buf.buffer, offset, Math.floor(buf.byteLength / 4));
     console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
-
-    // Проверка на корректность данных
-    if (f32.length < 1) {
-      ws.send("⚠️ Invalid data length, chunk discarded.");
-      logToFile(`⚠️ Invalid data length for session ${ws.sessionId}`, "WARN");
-      return;
-    }
 
     // Логируем данные перед конвертацией в WAV
     console.log(`🎧 Preparing WAV conversion for ${f32.length} samples`);
