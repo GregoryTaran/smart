@@ -17,8 +17,18 @@ const wss = new WebSocketServer({ server: httpServer });
 const sessions = new Map();
 let sessionCounter = 1;
 
-app.use(express.static(path.join(__dirname, "smart")));
-app.use(express.json());
+// Статическая отдача файлов из папки smart
+app.use("/smart", express.static(path.join(__dirname, "smart")));
+
+// Главная страница (https://test.smartvision.life/)
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html")); // Отдаём index.html из корня
+});
+
+// Страница для /smart (https://test.smartvision.life/smart/)
+app.get("/smart", (req, res) => {
+  res.sendFile(path.join(__dirname, "smart", "index.html")); // Отдаём index.html из папки smart
+});
 
 // Запуск сервера
 httpServer.listen(PORT, () => {
