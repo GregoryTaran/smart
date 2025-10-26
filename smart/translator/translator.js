@@ -1,10 +1,11 @@
-export async function renderTranslator(mount) {
-  const randomNumber = Math.floor(Math.random() * 1000);  // Генерация случайного числа
+const randomNumber = Math.floor(Math.random() * 1000);  // Генерация случайного числа
+const customSessionId = "sess-" + Date.now();  // Генерация customSessionId
 
-  mount.innerHTML = `
-    <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
-      <h2>🎙️ Переводчик — Суфлёр</h2>
+mount.innerHTML = `
+  <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
+    <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
+    <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим customSessionId сразу после случайного числа -->
+    <h2>🎙️ Переводчик — Суфлёр</h2>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
