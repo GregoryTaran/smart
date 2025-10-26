@@ -27,7 +27,7 @@ export async function renderTranslator(mount) {
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
 
-      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">Session ID: <span id="session-id-display"></span></div> <!-- Место для sessionId под кнопкой -->
+      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;"></div> <!-- Место для sessionId под кнопкой -->
 
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для sessionId в логе -->
@@ -37,7 +37,6 @@ export async function renderTranslator(mount) {
 
   const logEl = mount.querySelector("#ctx-log");
   const sessionInfoEl = mount.querySelector("#session-info"); // Место для вывода sessionId под кнопкой Start
-  const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода sessionId под кнопкой Start
   const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода sessionId в логе
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
@@ -55,12 +54,21 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
+  // Создание сессии сразу при загрузке страницы
+  function createSession() {
+    sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
+    sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
+    sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId под кнопкой Start
+    sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
+    log("📩 Сессия создана: " + sessionId);
+  }
+
   // Проверяем, есть ли уже сессия в SessionStorage при загрузке страницы
   function checkSession() {
     const storedSessionId = sessionStorage.getItem('sessionId');
     if (storedSessionId) {
       sessionId = storedSessionId; // Если сессия существует, используем ее
-      sessionIdDisplay.textContent = sessionId; // Выводим sessionId под кнопкой Start
+      sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId под кнопкой Start
       sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId в логе
       log("📩 Возобновлена сессия: " + sessionId);
     } else {
@@ -68,36 +76,16 @@ export async function renderTranslator(mount) {
     }
   }
 
-  // Создание сессии при загрузке страницы
-  function createSession() {
-    sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
-    sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
-    sessionIdDisplay.textContent = sessionId; // Выводим sessionId под кнопкой Start
-    sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
-    log("📩 Сессия создана: " + sessionId);
-  }
-
-  // Добавление чанков в сессию
-  function addAudioChunk(chunk) {
-    const session = JSON.parse(sessionStorage.getItem(sessionId));
-    if (session) {
-      session.audioChunks.push(chunk);
-      sessionStorage.setItem(sessionId, JSON.stringify(session));  // Обновляем сессию
-    }
-  }
+  // Проверка сессии при загрузке страницы
+  window.onload = checkSession;  // Проверка сессии сразу при загрузке страницы
 
   // Завершение сессии
   function finalizeSession() {
     sessionStorage.removeItem('sessionId');  // Удаляем sessionId из SessionStorage при завершении
-    sessionIdDisplay.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
+    sessionInfoEl.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
     sessionIdEl.textContent = "";  // Очищаем отображение sessionId в логе
     log(`Сессия ${sessionId} завершена`);
   }
-
-  // Проверяем сессию при загрузке страницы
-  window.onload = () => {
-    checkSession();  // Проверка сессии при загрузке страницы
-  };
 
   // Обработчик события закрытия страницы
   window.onbeforeunload = () => {
