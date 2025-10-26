@@ -16,29 +16,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static(APP_DIR)); // обслуживаем только папку translator
 
-// === Пороги для анализа тишины ===
-const SILENCE_THRESHOLD = 0.01; // Порог для амплитуды, ниже которого считаем тишиной
-
-// Функция для анализа тишины в чанк данных
-function isSilence(chunk) {
-  let totalAmplitude = 0;
-  let sampleCount = chunk.length; // Теперь анализируем все сэмплы чанка (1 секунда)
-
-  // Проходим по всем сэмплам чанка и суммируем амплитуду
-  for (let i = 0; i < sampleCount; i++) {
-    totalAmplitude += Math.abs(chunk[i]); // Суммируем абсолютные значения амплитуды
-  }
-
-  // Вычисляем среднюю амплитуду
-  const averageAmplitude = totalAmplitude / sampleCount;
-
-  // Логируем амплитуду чанка для отладки
-  console.log(`Амплитуда чанка: ${averageAmplitude}`);
-
-  // Если средняя амплитуда ниже порога, считаем чанк тишиной
-  return averageAmplitude < SILENCE_THRESHOLD;
-}
-
 // === СТАРТ СЕРВЕРА ===
 const server = app.listen(PORT, () =>
   console.log(`🚀 Translator server started on port ${PORT}`)
@@ -68,47 +45,10 @@ wss.on("connection", (ws) => {
     } else {
       const buf = Buffer.from(data);
       const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-
-      // Логируем размер чанка и первые 10 сэмплов для диагностики
-      console.log(`📥 Получен чанк размером: ${f32.length} сэмплов`);
-      console.log(`Первые 10 сэмплов чанка:`, f32.slice(0, 10));
-
-      // Логируем амплитуду для диагностики
-      let totalAmplitude = 0;
-      for (let i = 0; i < f32.length; i++) {
-        totalAmplitude += Math.abs(f32[i]);
-      }
-      const averageAmplitude = totalAmplitude / f32.length;
-      console.log(`📊 Амплитуда чанка: ${averageAmplitude}`);
-
-      // Анализируем чанк на тишину ДО сохранения
-      let chunkDescription;
-      if (isSilence(f32)) {
-        chunkDescription = "пустой";  // Помечаем как "пустой", если чанк - тишина
-      } else if (averageAmplitude > SILENCE_THRESHOLD) {
-        chunkDescription = "громкий";  // Помечаем как "громкий", если чанк содержит звук
-      } else {
-        chunkDescription = "не понятно"; // Если амплитуда не подходит, выводим "не понятно"
-      }
-
-      // Логируем, какой чанк был определён
-      console.log(`🎧 Чанк ${chunkDescription}`);
-
-      // Дополнительная информация о чанке для логирования
-      const chunkSize = f32.length;
-      console.log(`Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude}`);
-
       const wav = floatToWav(f32, ws.sampleRate);
       const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
       fs.writeFileSync(filename, wav);
-
-      // Логируем сохранение чанка с пометкой громкости/тишины
-      console.log(`📩 💾 Saved ${filename} — ${chunkDescription}`);
-
-      // Отправляем информацию о чанке на клиент через WebSocket с добавлением "ТЕСТ" отдельно
-      const message = `💾 Saved ${filename} — ${chunkDescription} | Размер чанка: ${chunkSize} сэмплов | Средняя амплитуда: ${averageAmplitude}`;
-      console.log(`Отправка сообщения на клиент: ${message} ТЕСТ`);  // Log before sending
-      ws.send(`${message} ТЕСТ`);  // Send the message to the client with "ТЕСТ" added separately
+      ws.send(`💾 Saved ${filename}`);
     }
   });
 
@@ -135,8 +75,7 @@ app.get("/merge", (req, res) => {
     fs.writeFileSync(outFile, merged);
     res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
   } catch (err) {
-    console.error(`❌ Merge error: ${err.message}`);
-    res.status(500).send(`Merge error: ${err.message}`);
+    res.status(500).send("Merge error");
   }
 });
 
@@ -196,6 +135,71 @@ app.get("/whisper", async (req, res) => {
   } catch (e) {
     console.error("❌ Whisper error:", e.message);
     res.status(500).json({ error: e.message, detectedLang: null, text: "" });
+  }
+});
+
+// === GPT ===
+app.post("/gpt", async (req, res) => {
+  try {
+    const { text, mode, langPair, detectedLang } = req.body;
+    if (!text) return res.status(400).send("No text");
+
+    let prompt = text;
+    if (mode === "translate") {
+      const [a, b] = langPair.split("-");
+      let from;
+      if (detectedLang && [a, b].includes(detectedLang)) from = detectedLang;
+      else from = a;
+      const to = from === a ? b : a;
+      prompt = `Translate from ${from.toUpperCase()} to ${to.toUpperCase()}: ${text}`;
+    } else if (mode === "assistant") {
+      prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
+    }
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await r.json();
+    res.json({ text: data.choices?.[0]?.message?.content ?? "" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === TTS ===
+app.get("/tts", async (req, res) => {
+  try {
+    const { text, session, voice } = req.query;
+    if (!text) return res.status(400).send("No text");
+
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice: voice || "alloy",
+        input: text,
+      }),
+    });
+
+    const audio = await r.arrayBuffer();
+    const file = `${session}_tts.mp3`;
+    fs.writeFileSync(file, Buffer.from(audio));
+    res.json({ url: `${BASE_URL}/${file}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
