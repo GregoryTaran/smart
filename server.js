@@ -1,10 +1,5 @@
-import express from "express";
-import path from "path";
-import { WebSocketServer } from "ws";
-
 import registerTranslator from "./smart/translator/server-translator.js";
-import registerContext from "./smart/context/server-context.js";
-// import registerVision from "./smart/vision/server-vision.js";
+// import registerContext from "./smart/context/server-context.js";  // Удаляем эту строку
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -27,17 +22,17 @@ let sessionCounter = 1;
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  ws.module = null;
+  ws.module = null;  // Инициализируем module как null
   ws.sessionId = null;
 
-  // подтверждение соединения
+  // Подтверждение соединения
   ws.send("✅ Connected to Smart Vision WS");
 
   ws.on("pong", () => (ws.isAlive = true));
 
   ws.on("message", (msg) => {
     try {
-      // поддержка ping/pong от клиента
+      // Поддержка ping/pong от клиента
       if (msg.toString() === "ping-init" || msg.toString() === "ping") {
         ws.send("pong");
         return;
@@ -45,7 +40,7 @@ wss.on("connection", (ws) => {
 
       const data = JSON.parse(msg);
 
-      // регистрация клиента
+      // Регистрация модуля
       if (data.type === "register") {
         ws.module = data.module;
         ws.sampleRate = data.sampleRate || 44100;
@@ -55,14 +50,10 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // маршрутизация по модулям
+      // Маршрутизация по модулям
       if (ws.module === "translator") {
-        if (registerTranslator && typeof registerTranslator.handle === "function") {
-          registerTranslator.handle(ws, data); // Обработка данных для переводчика
-        }
-      } else if (ws.module === "context") {
-        if (registerContext && typeof registerContext.handle === "function") {
-          registerContext.handle(ws, data); // Обработка данных для контекста
+        if (registerTranslator && typeof registerTranslator.handleBinary === "function") {
+          registerTranslator.handleBinary(ws, msg);  // Обработка бинарных данных
         }
       } else {
         ws.send("❔ Unknown module");
@@ -73,8 +64,6 @@ wss.on("connection", (ws) => {
       // Обработка бинарных данных
       if (ws.module === "translator" && typeof registerTranslator.handleBinary === "function") {
         registerTranslator.handleBinary(ws, msg);
-      } else if (ws.module === "context" && typeof registerContext.handleBinary === "function") {
-        registerContext.handleBinary(ws, msg);
       } else {
         ws.send("⚠️ Binary message ignored (no module)");
       }
@@ -90,7 +79,7 @@ wss.on("connection", (ws) => {
   });
 });
 
-// === ЭКО: мягкий пинг для поддержания соединений ===
+// ЭКО: мягкий пинг для поддержания соединений
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (!ws.isAlive) return ws.terminate();
@@ -103,4 +92,4 @@ setInterval(() => {
   });
 }, 15000);
 
-console.log("🧩 Modules loaded: Translator, Context");
+console.log("🧩 Modules loaded: Translator");
