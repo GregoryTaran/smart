@@ -27,23 +27,26 @@ export async function renderTranslator(mount) {
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
 
-      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;"></div> <!-- Место для sessionId под кнопкой -->
+      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">
+        Custom Session ID: <span id="session-id-display"></span> <!-- Место для customSessionId -->
+      </div>
 
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
-        <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для sessionId в логе -->
+        <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для customSessionId в логе -->
       </div>
     </div>
   `;
 
   const logEl = mount.querySelector("#ctx-log");
-  const sessionInfoEl = mount.querySelector("#session-info"); // Место для вывода sessionId под кнопкой Start
-  const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода sessionId в логе
+  const sessionInfoEl = mount.querySelector("#session-info"); // Место для вывода customSessionId под кнопкой Start
+  const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода customSessionId под кнопкой Start
+  const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода customSessionId в логе
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
   const voiceSel = mount.querySelector("#voice-select");
   const langSel = mount.querySelector("#lang-pair");
 
-  let ws, audioCtx, stream, sessionId = null;
+  let ws, audioCtx, stream, customSessionId = null;
 
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
 
@@ -54,23 +57,30 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Создание сессии сразу при загрузке страницы
+  // Проверка и создание customSessionId
   function createSession() {
-    sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
-    sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
-    sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId под кнопкой Start
-    sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
-    console.log("📩 Сессия создана:", sessionId); // Логируем в консоль
+    customSessionId = localStorage.getItem("customSessionId");
+    if (!customSessionId) {
+      customSessionId = "sess-" + Date.now();  // Генерация уникального customSessionId
+      localStorage.setItem("customSessionId", customSessionId);  // Сохраняем customSessionId в localStorage
+    }
+
+    // Логируем customSessionId в консоль
+    console.log("Custom Session ID:", customSessionId);
+
+    // Отображаем customSessionId на странице
+    sessionIdDisplay.textContent = customSessionId;  // Выводим customSessionId под кнопкой Start
+    sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;  // Выводим customSessionId в логе
   }
 
-  // Проверяем, есть ли уже сессия в SessionStorage при загрузке страницы
+  // Проверяем наличие customSessionId при загрузке страницы
   function checkSession() {
-    const storedSessionId = sessionStorage.getItem('sessionId');
-    if (storedSessionId) {
-      sessionId = storedSessionId; // Если сессия существует, используем ее
-      sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId под кнопкой Start
-      sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId в логе
-      log("📩 Возобновлена сессия: " + sessionId);
+    const storedCustomSessionId = localStorage.getItem("customSessionId");
+    if (storedCustomSessionId) {
+      customSessionId = storedCustomSessionId;  // Если сессия существует, используем ее
+      sessionIdDisplay.textContent = customSessionId;
+      sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;
+      log("📩 Возобновлена сессия: " + customSessionId);
     } else {
       createSession(); // Если сессия не существует, создаем новую
     }
@@ -83,10 +93,10 @@ export async function renderTranslator(mount) {
 
   // Завершение сессии
   function finalizeSession() {
-    sessionStorage.removeItem('sessionId');  // Удаляем sessionId из SessionStorage при завершении
-    sessionInfoEl.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
-    sessionIdEl.textContent = "";  // Очищаем отображение sessionId в логе
-    log(`Сессия ${sessionId} завершена`);
+    localStorage.removeItem("customSessionId");  // Удаляем customSessionId из localStorage при завершении
+    sessionIdDisplay.textContent = "";  // Очищаем отображение customSessionId под кнопкой Start
+    sessionIdEl.textContent = "";  // Очищаем отображение customSessionId в логе
+    log(`Сессия ${customSessionId} завершена`);
   }
 
   // Обработчик события закрытия страницы
@@ -105,7 +115,7 @@ export async function renderTranslator(mount) {
       ws.onmessage = (e) => {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
-          sessionId = msg.split(":")[1];
+          customSessionId = msg.split(":")[1];
           log("📩 " + msg);
         } else {
           log(msg);
@@ -150,8 +160,8 @@ export async function renderTranslator(mount) {
       btnStart.disabled = false;
       btnStop.disabled = true;
 
-      if (sessionId) {
-        log(`🎧 Finished session: ${sessionId}`);
+      if (customSessionId) {
+        log(`🎧 Finished session: ${customSessionId}`);
         await processSession();
         finalizeSession();  // Завершаем сессию
       }
@@ -166,11 +176,11 @@ export async function renderTranslator(mount) {
       const langPair = langSel.value;
 
       log("🧩 Объединяем чанки...");
-      await fetch(`/translator/merge?session=${sessionId}`);
+      await fetch(`/translator/merge?session=${customSessionId}`);
       log("💾 merged");
 
       log("🧠 Whisper...");
-      const w = await fetch(`/translator/whisper?session=${sessionId}&langPair=${encodeURIComponent(langPair)}`);
+      const w = await fetch(`/translator/whisper?session=${customSessionId}&langPair=${encodeURIComponent(langPair)}`);
       const data = await w.json();
       const text = data.text || "";
       const detectedLang = data.detectedLang || null;
@@ -191,7 +201,7 @@ export async function renderTranslator(mount) {
 
       if (finalText) {
         log("🔊 TTS...");
-        const t = await fetch(`/translator/tts?session=${sessionId}&voice=${voice}&text=${encodeURIComponent(finalText)}`);
+        const t = await fetch(`/translator/tts?session=${customSessionId}&voice=${voice}&text=${encodeURIComponent(finalText)}`);
         const tData = await t.json();
         log(`🔊 ${tData.url}`);
         const audio = new Audio(tData.url);
