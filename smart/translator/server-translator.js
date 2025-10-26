@@ -1,16 +1,7 @@
 import fs from "fs";
 import path from "path";
-import fetch from "node-fetch";
-import FormData from "form-data";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
-
-// Путь для временных файлов
 const TMP_DIR = path.join("smart", "translator", "tmp");
-// Путь для логов
-const LOG_DIR = path.join("smart", "logs");
-const LOG_FILE = path.join(LOG_DIR, "server.log");
 
 // Проверка существования директории TMP_DIR и создание при необходимости
 if (!fs.existsSync(TMP_DIR)) {
@@ -20,21 +11,13 @@ if (!fs.existsSync(TMP_DIR)) {
   console.log(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
 }
 
-// Проверка существования директории LOG_DIR и создание при необходимости
-if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
-  console.log(`✔️ LOG_DIR created: ${LOG_DIR}`);
-} else {
-  console.log(`✔️ LOG_DIR already exists: ${LOG_DIR}`);
-}
-
 // Функция для записи логов в файл
 function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${level}] ${message}\n`;
 
   // Запись логов в файл
-  fs.appendFileSync(LOG_FILE, logMessage);
+  fs.appendFileSync("server.log", logMessage);
   console.log(logMessage);  // Логируем в консоль для отладки
 }
 
@@ -123,7 +106,7 @@ export default function registerTranslator(app) {
       const { session, langPair } = req.query;
       const file = path.join(TMP_DIR, `${session}_merged.wav`);
       if (!fs.existsSync(file)) return res.status(404).send("No file");
-      
+
       logToFile(`🧠 Whisper: Processing for session ${session}...`, "INFO");
 
       const form = new FormData();
