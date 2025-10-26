@@ -5,17 +5,17 @@ import FormData from "form-data";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 
-export default function registerTranslator(app, wss) {
-  console.log("🔗 Translator module connected.");
+export default function registerContext(app, wss) {
+  console.log("🔗 Context module connected.");
 
   // === WebSocket ===
   let sessionCounter = 1;
   wss.on("connection", (ws) => {
     ws.sampleRate = 44100;
-    ws.sessionId = `translator-${sessionCounter++}`;
+    ws.sessionId = `context-${sessionCounter++}`;
     ws.chunkCounter = 0;
     ws.send(`SESSION:${ws.sessionId}`);
-    console.log(`🎧 Translator WS: ${ws.sessionId}`);
+    console.log(`🎧 Context WS: ${ws.sessionId}`);
 
     ws.on("message", (data) => {
       if (typeof data === "string") {
@@ -38,11 +38,11 @@ export default function registerTranslator(app, wss) {
       }
     });
 
-    ws.on("close", () => console.log(`❌ Translator closed ${ws.sessionId}`));
+    ws.on("close", () => console.log(`❌ Context closed ${ws.sessionId}`));
   });
 
   // === Merge ===
-  app.get("/merge", (req, res) => {
+  app.get("/context/merge", (req, res) => {
     try {
       const session = req.query.session;
       if (!session) return res.status(400).send("No session");
@@ -66,16 +66,16 @@ export default function registerTranslator(app, wss) {
   });
 
   // === Whisper ===
-  app.get("/whisper", async (req, res) => {
+  app.get("/context/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
       const file = `${session}_merged.wav`;
       if (!fs.existsSync(file)) {
-        console.log("❌ No file found for Whisper.");
+        console.log("❌ No file found for Context Whisper.");
         return res.status(404).send("No file");
       }
 
-      console.log("🧠 Whisper: Processing...");
+      console.log("🧠 Context Whisper: Processing...");
 
       const form = new FormData();
       form.append("file", fs.createReadStream(file));
@@ -118,13 +118,13 @@ export default function registerTranslator(app, wss) {
       res.json({ text, detectedLang });
       console.log("ВЫ ПРЕКРАСНЫ");
     } catch (e) {
-      console.error("❌ Whisper error:", e.message);
+      console.error("❌ Context Whisper error:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
 
   // === GPT ===
-  app.post("/gpt", async (req, res) => {
+  app.post("/context/gpt", async (req, res) => {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
       if (!text) return res.status(400).send("No text");
@@ -159,12 +159,12 @@ export default function registerTranslator(app, wss) {
   });
 
   // === TTS ===
-  app.get("/tts", async (req, res) => {
+  app.get("/context/tts", async (req, res) => {
     try {
       const { text, session, voice } = req.query;
       if (!text) return res.status(400).send("No text");
 
-      console.log("🔊 TTS: Processing...");
+      console.log("🔊 Context TTS: Processing...");
       const r = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
         headers: {
@@ -184,7 +184,7 @@ export default function registerTranslator(app, wss) {
       res.json({ url: `${BASE_URL}/${file}` });
       console.log("ВЫ ПРЕКРАСНЫ");
     } catch (e) {
-      console.error("❌ TTS error:", e.message);
+      console.error("❌ Context TTS error:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
