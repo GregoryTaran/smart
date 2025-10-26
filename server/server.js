@@ -3,6 +3,7 @@ import path from 'path';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { logToFile } from './utils.js';  // Импортируем логирование
+import fs from 'fs';  // Импортируем для проверки файлов
 
 // Получаем путь к текущей директории
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -18,21 +19,33 @@ let sessionCounter = 1;
 
 // Статическая отдача файлов из папки smart
 app.use("/smart", express.static(path.join(__dirname, "smart")));
-app.use("/css", express.static(path.join(__dirname, "css")));
-app.use("/js", express.static(path.join(__dirname, "js")));
 
 // Главная страница (https://test.smartvision.life/)
 app.get("/", (req, res) => {
   console.log("Request for root (/) received");
   logToFile("Request for root (/) received");
-  res.sendFile(path.join(__dirname, "index.html")); // Отдаём index.html из корня
+
+  // Проверяем, существует ли файл index.html в корне
+  const indexPath = path.join(__dirname, "index.html");
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath); // Отдаём index.html из корня
+  } else {
+    res.status(404).send("404 - Главная страница не найдена");
+  }
 });
 
 // Страница для /smart (https://test.smartvision.life/smart/)
 app.get("/smart", (req, res) => {
   console.log("Request for /smart received");
   logToFile("Request for /smart received");
-  res.sendFile(path.join(__dirname, "smart", "index.html")); // Отдаём index.html из папки smart
+
+  // Проверяем, существует ли файл index.html в папке smart
+  const smartIndexPath = path.join(__dirname, "smart", "index.html");
+  if (fs.existsSync(smartIndexPath)) {
+    res.sendFile(smartIndexPath); // Отдаём index.html из папки smart
+  } else {
+    res.status(404).send("404 - Страница /smart не найдена");
+  }
 });
 
 // Запуск сервера
