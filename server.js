@@ -1,8 +1,8 @@
 import express from "express";
-import path from "path";  // Импортируем path
+import path from "path";
 import { WebSocketServer } from "ws";
 import registerTranslator from "./smart/translator/server-translator.js";
-// import registerContext from "./smart/context/server-context.js";  // Оставляем закомментированным
+// import registerContext from "./smart/context/server-context.js";  // Закомментировано для отладки
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -45,7 +45,7 @@ wss.on("connection", (ws) => {
 
       // Регистрация модуля
       if (data.type === "register") {
-        ws.module = data.module;
+        ws.module = data.module;  // Устанавливаем модуль
         ws.sampleRate = data.sampleRate || 44100;
         ws.sessionId = `${ws.module}-${sessionCounter++}`;
         ws.send(`SESSION:${ws.sessionId}`);
