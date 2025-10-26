@@ -22,11 +22,15 @@ app.use("/smart", express.static(path.join(__dirname, "smart")));
 
 // Главная страница (https://test.smartvision.life/)
 app.get("/", (req, res) => {
+  console.log("Request for root (/) received");
+  logToFile("Request for root (/) received");
   res.sendFile(path.join(__dirname, "index.html")); // Отдаём index.html из корня
 });
 
 // Страница для /smart (https://test.smartvision.life/smart/)
 app.get("/smart", (req, res) => {
+  console.log("Request for /smart received");
+  logToFile("Request for /smart received");
   res.sendFile(path.join(__dirname, "smart", "index.html")); // Отдаём index.html из папки smart
 });
 
