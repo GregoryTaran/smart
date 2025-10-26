@@ -14,6 +14,9 @@ const wss = new WebSocketServer({ server: httpServer });
 const sessions = new Map();
 let sessionCounter = 1;
 
+// Центральное хранилище состояния сессий
+const sessionState = new Map();
+
 // Используем process.cwd() для получения абсолютного пути
 const indexPath = path.join(process.cwd(), 'index.html');
 const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');
@@ -60,6 +63,9 @@ wss.on("connection", (ws) => {
   ws.sessionId = null;
   ws.module = null;
 
+  // Инициализация сессии в центральном хранилище
+  sessionState.set(ws.id, { status: 'connected', data: {} });
+
   ws.send("✅ Подключено к Smart Vision WS");
 
   ws.on("pong", () => (ws.isAlive = true));
@@ -71,19 +77,24 @@ wss.on("connection", (ws) => {
         const sessionId = `sess-${sessionCounter++}`;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
+
+        // Обновление состояния сессии
+        sessionState.set(ws.id, { status: 'registered', sessionId: sessionId });
+
         ws.send(`✅ Подключено. ID сессии: ${sessionId}`);
       } else {
         ws.send("❔ Неизвестный модуль");
       }
     } catch (e) {
       console.error("Ошибка при обработке сообщения:", e.message);
-      logToFile(`Ошибка при обработке сообщения: ${e.message}`);  // Логирование ошибки
+      logToFile(`Ошибка при обработке сообщения: ${e.message}`);
       ws.send("⚠️ Ошибка при обработке сообщения");
     }
   });
 
   ws.on("close", () => {
     logToFile(`❌ Соединение закрыто: ${ws.sessionId}`);
+    sessionState.delete(ws.id);  // Удаляем состояние сессии
     sessions.delete(ws.sessionId);
   });
 
@@ -97,6 +108,7 @@ wss.on("connection", (ws) => {
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (!ws.isAlive) {
+      sessionState.delete(ws.id);  // Очистить состояние неактивной сессии
       return ws.terminate();
     }
     ws.isAlive = false;
