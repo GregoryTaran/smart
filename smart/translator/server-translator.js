@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 
+// Путь для временных файлов
 const TMP_DIR = path.join("smart", "translator", "tmp");
 
 // Проверка существования директории TMP_DIR и создание при необходимости
@@ -11,21 +12,30 @@ if (!fs.existsSync(TMP_DIR)) {
   console.log(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
 }
 
-// Функция для записи логов в файл
+// Логирование данных
 function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${level}] ${message}\n`;
 
-  // Запись логов в файл
+  // Запись в файл
   fs.appendFileSync("server.log", logMessage);
-  console.log(logMessage);  // Логируем в консоль для отладки
+  console.log(logMessage); // Логируем в консоль для отладки
 }
 
-// === Безопасная обработка бинарных сообщений ===
-export function handleBinary(ws, data) {
+// Обработка регистрации модуля
+export function handleRegister(ws, data, sessionCounter) {
+  ws.module = data.module;
+  ws.sampleRate = data.sampleRate || 44100;
+  ws.sessionId = `${ws.module}-${sessionCounter}`;
+  ws.send(`SESSION:${ws.sessionId}`);
+  logToFile(`✅ Registered module: ${ws.module}, Session ID: ${ws.sessionId}`);
+}
+
+// Обработка бинарных данных
+export async function handleBinaryData(ws, data) {
   try {
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
-    
+
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
@@ -33,18 +43,17 @@ export function handleBinary(ws, data) {
       return;
     }
 
-    // Логирование перед обработкой
-    logToFile(`🎧 Buffer received: ${buf.length} bytes`, "INFO");
+    console.log(`🎧 Buffer received: ${buf.length} bytes`);
 
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
-    logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`, "INFO");
+    console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
 
     const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
     ws.chunkCounter = (ws.chunkCounter || 0) + 1;
 
     const filePath = path.join(TMP_DIR, filename);
-    logToFile(`🎧 Saving to: ${filePath}`, "INFO");
+    console.log(`🎧 Saving to: ${filePath}`);
 
     fs.writeFileSync(filePath, wav);
     logToFile(`💾 Saved ${filename}`, "INFO");
@@ -56,7 +65,7 @@ export function handleBinary(ws, data) {
   }
 }
 
-// === Обработка метаданных ===
+// Обработка метаданных
 export function handle(ws, data) {
   if (data.type === "meta") {
     ws.sampleRate = data.sampleRate || 44100;
@@ -68,10 +77,38 @@ export function handle(ws, data) {
   }
 }
 
-// === HTTP маршруты (Merge, Whisper, GPT, TTS) ===
+// Конвертация данных в WAV формат
+function floatToWav(f32, sampleRate) {
+  const buffer = Buffer.alloc(44 + f32.length * 2);
+  const view = new DataView(buffer.buffer);
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + f32.length * 2, true); // Размер данных
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true); // Размер заголовка
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Моно
+  view.setUint32(24, sampleRate, true); // Частота дискретизации
+  view.setUint32(28, sampleRate * 2, true); // Битрейт
+  view.setUint16(32, 2, true); // Стерео
+  view.setUint16(34, 16, true); // Битность
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, f32.length * 2, true); // Размер данных
+
+  let off = 44;
+  for (let i = 0; i < f32.length; i++) {
+    let s = Math.max(-1, Math.min(1, f32[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return buffer;
+}
+
+// Маршруты API для работы с аудио файлами (merge, whisper, gpt, tts)
 export default function registerTranslator(app) {
   logToFile("🔗 Translator module (API) connected.", "INFO");
 
+  // Маршрут для слияния аудио чанков
   app.get("/translator/merge", (req, res) => {
     try {
       const session = req.query.session;
@@ -101,6 +138,7 @@ export default function registerTranslator(app) {
     }
   });
 
+  // Маршрут для Whisper (транскрипция)
   app.get("/translator/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
@@ -131,6 +169,7 @@ export default function registerTranslator(app) {
     }
   });
 
+  // Маршрут для GPT (обработка текста)
   app.post("/translator/gpt", async (req, res) => {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
@@ -170,6 +209,7 @@ export default function registerTranslator(app) {
     }
   });
 
+  // Маршрут для TTS (синтез речи)
   app.get("/translator/tts", async (req, res) => {
     try {
       const { text, session, voice } = req.query;
@@ -204,32 +244,7 @@ export default function registerTranslator(app) {
   });
 }
 
-// === Helpers ===
-function floatToWav(f32, sampleRate) {
-  const buffer = Buffer.alloc(44 + f32.length * 2);
-  const view = new DataView(buffer.buffer);
-  view.setUint32(0, 0x52494646, false);
-  view.setUint32(4, 36 + f32.length * 2, true);
-  view.setUint32(8, 0x57415645, false);
-  view.setUint32(12, 0x666d7420, false);
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  view.setUint32(36, 0x64617461, false);
-  view.setUint32(40, f32.length * 2, true);
-  let off = 44;
-  for (let i = 0; i < f32.length; i++) {
-    let s = Math.max(-1, Math.min(1, f32[i]));
-    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    off += 2;
-  }
-  return buffer;
-}
-
+// Конвертация PCM в WAV
 function makeWav(pcm, sr) {
   const header = Buffer.alloc(44);
   header.write("RIFF", 0);
