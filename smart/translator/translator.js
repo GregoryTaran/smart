@@ -38,10 +38,12 @@ export async function renderTranslator(mount) {
       sampleRate = audioCtx.sampleRate;
       await audioCtx.audioWorklet.addModule("translator/recorder-worklet.js");
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "meta", sampleRate }));
-        log("✅ Connected to WebSocket");
-      };
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: "meta", sampleRate }));
+  ws.send("ping-init"); // 👈 предотвращает авторазрыв Render
+  log("✅ Connected to WebSocket");
+};
+
 
       const constraints = { audio: true };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
