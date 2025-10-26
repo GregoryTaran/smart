@@ -9,18 +9,18 @@ const TMP_DIR = path.join("smart", "translator", "tmp");
 
 fs.mkdirSync(TMP_DIR, { recursive: true });
 
-// === Обработка бинарных сообщений (аудио чанков) ===
+// === Безопасная обработка бинарных сообщений ===
 export function handleBinary(ws, data) {
   try {
-    if (!data || !(data instanceof Buffer)) {
-      ws.send("⚠️ handleBinary: received non-binary data");
+    const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    if (!buf.length) {
+      ws.send("⚠️ Empty binary chunk skipped");
       return;
     }
 
-    console.log("📩 Binary chunk received from", ws.sessionId);
+    console.log("📩 Binary chunk received:", ws.sessionId, buf.length, "bytes");
 
-    const buf = Buffer.from(data);
-    const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+    const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
     const wav = floatToWav(f32, ws.sampleRate || 44100);
 
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
@@ -36,7 +36,7 @@ export function handleBinary(ws, data) {
   }
 }
 
-// === Обработка текстовых сообщений (метаданные, команды) ===
+// === Обработка метаданных ===
 export function handle(ws, data) {
   if (data.type === "meta") {
     ws.sampleRate = data.sampleRate || 44100;
@@ -47,11 +47,10 @@ export function handle(ws, data) {
   }
 }
 
-// === HTTP маршруты ===
+// === HTTP маршруты (Merge, Whisper, GPT, TTS) ===
 export default function registerTranslator(app) {
   console.log("🔗 Translator module (API) connected.");
 
-  // === Merge ===
   app.get("/translator/merge", (req, res) => {
     try {
       const session = req.query.session;
@@ -59,7 +58,7 @@ export default function registerTranslator(app) {
 
       const files = fs.readdirSync(TMP_DIR)
         .filter(f => f.startsWith(`${session}_chunk_`))
-        .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
+        .sort((a, b) => +a.match(/chunk_(\\d+)/)[1] - +b.match(/chunk_(\\d+)/)[1]);
 
       if (!files.length) return res.status(404).send("No chunks");
 
@@ -79,7 +78,6 @@ export default function registerTranslator(app) {
     }
   });
 
-  // === Whisper ===
   app.get("/translator/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
@@ -108,7 +106,6 @@ export default function registerTranslator(app) {
     }
   });
 
-  // === GPT ===
   app.post("/translator/gpt", async (req, res) => {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
@@ -144,7 +141,6 @@ export default function registerTranslator(app) {
     }
   });
 
-  // === TTS ===
   app.get("/translator/tts", async (req, res) => {
     try {
       const { text, session, voice } = req.query;
