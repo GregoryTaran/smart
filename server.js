@@ -82,7 +82,12 @@ app.get("/whisper", async (req, res) => {
   try {
     const { session, langPair } = req.query;
     const file = `${session}_merged.wav`;
-    if (!fs.existsSync(file)) return res.status(404).send("No file");
+    if (!fs.existsSync(file)) {
+      console.log("❌ No file found for Whisper.");
+      return res.status(404).send("No file");
+    }
+
+    console.log("🧠 Whisper: Processing...");
 
     const form = new FormData();
     form.append("file", fs.createReadStream(file));
@@ -186,7 +191,12 @@ app.post("/gpt", async (req, res) => {
 app.get("/tts", async (req, res) => {
   try {
     const { text, session, voice } = req.query;
-    if (!text) return res.status(400).send("No text");
+    if (!text) {
+      console.log("❌ No text for TTS.");
+      return res.status(400).send("No text");
+    }
+
+    console.log("🔊 TTS: Processing...");
 
     const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
@@ -196,7 +206,7 @@ app.get("/tts", async (req, res) => {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini-tts",
-        voice: voice || "alloy",
+        voice: voice || "alloy",  // Можно указать желаемый голос
         input: text,
       }),
     });
