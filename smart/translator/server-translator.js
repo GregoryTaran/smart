@@ -95,7 +95,7 @@ export default function registerTranslator(app) {
 
       const files = fs.readdirSync(TMP_DIR)
         .filter(f => f.startsWith(`${session}_chunk_`))
-        .sort((a, b) => +a.match(/chunk_(\\d+)/)[1] - +b.match(/chunk_(\\d+)/)[1]);
+        .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
 
       if (!files.length) return res.status(404).send("No chunks");
 

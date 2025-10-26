@@ -1,5 +1,3 @@
-// ======== Translator Module (v2.0 — global WS + UI options) ========
-
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
