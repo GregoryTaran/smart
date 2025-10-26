@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
 import registerTranslator from "./smart/translator/server-translator.js";
-// import registerContext from "./smart/context/server-context.js";  // Закомментировано для отладки
+// import registerContext from "./smart/context/server-context.js";  // Оставлено для отладки
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -46,18 +46,23 @@ wss.on("connection", (ws) => {
 
       const data = JSON.parse(msg);
 
+      // Логируем тип сообщения
+      console.log(`📡 Message type: ${data.type}`);
+
       // Регистрация модуля
       if (data.type === "register") {
+        console.log(`✅ Registering module: ${data.module}`);
+
         ws.module = data.module;  // Устанавливаем модуль
         ws.sampleRate = data.sampleRate || 44100;
         ws.sessionId = `${ws.module}-${sessionCounter++}`;
         ws.send(`SESSION:${ws.sessionId}`);
         console.log(`📡 Registered ${ws.module}: ${ws.sessionId}`);
-
-        // Логируем успешную регистрацию модуля
-        console.log(`✅ Module ${ws.module} successfully registered!`);
         return;
       }
+
+      // Логируем, что модуль не найден
+      console.log("❌ No module found for processing");
 
       // Маршрутизация по модулям
       if (ws.module === "translator") {
