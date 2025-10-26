@@ -1,96 +1,76 @@
-import express from "express";
-import path from "path";
-import { WebSocketServer } from "ws";
-import { handleRegister, handleBinaryData } from "./messageHandler.js"; // Импортируем обработчики
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const { WebSocketServer } = require("ws");
+const https = require("https");
+const { registerHandler } = require("./server-translator");
+const { logToFile } = require("./utils");
 
 const PORT = process.env.PORT || 3000;
-const ROOT = path.resolve(".");
+const httpsOptions = {
+  key: fs.readFileSync(path.join(__dirname, "certs", "key.pem")),
+  cert: fs.readFileSync(path.join(__dirname, "certs", "cert.pem")),
+};
+
 const app = express();
+const httpsServer = https.createServer(httpsOptions, app);
+const wss = new WebSocketServer({ server: httpsServer });
 
+const sessions = new Map();
+let sessionCounter = 1;
+
+app.use(express.static(path.join(__dirname, "smart")));
 app.use(express.json());
-app.use("/smart", express.static(path.join(ROOT, "smart")));
-app.use(express.static(ROOT));
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Smart Vision Server started on port ${PORT}`);
+// Запуск сервера
+httpsServer.listen(PORT, () => {
+  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log("🌐 WebSocket и HTTPS серверы активированы.");
 });
 
-const wss = new WebSocketServer({ server });
-console.log("🌐 Global WebSocket server started.");
-
-// Реестр активных соединений
-let sessionCounter = 1;
-const sessions = new Map();
-
+// Обработчик WebSocket-соединений
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  ws.module = null;
   ws.sessionId = null;
+  ws.module = null;
 
-  // Подтверждение соединения
-  ws.send("✅ Connected to Smart Vision WS");
-  console.log(`New WebSocket connection, id: ${ws.id}`);
+  ws.send("✅ Подключено к Smart Vision WS");
 
-  // Обработка пинга для поддержания соединения
   ws.on("pong", () => (ws.isAlive = true));
 
-  // Обработка сообщений от клиента
-  ws.on("message", async (msg) => {
+  ws.on("message", (msg) => {
     try {
-      console.log("📩 Received message:", msg);  // Логируем все сообщения
-
       const data = JSON.parse(msg);
-
-      console.log("📡 Received data:", data); // Логируем содержимое данных
-
       if (data.type === "register") {
-        handleRegister(ws, data, sessionCounter++); // Обрабатываем регистрацию
-        sessions.set(ws.sessionId, ws); // Сохраняем сессию
-        return;
-      }
-
-      // Если модуль не найден, выводим ошибку
-      if (!ws.module) {
-        console.log("❌ No module found for processing");
-        return;
-      }
-
-      // Если модуль переводчика, обрабатываем бинарные данные
-      if (ws.module === "translator") {
-        await handleBinaryData(ws, msg);  // Асинхронная обработка бинарных данных
+        registerHandler(ws, data, sessionCounter++);
+        sessions.set(ws.sessionId, ws);
       } else {
-        ws.send("❔ Unknown module");
+        ws.send("❔ Неизвестный модуль");
       }
     } catch (e) {
-      console.error("Error processing message:", e.message);
-      ws.send("⚠️ Error processing message");
+      console.error("Ошибка при обработке сообщения:", e.message);
+      ws.send("⚠️ Ошибка при обработке сообщения");
     }
   });
 
-  // Закрытие соединения
   ws.on("close", () => {
-    console.log(`❌ WS closed (${ws.module || "unknown"}): ${ws.sessionId}`);
-    sessions.delete(ws.sessionId); // Удаляем сессию
+    console.log(`❌ Соединение закрыто: ${ws.sessionId}`);
+    sessions.delete(ws.sessionId);
   });
 
-  // Обработка ошибок WebSocket
   ws.on("error", (err) => {
-    console.warn(`⚠️ WS error: ${err.message}`);
+    console.warn(`⚠️ Ошибка соединения: ${err.message}`);
   });
 });
 
-// Пинг для поддержания соединений
+// Периодическая проверка живости сессий (ping/pong)
 setInterval(() => {
   wss.clients.forEach((ws) => {
-    if (!ws.isAlive) return ws.terminate();
-    ws.isAlive = false;
-    try {
-      ws.ping();
-    } catch {
-      ws.terminate();
+    if (!ws.isAlive) {
+      return ws.terminate();
     }
+    ws.isAlive = false;
+    ws.ping();
   });
 }, 15000);
-
-console.log("🧩 Modules loaded: Translator");
