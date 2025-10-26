@@ -90,3 +90,28 @@ export async function handleBinaryData(ws, data) {
     ws.send("❌ Binary handler crashed: " + err.message);
   }
 }
+
+// Функция для обработки регистрации модуля
+export function handleRegister(ws, data, sessionCounter) {
+  try {
+    // Проверка на наличие необходимых данных для регистрации
+    if (!data || !data.module) {
+      ws.send("❌ Missing module in registration data");
+      logToFile(`❌ Missing module in registration for session ${ws.sessionId}`, "ERROR");
+      return;
+    }
+
+    // Регистрация модуля и создание уникального sessionId
+    ws.module = data.module;
+    ws.sampleRate = data.sampleRate || 44100;  // По умолчанию 44.1kHz
+    ws.sessionId = `${ws.module}-${sessionCounter}`;  // Генерация уникального sessionId
+    
+    // Логируем успешную регистрацию
+    ws.send(`SESSION:${ws.sessionId}`);
+    logToFile(`✅ Registered module: ${ws.module}, Session ID: ${ws.sessionId}`, "INFO");
+  } catch (err) {
+    // Логируем ошибку регистрации
+    logToFile(`❌ Registration error for session ${ws.sessionId}: ${err.message}`, "ERROR");
+    ws.send("❌ Error during registration");
+  }
+}
