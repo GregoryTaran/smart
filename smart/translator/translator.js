@@ -94,7 +94,9 @@ export async function renderTranslator(mount) {
   }
 
   // Проверяем сессию при загрузке страницы
-  window.onload = checkSession;
+  window.onload = () => {
+    checkSession();  // Проверка сессии при загрузке страницы
+  };
 
   // Обработчик события закрытия страницы
   window.onbeforeunload = () => {
