@@ -4,6 +4,14 @@ import path from "path";
 // Путь для временных файлов
 const TMP_DIR = path.join("smart", "translator", "tmp");
 
+// Проверка и создание директории, если она не существует
+if (!fs.existsSync(TMP_DIR)) {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  console.log(`✔️ TMP_DIR created: ${TMP_DIR}`);
+} else {
+  console.log(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
+}
+
 // Логирование с уровнями и временными метками
 function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
@@ -42,11 +50,10 @@ function floatToWav(f32, sampleRate) {
 // Основная функция для обработки бинарных данных
 export async function handleBinaryData(ws, data) {
   try {
-    // Логируем получение данных
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
-
+    
     // Проверка на пустой буфер
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
@@ -78,34 +85,8 @@ export async function handleBinaryData(ws, data) {
     logToFile(`💾 Saved ${filename}`, "INFO");
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
-    // Логируем ошибку
     logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
-  }
-}
-
-// Функция для обработки регистрации модуля
-export function handleRegister(ws, data, sessionCounter) {
-  try {
-    // Проверка на корректные данные регистрации
-    if (!data || !data.module) {
-      ws.send("❌ Missing module in registration data");
-      logToFile(`❌ Missing module in registration for session ${ws.sessionId}`, "ERROR");
-      return;
-    }
-
-    // Регистрация модуля и создание уникального sessionId
-    ws.module = data.module;
-    ws.sampleRate = data.sampleRate || 44100;
-    ws.sessionId = `${ws.module}-${sessionCounter}`;
-    
-    // Логируем успешную регистрацию
-    ws.send(`SESSION:${ws.sessionId}`);
-    logToFile(`✅ Registered module: ${ws.module}, Session ID: ${ws.sessionId}`, "INFO");
-  } catch (err) {
-    // Логируем ошибку регистрации
-    logToFile(`❌ Registration error for session ${ws.sessionId}: ${err.message}`, "ERROR");
-    ws.send("❌ Error during registration");
   }
 }
