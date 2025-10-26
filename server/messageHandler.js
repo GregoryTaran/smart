@@ -24,6 +24,7 @@ function logToFile(message, level = "INFO") {
 function floatToWav(f32, sampleRate) {
   const buffer = Buffer.alloc(44 + f32.length * 2);
   const view = new DataView(buffer.buffer);
+  
   view.setUint32(0, 0x52494646, false); // "RIFF"
   view.setUint32(4, 36 + f32.length * 2, true); // Chunk size
   view.setUint32(8, 0x57415645, false); // "WAVE"
@@ -102,6 +103,3 @@ export async function handleBinaryData(ws, data) {
     ws.send("❌ Binary handler crashed: " + err.message);
   }
 }
-
-// Экспортируем функции корректно
-export { handleBinaryData, floatToWav, logToFile };
