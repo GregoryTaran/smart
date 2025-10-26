@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import fs from 'fs';  // Для проверки существования файлов
 import { logToFile } from './utils.js';  // Импортируем логирование
 
-// Получаем путь к текущей директории
+// Получаем путь к текущей директории с использованием import.meta.url
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 const PORT = process.env.PORT || 10000; // Используем правильный порт, предоставленный платформой
