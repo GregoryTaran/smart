@@ -1,8 +1,8 @@
 import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
-import registerTranslator from "./smart/translator/server-translator.js";
-// import registerContext from "./smart/context/server-context.js";  // Оставлено для отладки
+import registerTranslator from "./smart/translator/server-translator.js";  // Подключение модуля
+// import registerContext from "./smart/context/server-context.js";  // Закомментировано для отладки
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -58,6 +58,9 @@ wss.on("connection", (ws) => {
         ws.sessionId = `${ws.module}-${sessionCounter++}`;
         ws.send(`SESSION:${ws.sessionId}`);
         console.log(`📡 Registered ${ws.module}: ${ws.sessionId}`);
+
+        // Логируем успешную регистрацию модуля
+        console.log(`✅ Module ${ws.module} successfully registered!`);
         return;
       }
 
