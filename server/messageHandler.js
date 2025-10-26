@@ -50,9 +50,9 @@ function floatToWav(f32, sampleRate) {
 // Основная функция для обработки бинарных данных
 export async function handleBinaryData(ws, data) {
   try {
-    // Логирование входящих данных
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
+    // Преобразуем данные в буфер
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
 
     // Логируем размер буфера
