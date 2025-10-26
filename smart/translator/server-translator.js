@@ -9,33 +9,25 @@ const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 export default function registerTranslator(app, wss) {
   console.log("🔗 Translator module connected.");
 
-  // === директория для временных файлов ===
   const TMP_DIR = path.join("smart", "translator", "tmp");
   fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  // === Поддержка активности соединений (Render ping/pong) ===
+  let sessionCounter = 1;
+
+  // === ОДИН обработчик подключения ===
   wss.on("connection", (ws) => {
+    // --- поддержка активности ---
     ws.isAlive = true;
     ws.on("pong", () => (ws.isAlive = true));
-  });
 
-  setInterval(() => {
-    wss.clients.forEach((ws) => {
-      if (!ws.isAlive) return ws.terminate();
-      ws.isAlive = false;
-      ws.ping();
-    });
-  }, 15000);
-
-  // === WebSocket ===
-  let sessionCounter = 1;
-  wss.on("connection", (ws, req) => {
+    // --- инициализация сессии ---
     ws.sampleRate = 44100;
     ws.sessionId = `translator-${sessionCounter++}`;
     ws.chunkCounter = 0;
     ws.send(`SESSION:${ws.sessionId}`);
     console.log(`🎧 Translator WS connected: ${ws.sessionId}`);
 
+    // --- обработка сообщений ---
     ws.on("message", (data) => {
       if (typeof data === "string") {
         try {
@@ -60,18 +52,24 @@ export default function registerTranslator(app, wss) {
     ws.on("close", () => console.log(`❌ Translator WS closed: ${ws.sessionId}`));
   });
 
-  // === Merge ===
+  // --- пинг таймер ---
+  setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (!ws.isAlive) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 15000);
+
+  // === остальные маршруты ===
   app.get("/translator/merge", (req, res) => {
     try {
       const session = req.query.session;
       if (!session) return res.status(400).send("No session");
-
       const files = fs.readdirSync(TMP_DIR)
         .filter(f => f.startsWith(`${session}_chunk_`))
         .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
-
       if (!files.length) return res.status(404).send("No chunks");
-
       const headerSize = 44;
       const first = fs.readFileSync(path.join(TMP_DIR, files[0]));
       const sr = first.readUInt32LE(24);
@@ -80,57 +78,40 @@ export default function registerTranslator(app, wss) {
       const merged = makeWav(totalPCM, sr);
       const outFile = `${session}_merged.wav`;
       fs.writeFileSync(path.join(TMP_DIR, outFile), merged);
-
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
       res.status(500).send("Merge error");
     }
   });
 
-  // === Whisper ===
   app.get("/translator/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
       const file = path.join(TMP_DIR, `${session}_merged.wav`);
-      if (!fs.existsSync(file)) {
-        console.log("❌ No file found for Whisper.");
-        return res.status(404).send("No file");
-      }
-
+      if (!fs.existsSync(file)) return res.status(404).send("No file");
       console.log("🧠 Whisper: Processing...");
-
       const form = new FormData();
       form.append("file", fs.createReadStream(file));
       form.append("model", "whisper-1");
       form.append("response_format", "verbose_json");
       form.append("task", "transcribe");
-
       const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",
         headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
         body: form,
       });
-
       const data = await r.json();
-      let detectedLang = data.language || null;
-      const text = data.text || "";
-
-      console.log("🌐 Detected language:", detectedLang || "none");
-
-      res.json({ text, detectedLang });
-      console.log("ВЫ ПРЕКРАСНЫ");
+      res.json({ text: data.text || "", detectedLang: data.language || null });
+      console.log("🌐 Detected language:", data.language || "none");
     } catch (e) {
-      console.error("❌ Whisper error:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
 
-  // === GPT ===
   app.post("/translator/gpt", async (req, res) => {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
       if (!text) return res.status(400).send("No text");
-
       let prompt = text;
       if (mode === "translate") {
         const [a, b] = langPair.split("-");
@@ -140,7 +121,6 @@ export default function registerTranslator(app, wss) {
       } else if (mode === "assistant") {
         prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
       }
-
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -152,7 +132,6 @@ export default function registerTranslator(app, wss) {
           messages: [{ role: "user", content: prompt }],
         }),
       });
-
       const data = await r.json();
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
     } catch (e) {
@@ -160,12 +139,10 @@ export default function registerTranslator(app, wss) {
     }
   });
 
-  // === TTS ===
   app.get("/translator/tts", async (req, res) => {
     try {
       const { text, session, voice } = req.query;
       if (!text) return res.status(400).send("No text");
-
       console.log("🔊 TTS: Processing...");
       const r = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
@@ -179,14 +156,11 @@ export default function registerTranslator(app, wss) {
           input: text,
         }),
       });
-
       const audio = await r.arrayBuffer();
       const file = `${session}_tts.mp3`;
       fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
       res.json({ url: `${BASE_URL}/smart/translator/tmp/${file}` });
-      console.log("ВЫ ПРЕКРАСНЫ");
     } catch (e) {
-      console.error("❌ TTS error:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
