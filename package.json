@@ -2,9 +2,9 @@
   "name": "context-ws",
   "version": "1.0.0",
   "type": "module",
-  "main": "server/server.js",  // Указываем путь к серверу
+  "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js"  // Указываем путь для старта сервера
+    "start": "node server/server.js"
   },
   "dependencies": {
     "express": "^5.1.0",
