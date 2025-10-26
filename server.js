@@ -56,15 +56,28 @@ wss.on("connection", (ws) => {
       }
 
       // маршрутизация по модулям
-      if (ws.module === "translator") registerTranslator.handle(ws, data);
-      else if (ws.module === "context") registerContext.handle(ws, data);
-      // else if (ws.module === "vision") registerVision.handle(ws, data);
-      else ws.send("❔ Unknown module");
+      if (ws.module === "translator") {
+        if (registerTranslator && typeof registerTranslator.handle === "function") {
+          registerTranslator.handle(ws, data); // Обработка данных для переводчика
+        }
+      } else if (ws.module === "context") {
+        if (registerContext && typeof registerContext.handle === "function") {
+          registerContext.handle(ws, data); // Обработка данных для контекста
+        }
+      } else {
+        ws.send("❔ Unknown module");
+      }
     } catch (e) {
-      // бинарные данные
-      if (ws.module === "translator") registerTranslator.handleBinary(ws, msg);
-      else if (ws.module === "context") registerContext.handleBinary(ws, msg);
-      else ws.send("⚠️ Binary message ignored (no module)");
+      console.error("Error processing message:", e.message);
+
+      // Обработка бинарных данных
+      if (ws.module === "translator" && typeof registerTranslator.handleBinary === "function") {
+        registerTranslator.handleBinary(ws, msg);
+      } else if (ws.module === "context" && typeof registerContext.handleBinary === "function") {
+        registerContext.handleBinary(ws, msg);
+      } else {
+        ws.send("⚠️ Binary message ignored (no module)");
+      }
     }
   });
 
@@ -77,7 +90,7 @@ wss.on("connection", (ws) => {
   });
 });
 
-// === ЭКО: мягкий пинг (Render-friendly) ===
+// === ЭКО: мягкий пинг для поддержания соединений ===
 setInterval(() => {
   wss.clients.forEach((ws) => {
     if (!ws.isAlive) return ws.terminate();
