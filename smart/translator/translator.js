@@ -58,7 +58,7 @@ export async function renderTranslator(mount) {
   function createSession() {
     sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
     sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
-    sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId под кнопкой Start
+    sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId под кнопкой Start
     sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
     console.log("📩 Сессия создана:", sessionId); // Логируем в консоль
   }
