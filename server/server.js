@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { WebSocketServer } from 'ws';
 import https from 'https';
-import { registerHandler } from './server-translator.js';
 import { logToFile } from './utils.js';  // Импортируем логирование
 
 const PORT = process.env.PORT || 3000;
@@ -43,8 +42,11 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(msg);
       if (data.type === "register") {
-        registerHandler(ws, data, sessionCounter++);
-        sessions.set(ws.sessionId, ws);
+        // Логика регистрации
+        const sessionId = `sess-${sessionCounter++}`;
+        ws.sessionId = sessionId;
+        sessions.set(sessionId, ws);
+        ws.send(`✅ Подключено. ID сессии: ${sessionId}`);
       } else {
         ws.send("❔ Неизвестный модуль");
       }
