@@ -1,21 +1,15 @@
+import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { WebSocketServer } from 'ws';
-import https from 'https';
+import http from 'http';
 import { logToFile } from './utils.js';  // Импортируем логирование
 
-// Получаем путь к текущей директории
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
-
 const PORT = process.env.PORT || 3000;
-const httpsOptions = {
-  key: fs.readFileSync(path.join(__dirname, "certs", "key.pem")),
-  cert: fs.readFileSync(path.join(__dirname, "certs", "cert.pem")),
-};
 
 const app = express();
-const httpsServer = https.createServer(httpsOptions, app);
-const wss = new WebSocketServer({ server: httpsServer });
+const httpServer = http.createServer(app);  // Используем HTTP вместо HTTPS
+const wss = new WebSocketServer({ server: httpServer });
 
 const sessions = new Map();
 let sessionCounter = 1;
@@ -24,9 +18,9 @@ app.use(express.static(path.join(__dirname, "smart")));
 app.use(express.json());
 
 // Запуск сервера
-httpsServer.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   logToFile(`🚀 Сервер запущен на порту ${PORT}`);  // Логирование
-  console.log("🌐 WebSocket и HTTPS серверы активированы.");
+  console.log("🌐 WebSocket и HTTP серверы активированы.");
 });
 
 // Обработчик WebSocket-соединений
