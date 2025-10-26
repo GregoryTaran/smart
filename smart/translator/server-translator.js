@@ -6,70 +6,47 @@ import FormData from "form-data";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 
-export default function registerTranslator(app, wss) {
-  console.log("🔗 Translator module connected.");
+const TMP_DIR = path.join("smart", "translator", "tmp");
+fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  const TMP_DIR = path.join("smart", "translator", "tmp");
-  fs.mkdirSync(TMP_DIR, { recursive: true });
+// === Обработка бинарных сообщений (аудио чанков) ===
+export function handleBinary(ws, data) {
+  const buf = Buffer.from(data);
+  const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+  const wav = floatToWav(f32, ws.sampleRate || 44100);
+  const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
+  ws.chunkCounter = (ws.chunkCounter || 0) + 1;
+  fs.writeFileSync(path.join(TMP_DIR, filename), wav);
+  ws.send(`💾 Saved ${filename}`);
+}
 
-  let sessionCounter = 1;
-
-  // === ОДИН обработчик подключения ===
-  wss.on("connection", (ws) => {
-    // --- поддержка активности ---
-    ws.isAlive = true;
-    ws.on("pong", () => (ws.isAlive = true));
-
-    // --- инициализация сессии ---
-    ws.sampleRate = 44100;
-    ws.sessionId = `translator-${sessionCounter++}`;
+// === Обработка текстовых сообщений (метаданные, команды) ===
+export function handle(ws, data) {
+  if (data.type === "meta") {
+    ws.sampleRate = data.sampleRate || 44100;
+    ws.langPair = data.langPair || "en-ru";
+    ws.processMode = data.processMode || "translate";
     ws.chunkCounter = 0;
-    ws.send(`SESSION:${ws.sessionId}`);
-    console.log(`🎧 Translator WS connected: ${ws.sessionId}`);
+    ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
+  }
+}
 
-    // --- обработка сообщений ---
-    ws.on("message", (data) => {
-      if (typeof data === "string") {
-        try {
-          const meta = JSON.parse(data);
-          if (meta.type === "meta") {
-            ws.sampleRate = meta.sampleRate;
-            ws.processMode = meta.processMode;
-            ws.langPair = meta.langPair;
-            return ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
-          }
-        } catch {}
-      } else {
-        const buf = Buffer.from(data);
-        const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-        const wav = floatToWav(f32, ws.sampleRate);
-        const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
-        fs.writeFileSync(path.join(TMP_DIR, filename), wav);
-        ws.send(`💾 Saved ${filename}`);
-      }
-    });
+// === HTTP маршруты ===
+export default function registerTranslator(app) {
+  console.log("🔗 Translator module (API) connected.");
 
-    ws.on("close", () => console.log(`❌ Translator WS closed: ${ws.sessionId}`));
-  });
-
-  // --- пинг таймер ---
-  setInterval(() => {
-    wss.clients.forEach((ws) => {
-      if (!ws.isAlive) return ws.terminate();
-      ws.isAlive = false;
-      ws.ping();
-    });
-  }, 15000);
-
-  // === остальные маршруты ===
+  // === Merge ===
   app.get("/translator/merge", (req, res) => {
     try {
       const session = req.query.session;
       if (!session) return res.status(400).send("No session");
+
       const files = fs.readdirSync(TMP_DIR)
         .filter(f => f.startsWith(`${session}_chunk_`))
         .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
+
       if (!files.length) return res.status(404).send("No chunks");
+
       const headerSize = 44;
       const first = fs.readFileSync(path.join(TMP_DIR, files[0]));
       const sr = first.readUInt32LE(24);
@@ -78,28 +55,33 @@ export default function registerTranslator(app, wss) {
       const merged = makeWav(totalPCM, sr);
       const outFile = `${session}_merged.wav`;
       fs.writeFileSync(path.join(TMP_DIR, outFile), merged);
+
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
       res.status(500).send("Merge error");
     }
   });
 
+  // === Whisper ===
   app.get("/translator/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
       const file = path.join(TMP_DIR, `${session}_merged.wav`);
       if (!fs.existsSync(file)) return res.status(404).send("No file");
       console.log("🧠 Whisper: Processing...");
+
       const form = new FormData();
       form.append("file", fs.createReadStream(file));
       form.append("model", "whisper-1");
       form.append("response_format", "verbose_json");
       form.append("task", "transcribe");
+
       const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",
         headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
         body: form,
       });
+
       const data = await r.json();
       res.json({ text: data.text || "", detectedLang: data.language || null });
       console.log("🌐 Detected language:", data.language || "none");
@@ -108,10 +90,12 @@ export default function registerTranslator(app, wss) {
     }
   });
 
+  // === GPT ===
   app.post("/translator/gpt", async (req, res) => {
     try {
       const { text, mode, langPair, detectedLang } = req.body;
       if (!text) return res.status(400).send("No text");
+
       let prompt = text;
       if (mode === "translate") {
         const [a, b] = langPair.split("-");
@@ -121,6 +105,7 @@ export default function registerTranslator(app, wss) {
       } else if (mode === "assistant") {
         prompt = `Act as a helpful assistant. Reply naturally: ${text}`;
       }
+
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -132,6 +117,7 @@ export default function registerTranslator(app, wss) {
           messages: [{ role: "user", content: prompt }],
         }),
       });
+
       const data = await r.json();
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
     } catch (e) {
@@ -139,10 +125,12 @@ export default function registerTranslator(app, wss) {
     }
   });
 
+  // === TTS ===
   app.get("/translator/tts", async (req, res) => {
     try {
       const { text, session, voice } = req.query;
       if (!text) return res.status(400).send("No text");
+
       console.log("🔊 TTS: Processing...");
       const r = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
@@ -156,6 +144,7 @@ export default function registerTranslator(app, wss) {
           input: text,
         }),
       });
+
       const audio = await r.arrayBuffer();
       const file = `${session}_tts.mp3`;
       fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
