@@ -40,7 +40,7 @@ function logToFile(message, level = "INFO") {
 // === Безопасная обработка бинарных сообщений ===
 export function handleBinary(ws, data) {
   try {
-    logToFile(`📩 Binary chunk received from ${ws.sessionId}, ${data.length} bytes`);
+    console.log(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`);
     
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
     if (!buf.length) {
@@ -48,26 +48,23 @@ export function handleBinary(ws, data) {
       return;
     }
 
-    logToFile(`🎧 Buffer received: ${buf.length} bytes`);
+    // Логирование перед обработкой
+    console.log(`🎧 Buffer received: ${buf.length} bytes`);
 
-    // Преобразуем Buffer в Float32Array
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
-    logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`);
+    console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
 
-    // Преобразуем в WAV
     const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
     ws.chunkCounter = (ws.chunkCounter || 0) + 1;
 
     const filePath = path.join(TMP_DIR, filename);
-    logToFile(`🎧 Saving to: ${filePath}`);
+    console.log(`🎧 Saving to: ${filePath}`);
 
-    // Сохраняем WAV файл
     fs.writeFileSync(filePath, wav);
-    logToFile(`💾 Saved ${filename}`);
+    console.log(`💾 Saved ${filename}`);
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
-    logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
   }
