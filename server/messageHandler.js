@@ -71,6 +71,16 @@ export async function handleBinaryData(ws, data) {
     const f32 = new Float32Array(buf.buffer, offset, Math.floor(buf.byteLength / 4));
     console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
 
+    // Проверка на корректность данных
+    if (f32.length < 1) {
+      ws.send("⚠️ Invalid data length, chunk discarded.");
+      logToFile(`⚠️ Invalid data length for session ${ws.sessionId}`, "WARN");
+      return;
+    }
+
+    // Логируем данные перед конвертацией в WAV
+    console.log(`🎧 Preparing WAV conversion for ${f32.length} samples`);
+
     // Конвертируем в WAV формат
     const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
