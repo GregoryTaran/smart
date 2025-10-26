@@ -110,7 +110,7 @@ export async function renderTranslator(mount) {
       ws.onclose = () => log("❌ Disconnected");
 
       audioCtx = new AudioContext({ sampleRate });
-      await audioCtx.audioWorklet.addModule("smart/context/recorder-worklet.js");
+      await audioCtx.audioWorklet.addModule("/smart/context/recorder-worklet.js");
       const source = audioCtx.createMediaStreamSource(await navigator.mediaDevices.getUserMedia({ audio: true }));
       worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       source.connect(worklet);
