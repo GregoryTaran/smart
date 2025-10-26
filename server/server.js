@@ -1,10 +1,10 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const { WebSocketServer } = require("ws");
-const https = require("https");
-const { registerHandler } = require("./server-translator");
-const { logToFile } = require("./utils");
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { WebSocketServer } from 'ws';
+import https from 'https';
+import { registerHandler } from './server-translator.js';
+import { logToFile } from './utils.js';
 
 const PORT = process.env.PORT || 3000;
 const httpsOptions = {
