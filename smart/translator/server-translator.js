@@ -35,36 +35,39 @@ function logToFile(message, level = "INFO") {
 
   // Запись логов в файл
   fs.appendFileSync(LOG_FILE, logMessage);
+  console.log(logMessage);  // Логируем в консоль для отладки
 }
 
 // === Безопасная обработка бинарных сообщений ===
 export function handleBinary(ws, data) {
   try {
-    console.log(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`);
+    logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
     
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
+      logToFile(`⚠️ Empty binary chunk skipped for session ${ws.sessionId}`, "WARN");
       return;
     }
 
     // Логирование перед обработкой
-    console.log(`🎧 Buffer received: ${buf.length} bytes`);
+    logToFile(`🎧 Buffer received: ${buf.length} bytes`, "INFO");
 
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
-    console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
+    logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`, "INFO");
 
     const wav = floatToWav(f32, ws.sampleRate || 44100);
     const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
     ws.chunkCounter = (ws.chunkCounter || 0) + 1;
 
     const filePath = path.join(TMP_DIR, filename);
-    console.log(`🎧 Saving to: ${filePath}`);
+    logToFile(`🎧 Saving to: ${filePath}`, "INFO");
 
     fs.writeFileSync(filePath, wav);
-    console.log(`💾 Saved ${filename}`);
+    logToFile(`💾 Saved ${filename}`, "INFO");
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
+    logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
   }
@@ -78,12 +81,13 @@ export function handle(ws, data) {
     ws.processMode = data.processMode || "translate";
     ws.chunkCounter = 0;
     ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
+    logToFile(`🎛 Meta received for session ${ws.sessionId}: SampleRate = ${ws.sampleRate} Hz, LangPair = ${ws.langPair}, ProcessMode = ${ws.processMode}`, "INFO");
   }
 }
 
 // === HTTP маршруты (Merge, Whisper, GPT, TTS) ===
 export default function registerTranslator(app) {
-  logToFile("🔗 Translator module (API) connected.");
+  logToFile("🔗 Translator module (API) connected.", "INFO");
 
   app.get("/translator/merge", (req, res) => {
     try {
@@ -105,7 +109,7 @@ export default function registerTranslator(app) {
       const outFile = `${session}_merged.wav`;
       fs.writeFileSync(path.join(TMP_DIR, outFile), merged);
 
-      logToFile(`💾 Merged chunks for session ${session}`);
+      logToFile(`💾 Merged chunks for session ${session}`, "INFO");
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
       logToFile(`❌ Merge error: ${err.message}`, "ERROR");
@@ -120,7 +124,7 @@ export default function registerTranslator(app) {
       const file = path.join(TMP_DIR, `${session}_merged.wav`);
       if (!fs.existsSync(file)) return res.status(404).send("No file");
       
-      logToFile(`🧠 Whisper: Processing for session ${session}...`);
+      logToFile(`🧠 Whisper: Processing for session ${session}...`, "INFO");
 
       const form = new FormData();
       form.append("file", fs.createReadStream(file));
@@ -135,7 +139,7 @@ export default function registerTranslator(app) {
       });
 
       const data = await r.json();
-      logToFile(`🌐 Whisper result: ${data.text}`);
+      logToFile(`🌐 Whisper result: ${data.text}`, "INFO");
       res.json({ text: data.text || "", detectedLang: data.language || null });
     } catch (err) {
       logToFile(`❌ Whisper error: ${err.message}`, "ERROR");
@@ -149,7 +153,7 @@ export default function registerTranslator(app) {
       const { text, mode, langPair, detectedLang } = req.body;
       if (!text) return res.status(400).send("No text");
 
-      logToFile(`🤖 GPT processing for text: ${text}`);
+      logToFile(`🤖 GPT processing for text: ${text}`, "INFO");
 
       let prompt = text;
       if (mode === "translate") {
@@ -174,7 +178,7 @@ export default function registerTranslator(app) {
       });
 
       const data = await r.json();
-      logToFile(`🤖 GPT response: ${data.choices?.[0]?.message?.content ?? ""}`);
+      logToFile(`🤖 GPT response: ${data.choices?.[0]?.message?.content ?? ""}`, "INFO");
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
     } catch (err) {
       logToFile(`❌ GPT error: ${err.message}`, "ERROR");
@@ -188,7 +192,7 @@ export default function registerTranslator(app) {
       const { text, session, voice } = req.query;
       if (!text) return res.status(400).send("No text");
 
-      logToFile(`🔊 TTS: Processing for session ${session}...`);
+      logToFile(`🔊 TTS: Processing for session ${session}...`, "INFO");
 
       const r = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
@@ -207,7 +211,7 @@ export default function registerTranslator(app) {
       const file = `${session}_tts.mp3`;
       fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
 
-      logToFile(`🔊 TTS saved as: ${file}`);
+      logToFile(`🔊 TTS saved as: ${file}`, "INFO");
       res.json({ url: `${BASE_URL}/smart/translator/tmp/${file}` });
     } catch (err) {
       logToFile(`❌ TTS error: ${err.message}`, "ERROR");
