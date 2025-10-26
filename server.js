@@ -10,15 +10,29 @@ const ROOT = path.resolve(".");
 
 const app = express();
 app.use(express.json());
+
+// === Раздача фронтенда ===
 app.use("/smart", express.static(path.join(ROOT, "smart")));
 app.use(express.static(ROOT));
 
-const server = app.listen(PORT, () =>
-  console.log(`🚀 Server started on port ${PORT}`)
-);
+// === Запуск основного HTTP-сервера ===
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Smart Vision Server started on port ${PORT}`);
+  console.log(`📂 Root: ${ROOT}`);
+});
 
-const wss = new WebSocketServer({ server });
+// === Раздельные WebSocket-серверы для модулей ===
+// Каждый модуль имеет собственный endpoint
+const wssTranslator = new WebSocketServer({ server, path: "/translator/ws" });
+const wssContext = new WebSocketServer({ server, path: "/context/ws" });
 
-// === Подключение модулей ===
-registerTranslator(app, wss);
-registerContext(app, wss);
+// === Подключение серверных модулей ===
+registerTranslator(app, wssTranslator);
+registerContext(app, wssContext);
+
+// === Резерв для будущих модулей ===
+// import registerVision from "./smart/vision/server-vision.js";
+// const wssVision = new WebSocketServer({ server, path: "/vision/ws" });
+// registerVision(app, wssVision);
+
+console.log("🧩 Modules loaded: Translator, Context");
