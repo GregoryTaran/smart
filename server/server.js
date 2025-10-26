@@ -1,8 +1,7 @@
 import express from 'express';
-import fs from 'fs';
 import path from 'path';
-import { WebSocketServer } from 'ws';
 import http from 'http';
+import { WebSocketServer } from 'ws';
 import { logToFile } from './utils.js';  // Импортируем логирование
 
 // Получаем путь к текущей директории
@@ -19,6 +18,8 @@ let sessionCounter = 1;
 
 // Статическая отдача файлов из папки smart
 app.use("/smart", express.static(path.join(__dirname, "smart")));
+app.use("/css", express.static(path.join(__dirname, "css")));
+app.use("/js", express.static(path.join(__dirname, "js")));
 
 // Главная страница (https://test.smartvision.life/)
 app.get("/", (req, res) => {
