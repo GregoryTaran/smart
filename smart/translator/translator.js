@@ -1,7 +1,9 @@
+// ======== Translator Module (v1.3 — кнопка записи согласована с base.css) ========
+
 export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр 1</h2>
+      <h2 style="margin:0 0 12px 0;">🎙️ Переводчик — Суфлёр</h2>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -50,8 +52,7 @@ export async function renderTranslator(mount) {
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
 
-  // Подключение к серверу на порту 4000 (server-translator.js)
-  const WS_URL = `wss://test.smartvision.life:4000/ws`; // Порт 4000 для server-translator.js
+  const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
   let ws, audioCtx, worklet, stream;
   let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
 
