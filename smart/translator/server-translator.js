@@ -5,19 +5,35 @@ import FormData from "form-data";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
-
 const TMP_DIR = path.join("smart", "translator", "tmp");
+
 fs.mkdirSync(TMP_DIR, { recursive: true });
 
 // === Обработка бинарных сообщений (аудио чанков) ===
 export function handleBinary(ws, data) {
-  const buf = Buffer.from(data);
-  const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-  const wav = floatToWav(f32, ws.sampleRate || 44100);
-  const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
-  ws.chunkCounter = (ws.chunkCounter || 0) + 1;
-  fs.writeFileSync(path.join(TMP_DIR, filename), wav);
-  ws.send(`💾 Saved ${filename}`);
+  try {
+    if (!data || !(data instanceof Buffer)) {
+      ws.send("⚠️ handleBinary: received non-binary data");
+      return;
+    }
+
+    console.log("📩 Binary chunk received from", ws.sessionId);
+
+    const buf = Buffer.from(data);
+    const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+    const wav = floatToWav(f32, ws.sampleRate || 44100);
+
+    const filename = `${ws.sessionId}_chunk_${ws.chunkCounter || 0}.wav`;
+    ws.chunkCounter = (ws.chunkCounter || 0) + 1;
+
+    const filePath = path.join(TMP_DIR, filename);
+    fs.writeFileSync(filePath, wav);
+
+    ws.send(`💾 Saved ${filename}`);
+  } catch (err) {
+    console.error("❌ Binary handler error:", err);
+    ws.send("❌ Binary handler crashed: " + err.message);
+  }
 }
 
 // === Обработка текстовых сообщений (метаданные, команды) ===
@@ -58,6 +74,7 @@ export default function registerTranslator(app) {
 
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
+      console.error("❌ Merge error:", err);
       res.status(500).send("Merge error");
     }
   });
@@ -85,8 +102,9 @@ export default function registerTranslator(app) {
       const data = await r.json();
       res.json({ text: data.text || "", detectedLang: data.language || null });
       console.log("🌐 Detected language:", data.language || "none");
-    } catch (e) {
-      res.status(500).json({ error: e.message });
+    } catch (err) {
+      console.error("❌ Whisper error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -120,8 +138,9 @@ export default function registerTranslator(app) {
 
       const data = await r.json();
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
-    } catch (e) {
-      res.status(500).json({ error: e.message });
+    } catch (err) {
+      console.error("❌ GPT error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -149,8 +168,9 @@ export default function registerTranslator(app) {
       const file = `${session}_tts.mp3`;
       fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
       res.json({ url: `${BASE_URL}/smart/translator/tmp/${file}` });
-    } catch (e) {
-      res.status(500).json({ error: e.message });
+    } catch (err) {
+      console.error("❌ TTS error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 }
