@@ -27,8 +27,8 @@ export async function renderTranslator(mount) {
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
 
-      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;"></div> <!-- Место для sessionId под кнопкой -->
-      
+      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">Session ID: <span id="session-id-display"></span></div> <!-- Место для sessionId под кнопкой -->
+
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для sessionId в логе -->
       </div>
@@ -37,6 +37,7 @@ export async function renderTranslator(mount) {
 
   const logEl = mount.querySelector("#ctx-log");
   const sessionInfoEl = mount.querySelector("#session-info"); // Место для вывода sessionId под кнопкой Start
+  const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода sessionId под кнопкой Start
   const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода sessionId в логе
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
@@ -59,7 +60,7 @@ export async function renderTranslator(mount) {
     const storedSessionId = sessionStorage.getItem('sessionId');
     if (storedSessionId) {
       sessionId = storedSessionId; // Если сессия существует, используем ее
-      sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId под кнопкой Start
+      sessionIdDisplay.textContent = sessionId; // Выводим sessionId под кнопкой Start
       sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Выводим sessionId в логе
       log("📩 Возобновлена сессия: " + sessionId);
     } else {
@@ -71,8 +72,8 @@ export async function renderTranslator(mount) {
   function createSession() {
     sessionId = "sess-" + Date.now();  // Генерация уникального sessionId
     sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
-    sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId под кнопкой Start
-    sessionIdEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId в логе
+    sessionIdDisplay.textContent = sessionId; // Выводим sessionId под кнопкой Start
+    sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
     log("📩 Сессия создана: " + sessionId);
   }
 
@@ -88,7 +89,7 @@ export async function renderTranslator(mount) {
   // Завершение сессии
   function finalizeSession() {
     sessionStorage.removeItem('sessionId');  // Удаляем sessionId из SessionStorage при завершении
-    sessionInfoEl.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
+    sessionIdDisplay.textContent = "";  // Очищаем отображение sessionId под кнопкой Start
     sessionIdEl.textContent = "";  // Очищаем отображение sessionId в логе
     log(`Сессия ${sessionId} завершена`);
   }
