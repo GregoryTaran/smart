@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import fetch from "node-fetch";
 import FormData from "form-data";
 
@@ -8,14 +9,18 @@ const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 export default function registerContext(app, wss) {
   console.log("🔗 Context module connected.");
 
+  // === директория для временных файлов ===
+  const TMP_DIR = path.join("smart", "context", "tmp");
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+
   // === WebSocket ===
   let sessionCounter = 1;
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
     ws.sampleRate = 44100;
     ws.sessionId = `context-${sessionCounter++}`;
     ws.chunkCounter = 0;
     ws.send(`SESSION:${ws.sessionId}`);
-    console.log(`🎧 Context WS: ${ws.sessionId}`);
+    console.log(`🎧 Context WS connected: ${ws.sessionId}`);
 
     ws.on("message", (data) => {
       if (typeof data === "string") {
@@ -33,12 +38,12 @@ export default function registerContext(app, wss) {
         const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
         const wav = floatToWav(f32, ws.sampleRate);
         const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
-        fs.writeFileSync(filename, wav);
+        fs.writeFileSync(path.join(TMP_DIR, filename), wav);
         ws.send(`💾 Saved ${filename}`);
       }
     });
 
-    ws.on("close", () => console.log(`❌ Context closed ${ws.sessionId}`));
+    ws.on("close", () => console.log(`❌ Context WS closed: ${ws.sessionId}`));
   });
 
   // === Merge ===
@@ -46,20 +51,23 @@ export default function registerContext(app, wss) {
     try {
       const session = req.query.session;
       if (!session) return res.status(400).send("No session");
-      const files = fs.readdirSync(".")
+
+      const files = fs.readdirSync(TMP_DIR)
         .filter(f => f.startsWith(`${session}_chunk_`))
         .sort((a, b) => +a.match(/chunk_(\d+)/)[1] - +b.match(/chunk_(\d+)/)[1]);
+
       if (!files.length) return res.status(404).send("No chunks");
 
       const headerSize = 44;
-      const first = fs.readFileSync(files[0]);
+      const first = fs.readFileSync(path.join(TMP_DIR, files[0]));
       const sr = first.readUInt32LE(24);
-      const pcms = files.map(f => fs.readFileSync(f).subarray(headerSize));
+      const pcms = files.map(f => fs.readFileSync(path.join(TMP_DIR, f)).subarray(headerSize));
       const totalPCM = Buffer.concat(pcms);
       const merged = makeWav(totalPCM, sr);
       const outFile = `${session}_merged.wav`;
-      fs.writeFileSync(outFile, merged);
-      res.json({ ok: true, file: `${BASE_URL}/${outFile}` });
+      fs.writeFileSync(path.join(TMP_DIR, outFile), merged);
+
+      res.json({ ok: true, file: `${BASE_URL}/smart/context/tmp/${outFile}` });
     } catch (err) {
       res.status(500).send("Merge error");
     }
@@ -69,7 +77,7 @@ export default function registerContext(app, wss) {
   app.get("/context/whisper", async (req, res) => {
     try {
       const { session, langPair } = req.query;
-      const file = `${session}_merged.wav`;
+      const file = path.join(TMP_DIR, `${session}_merged.wav`);
       if (!fs.existsSync(file)) {
         console.log("❌ No file found for Context Whisper.");
         return res.status(404).send("No file");
@@ -94,27 +102,6 @@ export default function registerContext(app, wss) {
       const text = data.text || "";
 
       console.log("🌐 Detected language:", detectedLang || "none");
-
-      const [a, b] = (langPair || "en-ru").split("-");
-      if (!detectedLang || ![a, b].includes(detectedLang)) {
-        console.log(`⚠️ Checking with GPT...`);
-        const prompt = `Text: """${text}"""\nDecide which of these two languages it is written in: ${a} or ${b}. Return only one code (${a} or ${b}).`;
-        const check = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-          }),
-        });
-        const resCheck = await check.json();
-        const corrected = resCheck.choices?.[0]?.message?.content?.trim().toLowerCase();
-        if (corrected && [a, b].includes(corrected)) detectedLang = corrected;
-      }
-
       res.json({ text, detectedLang });
       console.log("ВЫ ПРЕКРАСНЫ");
     } catch (e) {
@@ -180,8 +167,8 @@ export default function registerContext(app, wss) {
 
       const audio = await r.arrayBuffer();
       const file = `${session}_tts.mp3`;
-      fs.writeFileSync(file, Buffer.from(audio));
-      res.json({ url: `${BASE_URL}/${file}` });
+      fs.writeFileSync(path.join(TMP_DIR, file), Buffer.from(audio));
+      res.json({ url: `${BASE_URL}/smart/context/tmp/${file}` });
       console.log("ВЫ ПРЕКРАСНЫ");
     } catch (e) {
       console.error("❌ Context TTS error:", e.message);
