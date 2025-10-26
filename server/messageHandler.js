@@ -50,13 +50,13 @@ function floatToWav(f32, sampleRate) {
 // Основная функция для обработки бинарных данных
 export async function handleBinaryData(ws, data) {
   try {
+    // Логируем начало обработки данных
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
-    // Преобразуем данные в буфер
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
 
     // Логируем размер буфера
-    console.log(`🎧 Buffer received: ${buf.length} bytes`);
+    logToFile(`🎧 Buffer received: ${buf.length} bytes`, "INFO");
 
     // Проверка на пустой буфер
     if (!buf.length) {
@@ -65,12 +65,13 @@ export async function handleBinaryData(ws, data) {
       return;
     }
 
-    // Выравнивание смещения, чтобы оно было кратно 4
+    // Логируем выравнивание смещения
     const offset = buf.byteOffset % 4 === 0 ? buf.byteOffset : buf.byteOffset + (4 - buf.byteOffset % 4);
+    logToFile(`🎧 Byte offset aligned to: ${offset}`, "INFO");
 
     // Конвертируем буфер в Float32Array
     const f32 = new Float32Array(buf.buffer, offset, Math.floor(buf.byteLength / 4));
-    console.log(`🎧 Converted to Float32Array: ${f32.length} samples`);
+    logToFile(`🎧 Converted to Float32Array: ${f32.length} samples`, "INFO");
 
     // Проверка на корректность данных
     if (f32.length < 1) {
@@ -79,8 +80,8 @@ export async function handleBinaryData(ws, data) {
       return;
     }
 
-    // Логируем данные перед конвертацией в WAV
-    console.log(`🎧 Preparing WAV conversion for ${f32.length} samples`);
+    // Логируем перед конвертацией в WAV
+    logToFile(`🎧 Preparing WAV conversion for ${f32.length} samples`, "INFO");
 
     // Конвертируем в WAV формат
     const wav = floatToWav(f32, ws.sampleRate || 44100);
@@ -89,7 +90,7 @@ export async function handleBinaryData(ws, data) {
 
     // Путь для сохранения файла
     const filePath = path.join(TMP_DIR, filename);
-    console.log(`🎧 Saving to: ${filePath}`);
+    logToFile(`🎧 Saving to: ${filePath}`, "INFO");
 
     // Сохраняем WAV файл
     fs.writeFileSync(filePath, wav);
