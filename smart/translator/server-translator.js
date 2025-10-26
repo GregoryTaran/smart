@@ -6,7 +6,8 @@ import FormData from "form-data";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
 const TMP_DIR = path.join("smart", "translator", "tmp");
-const LOG_FILE = path.join("smart", "logs", "server.log");
+const LOG_DIR = path.join("smart", "logs");
+const LOG_FILE = path.join(LOG_DIR, "server.log");
 
 // Проверка существования директории TMP_DIR и создание при необходимости
 if (!fs.existsSync(TMP_DIR)) {
@@ -14,6 +15,14 @@ if (!fs.existsSync(TMP_DIR)) {
   logToFile(`✔️ TMP_DIR created: ${TMP_DIR}`);
 } else {
   logToFile(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
+}
+
+// Проверка существования директории logs и создание при необходимости
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  logToFile(`✔️ LOG_DIR created: ${LOG_DIR}`);
+} else {
+  logToFile(`✔️ LOG_DIR already exists: ${LOG_DIR}`);
 }
 
 // Функция для записи логов в файл
