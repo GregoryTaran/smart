@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
-import { handleRegister, handleBinaryData } from "./messageHandler.js";
+import { handleRegister, handleBinaryData } from "./messageHandler.js"; // Импортируем обработчики
 
 const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(".");
@@ -32,8 +32,10 @@ wss.on("connection", (ws) => {
   ws.send("✅ Connected to Smart Vision WS");
   console.log(`New WebSocket connection, id: ${ws.id}`);
 
+  // Обработка пинга для поддержания соединения
   ws.on("pong", () => (ws.isAlive = true));
 
+  // Обработка сообщений от клиента
   ws.on("message", async (msg) => {
     try {
       console.log("📩 Received message:", msg);  // Логируем все сообщения
@@ -48,11 +50,13 @@ wss.on("connection", (ws) => {
         return;
       }
 
+      // Если модуль не найден, выводим ошибку
       if (!ws.module) {
         console.log("❌ No module found for processing");
         return;
       }
 
+      // Если модуль переводчика, обрабатываем бинарные данные
       if (ws.module === "translator") {
         await handleBinaryData(ws, msg);  // Асинхронная обработка бинарных данных
       } else {
@@ -64,11 +68,13 @@ wss.on("connection", (ws) => {
     }
   });
 
+  // Закрытие соединения
   ws.on("close", () => {
     console.log(`❌ WS closed (${ws.module || "unknown"}): ${ws.sessionId}`);
     sessions.delete(ws.sessionId); // Удаляем сессию
   });
 
+  // Обработка ошибок WebSocket
   ws.on("error", (err) => {
     console.warn(`⚠️ WS error: ${err.message}`);
   });
