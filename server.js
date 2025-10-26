@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { WebSocketServer } from "ws";
-import registerTranslator from "./smart/translator/server-translator.js";  // Подключаем модуль
+import registerTranslator from "./smart/translator/server-translator.js";  // Импортируем модуль
 // import registerContext from "./smart/context/server-context.js";  // Оставлено для отладки
 
 const PORT = process.env.PORT || 3000;
@@ -35,43 +35,31 @@ wss.on("connection", (ws) => {
 
   ws.on("message", (msg) => {
     try {
-      // Логируем полученное сообщение
       console.log("📩 Received message:", msg);
-
-      // Поддержка ping/pong от клиента
-      if (msg.toString() === "ping-init" || msg.toString() === "ping") {
-        ws.send("pong");
-        return;
-      }
 
       const data = JSON.parse(msg);
 
-      // Логируем тип сообщения
-      console.log(`📡 Message type: ${data.type}`);
-
-      // Регистрация модуля
+      // Логируем, когда получаем тип register
       if (data.type === "register") {
         console.log(`✅ Registering module: ${data.module}`);
-
-        ws.module = data.module;  // Устанавливаем модуль
+        ws.module = data.module;
         ws.sampleRate = data.sampleRate || 44100;
         ws.sessionId = `${ws.module}-${sessionCounter++}`;
         ws.send(`SESSION:${ws.sessionId}`);
         console.log(`📡 Registered ${ws.module}: ${ws.sessionId}`);
-
-        // Логируем успешную регистрацию модуля
-        console.log(`✅ Module ${ws.module} successfully registered!`);
         return;
       }
 
-      // Логируем, что модуль не найден
-      console.log("❌ No module found for processing");
+      // Логируем, если модуль не найден
+      if (!ws.module) {
+        console.log("❌ No module found for processing");
+        return;
+      }
 
-      // Маршрутизация по модулям
       if (ws.module === "translator") {
         console.log("📡 Processing binary data for translator module...");
         if (registerTranslator && typeof registerTranslator.handleBinary === "function") {
-          registerTranslator.handleBinary(ws, msg);  // Обработка бинарных данных
+          registerTranslator.handleBinary(ws, msg);
         } else {
           console.log("❌ No handler for binary data in translator module");
         }
@@ -81,13 +69,6 @@ wss.on("connection", (ws) => {
     } catch (e) {
       console.error("Error processing message:", e.message);
       ws.send("⚠️ Error processing message");
-
-      // Обработка бинарных данных в случае ошибки
-      if (ws.module === "translator" && typeof registerTranslator.handleBinary === "function") {
-        registerTranslator.handleBinary(ws, msg);
-      } else {
-        ws.send("⚠️ Binary message ignored (no module)");
-      }
     }
   });
 
