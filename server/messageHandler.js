@@ -53,18 +53,17 @@ export async function handleBinaryData(ws, data) {
     // Логирование входящих данных
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
-    // Преобразуем данные в буфер
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    
+
+    // Логируем размер буфера
+    console.log(`🎧 Buffer received: ${buf.length} bytes`);
+
     // Проверка на пустой буфер
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
       logToFile(`⚠️ Empty binary chunk skipped for session ${ws.sessionId}`, "WARN");
       return;
     }
-
-    // Логируем размер буфера
-    console.log(`🎧 Buffer received: ${buf.length} bytes`);
 
     // Выравнивание смещения, чтобы оно было кратно 4
     const offset = buf.byteOffset % 4 === 0 ? buf.byteOffset : buf.byteOffset + (4 - buf.byteOffset % 4);
@@ -97,7 +96,6 @@ export async function handleBinaryData(ws, data) {
     logToFile(`💾 Saved ${filename}`, "INFO");
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
-    // Логируем ошибку
     logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
