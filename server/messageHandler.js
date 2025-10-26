@@ -1,3 +1,5 @@
+// messageHandler.js
+
 import fs from "fs";
 import path from "path";
 
@@ -57,12 +59,8 @@ export async function handleBinaryData(ws, data) {
   try {
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
-    // Преобразуем данные в буфер
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
     
-    // Логируем размер буфера
-    logToFile(`🎧 Buffer received: ${buf.length} bytes`, "INFO");
-
     // Проверка на пустой буфер
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
@@ -103,3 +101,14 @@ export async function handleBinaryData(ws, data) {
     ws.send("❌ Binary handler crashed: " + err.message);
   }
 }
+
+// Функция регистрации (например, для регистрации модуля)
+export function handleRegister(ws, data, sessionCounter) {
+  // Пример простой логики регистрации
+  ws.sessionId = `sess-${sessionCounter}`;
+  ws.module = data.module;
+  console.log(`Module registered: ${data.module} with sessionId: ${ws.sessionId}`);
+}
+
+// Экспортируем все функции
+export { handleBinaryData, floatToWav, logToFile, handleRegister };
