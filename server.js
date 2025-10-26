@@ -20,30 +20,31 @@ console.log("🌐 Global WebSocket server started.");
 
 // Реестр активных соединений
 let sessionCounter = 1;
+const sessions = new Map();
 
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  ws.module = null;  // Инициализируем module как null
+  ws.module = null;
   ws.sessionId = null;
 
   // Подтверждение соединения
   ws.send("✅ Connected to Smart Vision WS");
+  console.log(`New WebSocket connection, id: ${ws.id}`);
 
   ws.on("pong", () => (ws.isAlive = true));
 
-  // Обработка входящих сообщений
   ws.on("message", async (msg) => {
     try {
       console.log("📩 Received message:", msg);  // Логируем все сообщения
 
       const data = JSON.parse(msg);
 
-      // Логируем содержимое данных
-      console.log("📡 Received data:", data);
+      console.log("📡 Received data:", data); // Логируем содержимое данных
 
       if (data.type === "register") {
         handleRegister(ws, data, sessionCounter++); // Обрабатываем регистрацию
+        sessions.set(ws.sessionId, ws); // Сохраняем сессию
         return;
       }
 
@@ -63,9 +64,10 @@ wss.on("connection", (ws) => {
     }
   });
 
-  ws.on("close", () =>
-    console.log(`❌ WS closed (${ws.module || "unknown"}): ${ws.sessionId}`)
-  );
+  ws.on("close", () => {
+    console.log(`❌ WS closed (${ws.module || "unknown"}): ${ws.sessionId}`);
+    sessions.delete(ws.sessionId); // Удаляем сессию
+  });
 
   ws.on("error", (err) => {
     console.warn(`⚠️ WS error: ${err.message}`);

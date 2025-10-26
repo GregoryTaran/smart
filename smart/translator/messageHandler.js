@@ -4,14 +4,6 @@ import path from "path";
 // Путь для временных файлов
 const TMP_DIR = path.join("smart", "translator", "tmp");
 
-// Проверка существования директории TMP_DIR и создание при необходимости
-if (!fs.existsSync(TMP_DIR)) {
-  fs.mkdirSync(TMP_DIR, { recursive: true });
-  console.log(`✔️ TMP_DIR created: ${TMP_DIR}`);
-} else {
-  console.log(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
-}
-
 // Логирование данных
 function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
@@ -31,7 +23,7 @@ export function handleRegister(ws, data, sessionCounter) {
   logToFile(`✅ Registered module: ${ws.module}, Session ID: ${ws.sessionId}`);
 }
 
-// Асинхронная обработка бинарных данных
+// Обработка бинарных данных
 export async function handleBinaryData(ws, data) {
   try {
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
@@ -55,26 +47,13 @@ export async function handleBinaryData(ws, data) {
     const filePath = path.join(TMP_DIR, filename);
     console.log(`🎧 Saving to: ${filePath}`);
 
-    // Асинхронно записываем файл
-    await fs.promises.writeFile(filePath, wav);
+    fs.writeFileSync(filePath, wav);
     logToFile(`💾 Saved ${filename}`, "INFO");
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
     logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
-  }
-}
-
-// Обработка метаданных
-export function handle(ws, data) {
-  if (data.type === "meta") {
-    ws.sampleRate = data.sampleRate || 44100;
-    ws.langPair = data.langPair || "en-ru";
-    ws.processMode = data.processMode || "translate";
-    ws.chunkCounter = 0;
-    ws.send(`🎛 Meta ok: ${ws.sampleRate} Hz`);
-    logToFile(`🎛 Meta received for session ${ws.sessionId}: SampleRate = ${ws.sampleRate} Hz, LangPair = ${ws.langPair}, ProcessMode = ${ws.processMode}`, "INFO");
   }
 }
 
@@ -103,21 +82,4 @@ function floatToWav(f32, sampleRate) {
     off += 2;
   }
   return buffer;
-}
-
-// Маршруты API для работы с аудио файлами (merge, whisper, gpt, tts)
-export default function registerTranslator(app) {
-  logToFile("🔗 Translator module (API) connected.", "INFO");
-
-  // Маршрут для слияния аудио чанков
-  app.get("/translator/merge", (req, res) => { ... });
-
-  // Маршрут для Whisper (транскрипция)
-  app.get("/translator/whisper", async (req, res) => { ... });
-
-  // Маршрут для GPT (обработка текста)
-  app.post("/translator/gpt", async (req, res) => { ... });
-
-  // Маршрут для TTS (синтез речи)
-  app.get("/translator/tts", async (req, res) => { ... });
 }
