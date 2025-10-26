@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { floatToWav } from "./floatToWav"; // Заменить на свой путь, если нужно
-const TMP_DIR = path.join("smart", "translator", "tmp"); // Путь для временных файлов
+
+// Путь для временных файлов
+const TMP_DIR = path.join("smart", "translator", "tmp");
 
 // Логирование с уровнями и временными метками
 function logToFile(message, level = "INFO") {
@@ -11,14 +12,41 @@ function logToFile(message, level = "INFO") {
   console.log(logMessage);  // Логируем в консоль для отладки
 }
 
+// Преобразование Float32Array в WAV
+function floatToWav(f32, sampleRate) {
+  const buffer = Buffer.alloc(44 + f32.length * 2);
+  const view = new DataView(buffer.buffer);
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + f32.length * 2, true); // Chunk size
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true); // Subchunk size
+  view.setUint16(20, 1, true); // Audio format (1 = PCM)
+  view.setUint16(22, 1, true); // Number of channels
+  view.setUint32(24, sampleRate, true); // Sample rate
+  view.setUint32(28, sampleRate * 2, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // Bits per sample
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, f32.length * 2, true); // Data chunk size
+  
+  let off = 44;
+  for (let i = 0; i < f32.length; i++) {
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); // PCM conversion
+    off += 2;
+  }
+  return buffer;
+}
+
 // Основная функция для обработки бинарных данных
 export async function handleBinaryData(ws, data) {
   try {
-    // Логируем получение бинарных данных
+    // Логируем получение данных
     logToFile(`📩 Binary data received for session ${ws.sessionId}, length: ${data.length}`, "INFO");
 
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
-    
+
     // Проверка на пустой буфер
     if (!buf.length) {
       ws.send("⚠️ Empty binary chunk skipped");
@@ -80,10 +108,4 @@ export function handleRegister(ws, data, sessionCounter) {
     logToFile(`❌ Registration error for session ${ws.sessionId}: ${err.message}`, "ERROR");
     ws.send("❌ Error during registration");
   }
-}
-
-// Дополнительная логика для обработки ошибок и других задач
-export function handleError(ws, error) {
-  logToFile(`❌ Error in session ${ws.sessionId}: ${error.message}`, "ERROR");
-  ws.send("❌ Error: " + error.message);
 }
