@@ -3,9 +3,7 @@ import path from 'path';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { logToFile } from './utils.js';  // Импортируем логирование
-
-// Получаем путь к текущей директории
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
+import fs from 'fs';  // Для проверки существования файлов
 
 const PORT = process.env.PORT || 10000; // Используем правильный порт, предоставленный платформой
 
@@ -16,16 +14,24 @@ const wss = new WebSocketServer({ server: httpServer });
 const sessions = new Map();
 let sessionCounter = 1;
 
+// Используем process.cwd() для получения абсолютного пути
+const indexPath = path.join(process.cwd(), 'index.html');
+const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');
+
 // Статическая отдача файлов из папки smart
-app.use("/smart", express.static(path.join(__dirname, "smart")));
+app.use("/smart", express.static(path.join(process.cwd(), "smart")));
 
 // Главная страница (https://test.smartvision.life/)
 app.get("/", (req, res) => {
   console.log("Request for root (/) received");
   logToFile("Request for root (/) received");
 
-  // Отдаём index.html из корня
-  res.sendFile(path.join(__dirname, "index.html"));
+  // Проверяем, существует ли файл index.html в корне
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath); // Отдаём index.html из корня
+  } else {
+    res.status(404).send("404 - Главная страница не найдена");
+  }
 });
 
 // Страница для /smart (https://test.smartvision.life/smart/)
@@ -33,8 +39,12 @@ app.get("/smart", (req, res) => {
   console.log("Request for /smart received");
   logToFile("Request for /smart received");
 
-  // Отдаём index.html из папки smart
-  res.sendFile(path.join(__dirname, "smart", "index.html"));
+  // Проверяем, существует ли файл index.html в папке smart
+  if (fs.existsSync(smartIndexPath)) {
+    res.sendFile(smartIndexPath); // Отдаём index.html из папки smart
+  } else {
+    res.status(404).send("404 - Страница /smart не найдена");
+  }
 });
 
 // Запуск сервера
