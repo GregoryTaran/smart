@@ -60,7 +60,7 @@ export async function renderTranslator(mount) {
     sessionStorage.setItem('sessionId', sessionId); // Сохраняем sessionId в SessionStorage
     sessionInfoEl.textContent = `Session ID: ${sessionId}`;  // Отображаем sessionId под кнопкой Start
     sessionIdEl.textContent = `Session ID: ${sessionId}`; // Выводим sessionId в логе
-    log("📩 Сессия создана: " + sessionId);
+    console.log("📩 Сессия создана:", sessionId); // Логируем в консоль
   }
 
   // Проверяем, есть ли уже сессия в SessionStorage при загрузке страницы
@@ -77,7 +77,9 @@ export async function renderTranslator(mount) {
   }
 
   // Проверка сессии при загрузке страницы
-  window.onload = checkSession;  // Проверка сессии сразу при загрузке страницы
+  window.onload = () => {
+    checkSession();  // Проверка сессии сразу при загрузке страницы
+  };
 
   // Завершение сессии
   function finalizeSession() {
