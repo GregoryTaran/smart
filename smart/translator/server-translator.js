@@ -5,30 +5,35 @@ import FormData from "form-data";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = process.env.BASE_URL || "https://test.smartvision.life";
+
+// Путь для временных файлов
 const TMP_DIR = path.join("smart", "translator", "tmp");
+// Путь для логов
 const LOG_DIR = path.join("smart", "logs");
 const LOG_FILE = path.join(LOG_DIR, "server.log");
 
 // Проверка существования директории TMP_DIR и создание при необходимости
 if (!fs.existsSync(TMP_DIR)) {
   fs.mkdirSync(TMP_DIR, { recursive: true });
-  logToFile(`✔️ TMP_DIR created: ${TMP_DIR}`);
+  console.log(`✔️ TMP_DIR created: ${TMP_DIR}`);
 } else {
-  logToFile(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
+  console.log(`✔️ TMP_DIR already exists: ${TMP_DIR}`);
 }
 
-// Проверка существования директории logs и создание при необходимости
+// Проверка существования директории LOG_DIR и создание при необходимости
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
-  logToFile(`✔️ LOG_DIR created: ${LOG_DIR}`);
+  console.log(`✔️ LOG_DIR created: ${LOG_DIR}`);
 } else {
-  logToFile(`✔️ LOG_DIR already exists: ${LOG_DIR}`);
+  console.log(`✔️ LOG_DIR already exists: ${LOG_DIR}`);
 }
 
 // Функция для записи логов в файл
-function logToFile(message) {
+function logToFile(message, level = "INFO") {
   const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
+  const logMessage = `[${timestamp}] [${level}] ${message}\n`;
+
+  // Запись логов в файл
   fs.appendFileSync(LOG_FILE, logMessage);
 }
 
@@ -62,7 +67,7 @@ export function handleBinary(ws, data) {
     logToFile(`💾 Saved ${filename}`);
     ws.send(`💾 Saved ${filename}`);
   } catch (err) {
-    logToFile(`❌ Binary handler error: ${err.message}`);
+    logToFile(`❌ Binary handler error: ${err.message}`, "ERROR");
     console.error("❌ Binary handler error:", err);
     ws.send("❌ Binary handler crashed: " + err.message);
   }
@@ -106,7 +111,7 @@ export default function registerTranslator(app) {
       logToFile(`💾 Merged chunks for session ${session}`);
       res.json({ ok: true, file: `${BASE_URL}/smart/translator/tmp/${outFile}` });
     } catch (err) {
-      logToFile(`❌ Merge error: ${err.message}`);
+      logToFile(`❌ Merge error: ${err.message}`, "ERROR");
       console.error("❌ Merge error:", err);
       res.status(500).send("Merge error");
     }
@@ -136,7 +141,7 @@ export default function registerTranslator(app) {
       logToFile(`🌐 Whisper result: ${data.text}`);
       res.json({ text: data.text || "", detectedLang: data.language || null });
     } catch (err) {
-      logToFile(`❌ Whisper error: ${err.message}`);
+      logToFile(`❌ Whisper error: ${err.message}`, "ERROR");
       console.error("❌ Whisper error:", err);
       res.status(500).json({ error: err.message });
     }
@@ -175,7 +180,7 @@ export default function registerTranslator(app) {
       logToFile(`🤖 GPT response: ${data.choices?.[0]?.message?.content ?? ""}`);
       res.json({ text: data.choices?.[0]?.message?.content ?? "" });
     } catch (err) {
-      logToFile(`❌ GPT error: ${err.message}`);
+      logToFile(`❌ GPT error: ${err.message}`, "ERROR");
       console.error("❌ GPT error:", err);
       res.status(500).json({ error: err.message });
     }
@@ -208,7 +213,7 @@ export default function registerTranslator(app) {
       logToFile(`🔊 TTS saved as: ${file}`);
       res.json({ url: `${BASE_URL}/smart/translator/tmp/${file}` });
     } catch (err) {
-      logToFile(`❌ TTS error: ${err.message}`);
+      logToFile(`❌ TTS error: ${err.message}`, "ERROR");
       console.error("❌ TTS error:", err);
       res.status(500).json({ error: err.message });
     }
