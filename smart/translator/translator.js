@@ -59,7 +59,7 @@ export async function renderTranslator(mount) {
       ws.onmessage = (e) => {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
-          sessionId = msg.split(":")[1];
+          sessionId = msg.split(":")[1]; // Получаем sessionId от сервера
           log("📩 " + msg);
         } else {
           log(msg);
@@ -67,6 +67,7 @@ export async function renderTranslator(mount) {
       };
 
       ws.onopen = () => {
+        // Отправляем метаданные сессии
         ws.send(JSON.stringify({ type: "register", voice, langPair }));
         ws.send("ping-init");
         log("✅ Connected to WebSocket");
@@ -83,6 +84,7 @@ export async function renderTranslator(mount) {
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         if (ws.readyState === WebSocket.OPEN) {
+          // Передаем чанк с сессией
           ws.send(chunk.buffer);
         }
       };
@@ -102,16 +104,17 @@ export async function renderTranslator(mount) {
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
+
       if (sessionId) {
         log(`🎧 Finished session: ${sessionId}`);
-        await processSession();
+        await processSession(sessionId); // Передаем sessionId в процессе обработки
       }
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
   };
 
-  async function processSession() {
+  async function processSession(sessionId) {
     try {
       const voice = voiceSel.value;
       const langPair = langSel.value;
