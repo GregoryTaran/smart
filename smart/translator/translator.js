@@ -27,11 +27,14 @@ export async function renderTranslator(mount) {
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
 
-      <div id="ctx-log" style="min-height:300px;overflow:auto;"></div>
+      <div id="ctx-log" style="min-height:300px;overflow:auto;">
+        <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для sessionId -->
+      </div>
     </div>
   `;
 
   const logEl = mount.querySelector("#ctx-log");
+  const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода sessionId
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
   const voiceSel = mount.querySelector("#voice-select");
@@ -60,6 +63,7 @@ export async function renderTranslator(mount) {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
           sessionId = msg.split(":")[1]; // Получаем sessionId от сервера
+          sessionIdEl.textContent = `Session ID: ${sessionId}`; // Отображаем sessionId на клиенте
           log("📩 " + msg);
         } else {
           log(msg);
