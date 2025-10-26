@@ -28,7 +28,7 @@ export async function renderTranslator(mount) {
       </div>
 
       <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;"></div> <!-- Место для sessionId под кнопкой -->
-
+      
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для sessionId в логе -->
       </div>
