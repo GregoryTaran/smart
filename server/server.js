@@ -14,6 +14,9 @@ const wss = new WebSocketServer({ server: httpServer });  // Создаем WebS
 // --- Статические файлы ---
 app.use("/smart", express.static(path.join(process.cwd(), "smart")));  // Отдаем статику из папки "smart"
 
+// --- Статические файлы для папки translator (добавили эту строку) ---
+app.use("/smart/translator", express.static(path.join(process.cwd(), "smart/translator")));  // Отдаем статику из папки "translator"
+
 // --- Маршрут для корня сайта (/) ---
 app.get("/", (req, res) => {
   console.log("Request for root (/) received");  // Логируем запрос
