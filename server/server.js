@@ -1,15 +1,15 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import { handleSessionRegistration } from './server-translator.js';  // Импортируем функцию из server-translator.js
-import fs from 'fs';  // Для проверки существования файлов
-import { logToFile } from './utils.js';  // Для логирования, если нужно
+import { logToFile } from './utils.js';  // Для логирования
 
-const PORT = process.env.PORT || 10000;  // Используем правильный порт
+const PORT = process.env.PORT || 10000;  // Порт
 
 const app = express();
-const httpServer = http.createServer(app);  // Используем HTTP вместо HTTPS
+const httpServer = http.createServer(app);  // HTTP сервер
 const wss = new WebSocketServer({ server: httpServer });
 
 const sessions = new Map();
@@ -18,11 +18,14 @@ let sessionCounter = 1;
 // Центральное хранилище состояния сессий
 const sessionState = new Map();
 
-// Определяем пути к индексным файлам
-const indexPath = path.join(process.cwd(), 'index.html');  // Путь к index.html в корне
-const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');  // Путь к index.html в папке smart
+// Путь к файлам
+const indexPath = path.join(process.cwd(), 'index.html');
+const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');
 
-// Статическая отдача файлов из папки smart и отдаем файлы в папке /smart/translator
+// Отдача статичных файлов из папки smart
+app.use("/smart", express.static(path.join(process.cwd(), "smart")));
+
+// Отдача статичных файлов для /smart/translator
 app.use("/smart/translator", express.static(path.join(process.cwd(), "smart", "translator")));
 
 // Главная страница
@@ -31,7 +34,7 @@ app.get("/", (req, res) => {
   logToFile("Request for root (/) received");
 
   if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath); // Отдаём index.html из корня
+    res.sendFile(indexPath);  // Отдаём index.html из корня
   } else {
     res.status(404).send("404 - Главная страница не найдена");
   }
@@ -43,7 +46,7 @@ app.get("/smart", (req, res) => {
   logToFile("Request for /smart received");
 
   if (fs.existsSync(smartIndexPath)) {
-    res.sendFile(smartIndexPath); // Отдаём index.html из папки smart
+    res.sendFile(smartIndexPath);  // Отдаём index.html из папки smart
   } else {
     res.status(404).send("404 - Страница /smart не найдена");
   }
