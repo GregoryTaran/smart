@@ -1,3 +1,4 @@
+
 import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -88,7 +89,7 @@ export async function processWhisper(sessionId, langPair) {
     const data = await response.json();
     console.log('Whisper response:', data);
     logToFile(`Whisper response: ${JSON.stringify(data)}`);
-    
+
     // Обработка текста из Whisper
     const text = data.text || '';
     const detectedLang = data.language || null;
@@ -208,3 +209,6 @@ export function handleSessionRegistration(sessionId) {
   // Возвращаем обновлённый sessionId
   return updatedSessionId;
 }
+
+// Экспортируем функцию processMessage
+export { processMessage };
