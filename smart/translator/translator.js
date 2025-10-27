@@ -110,6 +110,7 @@ export async function renderTranslator(mount) {
           // Обработка и отправка аудио чанков через WebSocket
           worklet.port.onmessage = (e) => {
             const chunk = e.data;  // Получаем аудиофрейм
+            console.log("Отправляем данные:", chunk.buffer);
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(chunk.buffer);  // Отправляем как ArrayBuffer
             }
