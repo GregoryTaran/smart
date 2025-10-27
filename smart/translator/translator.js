@@ -30,6 +30,7 @@ export async function renderTranslator(mount) {
       <div style="text-align:center;margin-bottom:10px;">
         <button id="translator-record-btn">Start</button>
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
+        <button id="play-recording" disabled>Play Recording</button>
       </div>
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <!-- Лог сессии будет отображаться здесь -->
@@ -40,10 +41,13 @@ export async function renderTranslator(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
+  const btnPlay = mount.querySelector("#play-recording");
   const voiceSel = mount.querySelector("#voice-select");
   const langSel = mount.querySelector("#lang-pair");
 
   let ws, audioCtx, stream;
+  let audioBuffer = [];  // Буфер для хранения записанных данных
+  let recordedChunks = [];  // Массив для хранения всех записанных чанков
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
   let sendTimer;
 
@@ -123,25 +127,29 @@ export async function renderTranslator(mount) {
         }
       });
 
-      // Подключаем микрофон напрямую к WebSocket без фильтров
+      // Подключаем микрофон напрямую, но не выводим его на динамики
       const source = audioCtx.createMediaStreamSource(stream);
 
-      // Массив для хранения аудио-чанков
-      let audioBuffer = [];
-      const sendInterval = 1000;  // Отправлять данные раз в секунду
-
-      const sendAudioData = () => {
-        if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
-          const chunk = audioBuffer.shift();
-          ws.send(chunk.buffer);  // Отправляем звук на сервер
-        }
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (event) => {
+        recordedChunks.push(event.data);  // Добавляем аудиофрейм в массив
       };
 
-      sendTimer = setInterval(sendAudioData, sendInterval);  // Настроим интервал отправки данных
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(recordedChunks, { type: "audio/wav" });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        btnPlay.disabled = false; // Разблокируем кнопку "Play"
+        audio.onplay = () => {
+          log("▶️ Playback started");
+        };
+        // Сохраняем ссылку для воспроизведения
+        btnPlay.onclick = () => {
+          audio.play();
+        };
+      };
 
-      // Накапливаем аудиофреймы
-      source.connect(audioCtx.destination);  // Пока что просто выводим звук, если нужно (или убери)
-
+      mediaRecorder.start();
       btnStart.disabled = true;
       btnStop.disabled = false;
       log("🎙️ Recording started");
