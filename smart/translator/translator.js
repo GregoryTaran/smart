@@ -1,6 +1,3 @@
-// Импортируем logToFile из utils.js, если нужно логировать в файл
-import { logToFile } from './utils.js';  // Убедитесь, что путь правильный
-
 export async function renderTranslator(mount) {
   // Получаем или создаём новую сессию
   let customSessionId = sessionStorage.getItem("user-sess");
@@ -61,15 +58,11 @@ export async function renderTranslator(mount) {
     const div = document.createElement("div");
     div.textContent = msg;
     logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;
-
-    // Логирование в файл (если нужно)
-    logToFile(msg);
+    logEl.scrollTop = logEl.scrollHeight;  // Прокручиваем до конца
   }
 
   // Отправка на сервер сессии ID
   function sendSessionIdToServer(sessionId) {
-    // Логируем передаваемый sessionId
     log("✅ Session ID sent to server: " + sessionId);
     ws.send(JSON.stringify({ type: "register", session: sessionId }));
   }
