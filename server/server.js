@@ -1,21 +1,25 @@
 import express from 'express';
 import path from 'path';
 
+// Импортируем роутер для перевода и утилиты
+import translationRouter from './server-translator.js';
+import { logError } from './utils.js';  // Пример использования утилиты
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Используем process.cwd() для получения текущей директории
-const rootPath = process.cwd();
+// Отдаём статику из папки "smart" (например, index.html)
+app.use(express.static(path.join(process.cwd(), 'smart')));
 
-// Отдаём статику из папки smart
-app.use(express.static(path.join(rootPath, 'smart')));
-
-// Обрабатываем запросы на главную страницу
+// Главный маршрут для отдачи index.html
 app.get('/', (req, res) => {
-  res.sendFile(path.join(rootPath, 'smart', 'index.html'));
+  res.sendFile(path.join(process.cwd(), 'smart', 'index.html'));
 });
 
-// Запускаем сервер на порту 10000
+// Перенаправляем запросы на перевод
+app.use('/translate', translationRouter);
+
+// Запуск сервера
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
