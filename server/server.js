@@ -3,11 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import { WebSocketServer } from 'ws';
-import { handleSessionRegistration } from './server-translator.js';  // Импортируем функцию из server-translator.js
+import { handleSessionRegistration, processChunks, processWhisper, processGPT, processTTS } from './server-translator.js';  // Импортируем функции из server-translator.js
 import { logToFile } from './utils.js';  // Для логирования
 
-const PORT = process.env.PORT || 10000;  // Порт
-
+const PORT = process.env.PORT || 10000;
 const app = express();
 const httpServer = http.createServer(app);  // HTTP сервер
 const wss = new WebSocketServer({ server: httpServer });
@@ -24,9 +23,6 @@ const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');
 
 // Отдача статичных файлов из папки smart
 app.use("/smart", express.static(path.join(process.cwd(), "smart")));
-
-// Отдача статичных файлов для /smart/translator
-app.use("/smart/translator", express.static(path.join(process.cwd(), "smart", "translator")));
 
 // Главная страница
 app.get("/", (req, res) => {
@@ -72,16 +68,15 @@ wss.on("connection", (ws) => {
 
   ws.on("pong", () => (ws.isAlive = true));
 
-  ws.on("message", (msg) => {
+  ws.on("message", async (msg) => {
     try {
       const data = JSON.parse(msg);
+
       if (data.type === "register") {
-        // Получаем sessionId от клиента
         const sessionId = data.session;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
 
-        // ПЕРЕДАЁМ СЕСИЮ В server-translator.js
         const updatedSessionId = handleSessionRegistration(sessionId);  // server-translator.js добавляет "a" к sessionId
 
         // Обновление состояния сессии
@@ -89,13 +84,35 @@ wss.on("connection", (ws) => {
 
         // Отправляем обновлённый ID сессии клиенту
         ws.send(`SESSION:${updatedSessionId}`);
-        
-        // Логируем сессию на сервере
         console.log(`✅ Сессия: "${updatedSessionId}"`);
         logToFile(`✅ Сессия: "${updatedSessionId}"`);
-      } else {
-        ws.send("❔ Неизвестный модуль");
       }
+
+      // Обработка аудио данных (чанков)
+      else if (data.type === "audio") {
+        const buf = Buffer.from(data.audio);
+        const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+
+        // Передаем аудио чанки на обработку
+        const filename = await processChunks(ws.sessionId, [f32], 44100);  // Генерация WAV
+
+        // Отправка на Whisper для транскрипции
+        const whisperResult = await processWhisper(ws.sessionId, 'en-ru');
+
+        // Отправка текста в GPT для обработки
+        const gptResult = await processGPT(whisperResult.text, 'translate', 'en-ru', whisperResult.detectedLang);
+
+        // Генерация речи через TTS
+        const ttsResult = await processTTS(gptResult, ws.sessionId);
+
+        // Отправляем все результаты обратно клиенту
+        ws.send(JSON.stringify({
+          type: 'result',
+          text: gptResult,
+          ttsUrl: ttsResult
+        }));
+      }
+
     } catch (e) {
       console.error("Ошибка при обработке сообщения:", e.message);
       ws.send("⚠️ Ошибка при обработке сообщения");
