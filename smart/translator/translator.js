@@ -1,9 +1,8 @@
 export async function renderTranslator(mount) {
-  // Получаем или создаём новую сессию
+  // Генерация session ID
   let customSessionId = sessionStorage.getItem("user-sess");
 
   if (!customSessionId) {
-    // Генерация нового ID
     customSessionId = "user-sess-" + new Date().toISOString().split('T')[0] + '-' + Math.floor(Math.random() * 1000);
     sessionStorage.setItem("user-sess", customSessionId);  // Сохраняем в sessionStorage
   }
@@ -107,22 +106,57 @@ export async function renderTranslator(mount) {
       // Получаем поток аудио с микрофона
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Регистрируем worklet
-      await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')  // Указываем правильный путь к worklet
-        .then(() => {
-          const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-          const source = audioCtx.createMediaStreamSource(stream);
-          source.connect(worklet);
-          worklet.port.onmessage = (e) => {
-            const chunk = e.data;
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(chunk.buffer); // Отправка данных как ArrayBuffer
-            }
+      // Вставка кода AudioWorklet прямо в translator.js
+      class RecorderProcessor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.port.onmessage = (event) => {
+            // Обработчик для получения данных
+            this.port.postMessage(event.data);  // Отправляем данные обратно
           };
-        })
-        .catch((error) => {
-          log("❌ Ошибка при регистрации AudioWorkletNode: " + error.message);
-        });
+        }
+
+        process(inputs, outputs, parameters) {
+          // Здесь можно обрабатывать аудио данные
+          return true;
+        }
+      }
+
+      registerProcessor('recorder-processor', RecorderProcessor);
+
+      // Регистрируем worklet
+      await audioCtx.audioWorklet.addModule('data:application/javascript,' + encodeURIComponent(`
+        class RecorderProcessor extends AudioWorkletProcessor {
+          constructor() {
+            super();
+            this.port.onmessage = (event) => {
+              // Обработка данных
+              this.port.postMessage(event.data);
+            };
+          }
+
+          process(inputs, outputs, parameters) {
+            // Обрабатываем аудио
+            return true;
+          }
+        }
+
+        registerProcessor('recorder-processor', RecorderProcessor);
+      `)).then(() => {
+        const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(worklet);
+
+        // Обработка и отправка аудио чанков через WebSocket
+        worklet.port.onmessage = (e) => {
+          const chunk = e.data;
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(chunk.buffer);  // Отправляем как ArrayBuffer
+          }
+        };
+      }).catch((error) => {
+        log("❌ Ошибка при регистрации AudioWorkletNode: " + error.message);
+      });
 
       btnStart.disabled = true;
       btnStop.disabled = false;
