@@ -1,9 +1,8 @@
 import express from 'express';
 import path from 'path';
 
-// Импортируем роутер для перевода и утилиты
+// Импортируем роутер для перевода
 import translationRouter from './server-translator.js';
-import { logError } from './utils.js';  // Пример использования утилиты
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -16,7 +15,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'smart', 'index.html'));
 });
 
-// Перенаправляем запросы на перевод
+// Перенаправляем запросы на перевод в translationRouter
 app.use('/translate', translationRouter);
 
 // Запуск сервера
