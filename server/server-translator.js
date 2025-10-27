@@ -196,3 +196,15 @@ export async function processAudioAndText({ sessionId, audioData, langPair, voic
     return null;
   }
 }
+
+// Экспортируем handleSessionRegistration
+export function handleSessionRegistration(sessionId) {
+  const updatedSessionId = sessionId + "a";  // Просто добавляем "a" к строке sessionId
+
+  // Логируем добавление буквы "a" к sessionId (для отладки и мониторинга)
+  console.log(`✅ Обработана сессия: "${updatedSessionId}"`);
+  logToFile(`✅ Обработана сессия: "${updatedSessionId}"`);
+
+  // Возвращаем обновлённый sessionId
+  return updatedSessionId;
+}
