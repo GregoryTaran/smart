@@ -116,7 +116,8 @@ export async function renderTranslator(mount) {
         }
       }
 
-      registerProcessor('recorder-processor', RecorderProcessor);  // Регистрация обработчика
+      // Регистрация AudioWorkletProcessor
+      registerProcessor('recorder-processor', RecorderProcessor);  // Регистрируем обработчик
 
       // Регистрируем worklet
       await audioCtx.audioWorklet.addModule('data:application/javascript,' + encodeURIComponent(`
