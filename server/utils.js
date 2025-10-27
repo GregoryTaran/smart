@@ -1,11 +1,9 @@
-// Временное отключение утилитарных функций
-// module.exports = {
-//   logToFile: function() {
-//     // Логирование в файл
-//   },
-//   anotherUtility: function() {
-//     // Другая утилита
-//   }
-// }
+// Функция для логирования ошибок
+export function logError(message) {
+  console.error(`Ошибка: ${message}`);
+}
 
-// Пока не используем. Эти функции будут активированы позже.
+// Пример утилиты для форматирования текста
+export function formatText(text) {
+  return text.trim().toUpperCase();
+}
