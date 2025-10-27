@@ -45,6 +45,7 @@ export async function renderTranslator(mount) {
 
   let ws, audioCtx, stream;
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
+  let sendTimer;
 
   function log(msg) {
     const div = document.createElement("div");
@@ -84,10 +85,15 @@ export async function renderTranslator(mount) {
       ws.onmessage = (e) => {
         const msg = String(e.data);
         log("📩 Сообщение от сервера: " + msg);
-        if (msg.startsWith("SESSION:")) {
-          customSessionId = msg.split(":")[1];
-          document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`;
-          log(`✅ Session ID received from server: ${customSessionId}`);
+        try {
+          const parsedMsg = JSON.parse(msg);
+          if (parsedMsg && parsedMsg.type === "SESSION") {
+            customSessionId = parsedMsg.sessionId;
+            document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`;
+            log(`✅ Session ID received from server: ${customSessionId}`);
+          }
+        } catch (error) {
+          log("⚠️ Ошибка при обработке сообщения: " + error.message);
         }
       };
 
@@ -127,11 +133,11 @@ export async function renderTranslator(mount) {
         }
       };
 
-      setInterval(sendAudioData, sendInterval);
+      sendTimer = setInterval(sendAudioData, sendInterval);
 
       // Накапливаем аудиофреймы
       source.connect(audioCtx.destination);  // Пока что просто выводим звук, если нужно (или убери)
-      
+
       btnStart.disabled = true;
       btnStop.disabled = false;
       log("🎙️ Recording started");
@@ -142,8 +148,16 @@ export async function renderTranslator(mount) {
 
   btnStop.onclick = async () => {
     try {
-      if (audioCtx) audioCtx.close();
-      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      clearInterval(sendTimer); // Очистка интервала
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());  // Останавливаем все треки потока
+      }
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close();
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
