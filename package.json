@@ -4,8 +4,8 @@
   "type": "module",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-  }
+    "start": "node server/server.js"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "ws": "^8.18.3",
