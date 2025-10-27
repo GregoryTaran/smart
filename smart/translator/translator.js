@@ -10,6 +10,7 @@ export async function renderTranslator(mount) {
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>
       <h2>🎙️ Переводчик — Суфлёр</h2>
+      <p id="sample-rate-display" style="text-align:center; font-weight: bold;">Частота дискретизации:</p> <!-- Здесь будет частота -->
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
         <select id="voice-select">
@@ -86,6 +87,10 @@ export async function renderTranslator(mount) {
       // Замер частоты дискретизации
       const sampleRate = audioCtx.sampleRate;  // Получаем частоту дискретизации
       log("Частота дискретизации:", sampleRate);
+
+      // Отображаем частоту дискретизации на странице
+      const sampleRateElement = mount.querySelector("#sample-rate-display");
+      sampleRateElement.textContent = `Частота дискретизации: ${sampleRate} Hz`;
 
       // Проверяем, открыт ли WebSocket
       if (!ws || ws.readyState !== WebSocket.OPEN) {
