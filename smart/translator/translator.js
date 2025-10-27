@@ -63,9 +63,9 @@ export async function renderTranslator(mount) {
 
   // Отправка на сервер сесси ID
   function sendSessionIdToServer(sessionId) {
-    // Отправка на сервер для регистрации сессии
-    ws.send(JSON.stringify({ type: "register", session: sessionId }));
+    // Логируем передаваемый sessionId
     log("✅ Session ID sent to server: " + sessionId);
+    ws.send(JSON.stringify({ type: "register", session: sessionId }));
   }
 
   // Логируем customSessionId на странице
@@ -82,22 +82,25 @@ export async function renderTranslator(mount) {
 
       ws.onmessage = (e) => {
         const msg = String(e.data);
+        log("📩 Сообщение от сервера: " + msg);
         if (msg.startsWith("SESSION:")) {
           customSessionId = msg.split(":")[1];  // Получаем обновлённый sessionId с буквой "a"
           document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`; // Обновляем UI
-          log("📩 " + msg);
-        } else {
-          log(msg);
         }
       };
 
       ws.onopen = () => {
         sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер
         ws.send("ping-init");
-        log("✅ Connected to WebSocket");
+        log("✅ WebSocket connection opened");
       };
 
-      ws.onclose = () => log("❌ Disconnected");
+      ws.onclose = () => log("❌ WebSocket connection closed");
+
+      ws.onerror = (error) => {
+        log(`⚠️ WebSocket ошибка: ${error.message}`);
+        console.error(`WebSocket ошибка: ${error.message}`);
+      };
 
       audioCtx = new AudioContext();
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -108,7 +111,6 @@ export async function renderTranslator(mount) {
       worklet.port.onmessage = (e) => {
         const chunk = e.data;
         if (ws.readyState === WebSocket.OPEN) {
-          addAudioChunk(chunk);  // Добавляем чанк в сессию
           ws.send(chunk.buffer);
         }
       };
@@ -131,53 +133,9 @@ export async function renderTranslator(mount) {
 
       if (customSessionId) {
         log(`🎧 Finished session: ${customSessionId}`);
-        await processSession();
-        finalizeSession();  // Завершаем сессию
       }
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
   };
-
-  async function processSession() {
-    try {
-      const voice = voiceSel.value;
-      const langPair = langSel.value;
-
-      log("🧩 Объединяем чанки...");
-      await fetch(`/translator/merge?session=${customSessionId}`);
-      log("💾 merged");
-
-      log("🧠 Whisper...");
-      const w = await fetch(`/translator/whisper?session=${customSessionId}&langPair=${encodeURIComponent(langPair)}`);
-      const data = await w.json();
-      const text = data.text || "";
-      const detectedLang = data.detectedLang || null;
-      log("🧠 → " + text);
-      log("🌐 Detected language: " + (detectedLang || "none"));
-
-      let finalText = text;
-      log("🤖 GPT...");
-      const body = { text, mode: "translate", langPair, detectedLang };
-      const g = await fetch("/translator/gpt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const gData = await g.json();
-      finalText = gData.text;
-      log("🤖 → " + finalText);
-
-      if (finalText) {
-        log("🔊 TTS...");
-        const t = await fetch(`/translator/tts?session=${customSessionId}&voice=${voice}&text=${encodeURIComponent(finalText)}`);
-        const tData = await t.json();
-        log(`🔊 ${tData.url}`);
-        const audio = new Audio(tData.url);
-        audio.play();
-      }
-    } catch (e) {
-      log("❌ Ошибка: " + e.message);
-    }
-  }
 }

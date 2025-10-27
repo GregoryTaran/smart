@@ -12,9 +12,10 @@ export function handleSessionRegistration(sessionId) {
   const updatedSessionId = sessionId + "a";
 
   // Логируем сессию на сервере
-  console.log(`✅ Обработана сессия: "${updatedSessionId}"`);
-  logToFile(`✅ Обработана сессия: "${updatedSessionId}"`);
+  console.log(`✅ Обработана сессия: "${updatedSessionId}"`);  // Логируем в консоли
+  logToFile(`✅ Обработана сессия: "${updatedSessionId}"`);  // Логируем в файл
 
+  // Возвращаем обновлённый sessionId с буквой "a"
   return updatedSessionId;
 }
 
