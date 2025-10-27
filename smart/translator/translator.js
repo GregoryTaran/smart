@@ -54,9 +54,16 @@ export async function renderTranslator(mount) {
   }
 
   // Отправка на сервер сессии ID
-  function sendSessionIdToServer(sessionId) {
-    log("✅ Session ID sent to server: " + sessionId);
-    ws.send(JSON.stringify({ type: "register", session: sessionId }));
+  function sendSessionIdToServer(sessionId, langPair, voice, sampleRate) {
+    log("✅ Session ID and meta-data sent to server: " + sessionId);
+    const metaData = {
+      type: "register",  // Тип сообщения для регистрации сессии
+      session: sessionId,  // Уникальный ID сессии
+      langPair: langPair,  // Языковая пара
+      voice: voice,  // Голос для озвучивания
+      sampleRate: sampleRate  // Частота дискретизации
+    };
+    ws.send(JSON.stringify(metaData));
   }
 
   // Логируем customSessionId на странице
@@ -83,7 +90,8 @@ export async function renderTranslator(mount) {
 
       ws.onopen = () => {
         log("✅ WebSocket connection opened");
-        sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер после установления соединения
+        const sampleRate = audioCtx.sampleRate;  // Частота дискретизации
+        sendSessionIdToServer(customSessionId, langPair, voice, sampleRate); // Отправляем сессию и данные на сервер
         ws.send(JSON.stringify({ type: "ping-init" })); // Исправлено: отправляем как JSON
       };
 
