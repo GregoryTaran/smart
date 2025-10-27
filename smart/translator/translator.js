@@ -107,15 +107,25 @@ export async function renderTranslator(mount) {
           const source = audioCtx.createMediaStreamSource(stream);
           source.connect(worklet);
 
-          // Обработка и отправка аудио чанков через WebSocket
+          // Массив для хранения аудиофреймов
+          let audioBuffer = [];
+          const sendInterval = 2000; // Отправляем данные каждые 2 секунды
+
+          const sendAudioData = () => {
+            if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
+              const chunk = audioBuffer.shift();  // Берем первый элемент из массива
+              console.log("Отправляем данные:", chunk.buffer);
+              ws.send(chunk.buffer);  // Отправляем аудиофрейм
+            }
+          };
+
+          // Устанавливаем интервал для отправки данных
+          setInterval(sendAudioData, sendInterval);
+
+          // Накапливаем аудиофреймы
           worklet.port.onmessage = (e) => {
             const chunk = e.data;  // Получаем аудиофрейм
-            // Логируем перед отправкой
-            console.log("Отправляем данные:", chunk.buffer);
-            if (ws.readyState === WebSocket.OPEN) {
-              // Отправляем данные как ArrayBuffer
-              ws.send(chunk.buffer);  
-            }
+            audioBuffer.push(chunk);  // Добавляем аудиофрейм в массив
           };
         })
         .catch((error) => {
