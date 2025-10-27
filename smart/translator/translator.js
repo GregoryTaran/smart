@@ -138,7 +138,7 @@ export async function renderTranslator(mount) {
       const source = audioCtx.createMediaStreamSource(stream);
 
       // Регистрация AudioWorklet для обработки аудио в реальном времени
-      await audioCtx.audioWorklet.addModule('smart/translator/recorder-worklet.js')
+      await audioCtx.audioWorklet.addModule('./smart/translator/recorder-worklet.js')
         .then(() => {
           const workletNode = new AudioWorkletNode(audioCtx, 'recorder-processor');
           source.connect(workletNode);
