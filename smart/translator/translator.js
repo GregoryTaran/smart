@@ -100,11 +100,32 @@ export async function renderTranslator(mount) {
       // Получаем поток аудио с микрофона
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+      // Применяем фильтры ко всему потоку
+
+      // 1. Пороговая регулировка (Threshold)
+      const thresholdFilter = audioCtx.createGain();
+      thresholdFilter.gain.value = 1.5;  // Усиливаем слабые звуки
+
+      // 2. Компрессор (Compressor)
+      const compressor = audioCtx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-20, audioContext.currentTime); // Устанавливаем порог сжатия
+
+      // 3. Лимитер (Limiter)
+      const limiter = audioCtx.createDynamicsCompressor();
+      limiter.threshold.setValueAtTime(-10, audioContext.currentTime);  // Устанавливаем уровень лимита
+      limiter.knee.setValueAtTime(30, audioContext.currentTime); // Степень компрессии
+
+      // Подключаем фильтры последовательно:
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(thresholdFilter);  // Источник → пороговая регулировка
+      thresholdFilter.connect(compressor);  // Порог → компрессор
+      compressor.connect(limiter);  // Компрессор → лимитер
+      limiter.connect(audioCtx.destination);  // Лимитер → вывод
+
       // Регистрация и создание AudioWorkletNode
       await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')  // Указываем правильный путь к worklet
         .then(() => {
           const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-          const source = audioCtx.createMediaStreamSource(stream);
           source.connect(worklet);
 
           // Массив для хранения аудиофреймов
