@@ -2,11 +2,11 @@ import express from 'express';
 import path from 'path';
 import http from 'http';
 import { WebSocketServer } from 'ws';
-import { logToFile } from './utils.js';  // Импортируем логирование
+import { handleSessionRegistration } from './server-translator.js';  // Импортируем функцию из server-translator.js
 import fs from 'fs';  // Для проверки существования файлов
-import { handleSessionRegistration } from './server-translator.js'; // Импортируем функцию из server-translator.js
+import { logToFile } from './utils.js';  // Для логирования, если нужно
 
-const PORT = process.env.PORT || 10000; // Используем правильный порт, предоставленный платформой
+const PORT = process.env.PORT || 10000;  // Используем правильный порт
 
 const app = express();
 const httpServer = http.createServer(app);  // Используем HTTP вместо HTTPS
@@ -18,19 +18,14 @@ let sessionCounter = 1;
 // Центральное хранилище состояния сессий
 const sessionState = new Map();
 
-// Используем process.cwd() для получения абсолютного пути
-const indexPath = path.join(process.cwd(), 'index.html');
-const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');
-
 // Статическая отдача файлов из папки smart
 app.use("/smart", express.static(path.join(process.cwd(), "smart")));
 
-// Главная страница (https://test.smartvision.life/)
+// Главная страница
 app.get("/", (req, res) => {
   console.log("Request for root (/) received");
   logToFile("Request for root (/) received");
 
-  // Проверяем, существует ли файл index.html в корне
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath); // Отдаём index.html из корня
   } else {
@@ -38,12 +33,11 @@ app.get("/", (req, res) => {
   }
 });
 
-// Страница для /smart (https://test.smartvision.life/smart/)
+// Страница для /smart
 app.get("/smart", (req, res) => {
   console.log("Request for /smart received");
   logToFile("Request for /smart received");
 
-  // Проверяем, существует ли файл index.html в папке smart
   if (fs.existsSync(smartIndexPath)) {
     res.sendFile(smartIndexPath); // Отдаём index.html из папки smart
   } else {
@@ -53,7 +47,7 @@ app.get("/smart", (req, res) => {
 
 // Запуск сервера
 httpServer.listen(PORT, () => {
-  logToFile(`🚀 Сервер запущен на порту ${PORT}`);  // Логирование
+  logToFile(`🚀 Сервер запущен на порту ${PORT}`);
   console.log(`🌐 WebSocket и HTTP серверы активированы на порту ${PORT}`);
 });
 
@@ -75,18 +69,19 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(msg);
       if (data.type === "register") {
+        // Генерация нового sessionId
         const sessionId = `sess-${sessionCounter++}`;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
 
-        // Передаем сессию в server-translator для добавления буквы "a"
-        const updatedSessionId = handleSessionRegistration(sessionId);  // Функция добавляет букву "a" к ID
+        // ПЕРЕДАЁМ СЕСИЮ В server-translator.js
+        const updatedSessionId = handleSessionRegistration(sessionId);  // server-translator.js добавляет "a" к sessionId
 
         // Обновление состояния сессии
         sessionState.set(ws.id, { status: 'registered', sessionId: updatedSessionId });
 
         // Отправляем обновлённый ID сессии клиенту
-        ws.send(`✅ Подключено. ID сессии: ${updatedSessionId}`);
+        ws.send(`SESSION:${updatedSessionId}`);
         
         // Логируем сессию на сервере
         console.log(`✅ Сессия: "${updatedSessionId}"`);
@@ -96,7 +91,6 @@ wss.on("connection", (ws) => {
       }
     } catch (e) {
       console.error("Ошибка при обработке сообщения:", e.message);
-      logToFile(`Ошибка при обработке сообщения: ${e.message}`);
       ws.send("⚠️ Ошибка при обработке сообщения");
     }
   });
