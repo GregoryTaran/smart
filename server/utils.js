@@ -1,9 +1,11 @@
-import fs from 'fs';
+// Временное отключение утилитарных функций
+// module.exports = {
+//   logToFile: function() {
+//     // Логирование в файл
+//   },
+//   anotherUtility: function() {
+//     // Другая утилита
+//   }
+// }
 
-// Функция для логирования
-export function logToFile(message) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
-  fs.appendFileSync('server.log', logMessage);
-  console.log(logMessage);
-}
+// Пока не используем. Эти функции будут активированы позже.
