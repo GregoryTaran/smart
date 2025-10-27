@@ -93,7 +93,7 @@ export async function renderTranslator(mount) {
       ws.onopen = () => {
         log("✅ WebSocket connection opened");
         sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер после установления соединения
-        ws.send("ping-init");
+        ws.send(JSON.stringify({ type: "ping-init" })); // Исправлено: отправляем как JSON
       };
 
       ws.onclose = () => log("❌ WebSocket connection closed");
