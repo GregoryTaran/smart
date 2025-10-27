@@ -76,8 +76,8 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(msg);
       if (data.type === "register") {
-        // Генерация нового sessionId
-        const sessionId = `sess-${sessionCounter++}`;
+        // Получаем sessionId от клиента
+        const sessionId = data.session;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
 
