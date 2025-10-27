@@ -78,7 +78,12 @@ export async function renderTranslator(mount) {
     }
   }
 
-  // Регистрация обработчика
+  // Регистрация обработчика (важно, чтобы это было до создания AudioWorkletNode)
+  if (!window.AudioWorkletProcessor) {
+    log("❌ AudioWorkletProcessor не доступен.");
+    return;
+  }
+
   registerProcessor('recorder-processor', RecorderProcessor);
 
   btnStart.onclick = async () => {
@@ -119,7 +124,7 @@ export async function renderTranslator(mount) {
       // Получаем поток аудио с микрофона
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Создаем AudioWorkletNode
+      // Создаём AudioWorkletNode
       const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(worklet);
