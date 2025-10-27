@@ -1,5 +1,4 @@
 export async function renderTranslator(mount) {
-  // Генерация session ID
   let customSessionId = sessionStorage.getItem("user-sess");
 
   if (!customSessionId) {
@@ -7,12 +6,10 @@ export async function renderTranslator(mount) {
     sessionStorage.setItem("user-sess", customSessionId);  // Сохраняем в sessionStorage
   }
 
-  // Обновляем UI с ID сессии
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим сессию первой строкой -->
+      <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>
       <h2>🎙️ Переводчик — Суфлёр</h2>
-
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
         <select id="voice-select">
@@ -21,7 +18,6 @@ export async function renderTranslator(mount) {
           <option value="echo">Echo (низкий тембр)</option>
         </select>
       </div>
-
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">Языковая пара:</label>
         <select id="lang-pair">
@@ -31,12 +27,10 @@ export async function renderTranslator(mount) {
           <option value="de-ru">🇩🇪 DE ↔ 🇷🇺 RU</option>
         </select>
       </div>
-
       <div style="text-align:center;margin-bottom:10px;">
         <button id="translator-record-btn">Start</button>
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
-
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <!-- Лог сессии будет отображаться здесь -->
       </div>
@@ -122,7 +116,7 @@ export async function renderTranslator(mount) {
         }
       }
 
-      registerProcessor('recorder-processor', RecorderProcessor);
+      registerProcessor('recorder-processor', RecorderProcessor);  // Регистрация обработчика
 
       // Регистрируем worklet
       await audioCtx.audioWorklet.addModule('data:application/javascript,' + encodeURIComponent(`
