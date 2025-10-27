@@ -11,7 +11,7 @@ export async function renderTranslator(mount) {
   // Обновляем UI с ID сессии
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим сессию первой строкой -->
+      <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим сессию первой строкой -->
       <h2>🎙️ Переводчик — Суфлёр</h2>
 
       <div style="text-align:center;margin-bottom:10px;">
@@ -83,7 +83,8 @@ export async function renderTranslator(mount) {
       ws.onmessage = (e) => {
         const msg = String(e.data);
         if (msg.startsWith("SESSION:")) {
-          customSessionId = msg.split(":")[1];
+          customSessionId = msg.split(":")[1];  // Получаем обновлённый sessionId с буквой "a"
+          document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`; // Обновляем UI
           log("📩 " + msg);
         } else {
           log(msg);
