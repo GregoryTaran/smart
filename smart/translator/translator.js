@@ -102,8 +102,10 @@ export async function renderTranslator(mount) {
         console.error(`WebSocket ошибка: ${error.message}`);
       };
 
-      // Регистрация worklet перед его использованием
-      audioCtx = new AudioContext();
+      // Инициализация audioContext только один раз, если он ещё не создан
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+      }
 
       // Получаем поток аудио с микрофона
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
