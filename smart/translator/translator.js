@@ -51,7 +51,6 @@ export async function renderTranslator(mount) {
   const langSel = mount.querySelector("#lang-pair");
 
   let ws, audioCtx, stream;
-
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
 
   function log(msg) {
@@ -117,7 +116,7 @@ export async function renderTranslator(mount) {
           worklet.port.onmessage = (e) => {
             const chunk = e.data;
             if (ws.readyState === WebSocket.OPEN) {
-              ws.send(chunk.buffer);
+              ws.send(chunk.buffer); // Отправка данных как ArrayBuffer
             }
           };
         })
