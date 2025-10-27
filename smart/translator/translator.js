@@ -1,7 +1,7 @@
 export async function renderTranslator(mount) {
   // Получаем или создаём новую сессию
   let customSessionId = sessionStorage.getItem("user-sess");
-  
+
   if (!customSessionId) {
     // Генерация нового ID
     customSessionId = "user-sess-" + new Date().toISOString().split('T')[0] + '-' + Math.floor(Math.random() * 1000);
@@ -61,7 +61,7 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Отправка на сервер сесси ID
+  // Отправка на сервер сессии ID
   function sendSessionIdToServer(sessionId) {
     // Логируем передаваемый sessionId
     log("✅ Session ID sent to server: " + sessionId);
@@ -71,7 +71,6 @@ export async function renderTranslator(mount) {
   // Логируем customSessionId на странице
   log("Сессия ID: " + customSessionId);
 
-  // Далее идет остальной код...
   btnStart.onclick = async () => {
     try {
       const voice = voiceSel.value;
