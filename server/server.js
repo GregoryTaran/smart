@@ -18,6 +18,10 @@ let sessionCounter = 1;
 // Центральное хранилище состояния сессий
 const sessionState = new Map();
 
+// Определяем пути к индексным файлам
+const indexPath = path.join(process.cwd(), 'index.html');  // Путь к index.html в корне
+const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');  // Путь к index.html в папке smart
+
 // Статическая отдача файлов из папки smart
 app.use("/smart", express.static(path.join(process.cwd(), "smart")));
 
