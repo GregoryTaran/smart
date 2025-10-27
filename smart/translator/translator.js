@@ -85,6 +85,7 @@ export async function renderTranslator(mount) {
         if (msg.startsWith("SESSION:")) {
           customSessionId = msg.split(":")[1];  // Получаем обновлённый sessionId с буквой "a"
           document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`; // Обновляем UI
+          log(`✅ Session ID received from server: ${customSessionId}`);
         }
       };
 
