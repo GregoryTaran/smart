@@ -76,6 +76,7 @@ export async function renderTranslator(mount) {
       const voice = voiceSel.value;
       const langPair = langSel.value;
 
+      // Создание WebSocket-соединения
       ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
 
@@ -90,9 +91,9 @@ export async function renderTranslator(mount) {
       };
 
       ws.onopen = () => {
-        sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер
-        ws.send("ping-init");
         log("✅ WebSocket connection opened");
+        sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер после установления соединения
+        ws.send("ping-init");
       };
 
       ws.onclose = () => log("❌ WebSocket connection closed");
@@ -102,18 +103,25 @@ export async function renderTranslator(mount) {
         console.error(`WebSocket ошибка: ${error.message}`);
       };
 
+      // Регистрация worklet перед его использованием
       audioCtx = new AudioContext();
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const source = audioCtx.createMediaStreamSource(stream);
-      const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
 
-      source.connect(worklet);
-      worklet.port.onmessage = (e) => {
-        const chunk = e.data;
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(chunk.buffer);
-        }
-      };
+      // Регистрируем worklet
+      await audioCtx.audioWorklet.addModule('./recorder-worklet.js')  // Указываем путь к worklet
+        .then(() => {
+          const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
+          const source = audioCtx.createMediaStreamSource(stream);
+          source.connect(worklet);
+          worklet.port.onmessage = (e) => {
+            const chunk = e.data;
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(chunk.buffer);
+            }
+          };
+        })
+        .catch((error) => {
+          log("❌ Ошибка при регистрации AudioWorkletNode: " + error.message);
+        });
 
       btnStart.disabled = true;
       btnStop.disabled = false;
