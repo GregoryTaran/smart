@@ -11,8 +11,11 @@ export async function renderTranslator(mount) {
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
-      <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим customSessionId сразу после случайного числа -->
       <h2>🎙️ Переводчик — Суфлёр</h2>
+
+      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">
+        Custom Session ID: <span id="session-id-display"></span> <!-- Место для customSessionId -->
+      </div>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -38,12 +41,8 @@ export async function renderTranslator(mount) {
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
 
-      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">
-        Custom Session ID: <span id="session-id-display"></span> <!-- Место для customSessionId -->
-      </div>
-
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
-        <div id="session-id" style="font-weight:600;color:#4caf50;"></div> <!-- Место для customSessionId в логе -->
+        <!-- Лог сессии будет отображаться здесь -->
       </div>
     </div>
   `;
@@ -51,7 +50,6 @@ export async function renderTranslator(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const sessionInfoEl = mount.querySelector("#session-info");
   const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода customSessionId под кнопкой Start
-  const sessionIdEl = mount.querySelector("#session-id"); // Место для вывода customSessionId в логе
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
   const voiceSel = mount.querySelector("#voice-select");
@@ -70,7 +68,6 @@ export async function renderTranslator(mount) {
 
   // Логируем customSessionId на странице
   sessionIdDisplay.textContent = customSessionId;
-  sessionIdEl.textContent = `Custom Session ID: ${customSessionId}`;
 
   // Далее идет остальной код...
   btnStart.onclick = async () => {
