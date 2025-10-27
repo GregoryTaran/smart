@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 
-// Импортируем роутер для перевода
+// Импортируем роутеры для перевода и других функциональностей
 import translationRouter from './server-translator.js';
 
 const app = express();
