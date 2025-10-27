@@ -4,6 +4,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { logToFile } from './utils.js';  // Импортируем логирование
 import fs from 'fs';  // Для проверки существования файлов
+import { handleSessionRegistration } from './server-translator.js'; // Импортируем функцию из server-translator.js
 
 const PORT = process.env.PORT || 10000; // Используем правильный порт, предоставленный платформой
 
@@ -78,10 +79,18 @@ wss.on("connection", (ws) => {
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
 
-        // Обновление состояния сессии
-        sessionState.set(ws.id, { status: 'registered', sessionId: sessionId });
+        // Передаем сессию в server-translator для добавления буквы "a"
+        const updatedSessionId = handleSessionRegistration(sessionId);  // Функция добавляет букву "a" к ID
 
-        ws.send(`✅ Подключено. ID сессии: ${sessionId}`);
+        // Обновление состояния сессии
+        sessionState.set(ws.id, { status: 'registered', sessionId: updatedSessionId });
+
+        // Отправляем обновлённый ID сессии клиенту
+        ws.send(`✅ Подключено. ID сессии: ${updatedSessionId}`);
+        
+        // Логируем сессию на сервере
+        console.log(`✅ Сессия: "${updatedSessionId}"`);
+        logToFile(`✅ Сессия: "${updatedSessionId}"`);
       } else {
         ws.send("❔ Неизвестный модуль");
       }
