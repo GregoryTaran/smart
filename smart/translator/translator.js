@@ -46,8 +46,7 @@ export async function renderTranslator(mount) {
   const langSel = mount.querySelector("#lang-pair");
 
   let ws, audioCtx, stream;
-  let audioBuffer = [];  // Буфер для хранения записанных данных
-  let recordedChunks = [];  // Массив для хранения всех записанных чанков
+  let recordedChunks = [];  // Массив для хранения аудио-чанков
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
   let sendTimer;
 
@@ -68,7 +67,7 @@ export async function renderTranslator(mount) {
       sampleRate: sampleRate
     };
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(metaData));
+      ws.send(JSON.stringify(metaData));  // Отправляем мета-данные
     }
   }
 
