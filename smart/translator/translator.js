@@ -63,7 +63,9 @@ export async function renderTranslator(mount) {
       voice: voice,
       sampleRate: sampleRate
     };
-    ws.send(JSON.stringify(metaData));
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(metaData));
+    }
   }
 
   log("Сессия ID: " + customSessionId);
@@ -78,9 +80,11 @@ export async function renderTranslator(mount) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
 
-      // Создание WebSocket-соединения
-      ws = new WebSocket(WS_URL);
-      ws.binaryType = "arraybuffer";
+      // Проверяем, открыт ли WebSocket
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        ws = new WebSocket(WS_URL);
+        ws.binaryType = "arraybuffer";
+      }
 
       ws.onmessage = (e) => {
         const msg = String(e.data);
@@ -124,7 +128,7 @@ export async function renderTranslator(mount) {
 
       // Массив для хранения аудио-чанков
       let audioBuffer = [];
-      const sendInterval = 2000;
+      const sendInterval = 1000;  // Отправлять данные раз в секунду
 
       const sendAudioData = () => {
         if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
@@ -133,7 +137,7 @@ export async function renderTranslator(mount) {
         }
       };
 
-      sendTimer = setInterval(sendAudioData, sendInterval);
+      sendTimer = setInterval(sendAudioData, sendInterval);  // Настроим интервал отправки данных
 
       // Накапливаем аудиофреймы
       source.connect(audioCtx.destination);  // Пока что просто выводим звук, если нужно (или убери)
