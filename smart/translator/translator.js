@@ -106,7 +106,7 @@ export async function renderTranslator(mount) {
       audioCtx = new AudioContext();
 
       // Регистрируем worklet
-      await audioCtx.audioWorklet.addModule('./recorder-worklet.js')  // Указываем путь к worklet
+      await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')  // Указываем правильный путь к worklet
         .then(() => {
           const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
           const source = audioCtx.createMediaStreamSource(stream);

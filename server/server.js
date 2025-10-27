@@ -22,8 +22,8 @@ const sessionState = new Map();
 const indexPath = path.join(process.cwd(), 'index.html');  // Путь к index.html в корне
 const smartIndexPath = path.join(process.cwd(), 'smart', 'index.html');  // Путь к index.html в папке smart
 
-// Статическая отдача файлов из папки smart
-app.use("/smart", express.static(path.join(process.cwd(), "smart")));
+// Статическая отдача файлов из папки smart и отдаем файлы в папке /smart/translator
+app.use("/smart/translator", express.static(path.join(process.cwd(), "smart", "translator")));
 
 // Главная страница
 app.get("/", (req, res) => {
