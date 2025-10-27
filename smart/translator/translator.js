@@ -83,6 +83,10 @@ export async function renderTranslator(mount) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
 
+      // Замер частоты дискретизации
+      const sampleRate = audioCtx.sampleRate;  // Получаем частоту дискретизации
+      log("Частота дискретизации:", sampleRate);
+
       // Проверяем, открыт ли WebSocket
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         ws = new WebSocket(WS_URL);
@@ -106,8 +110,7 @@ export async function renderTranslator(mount) {
 
       ws.onopen = () => {
         log("✅ WebSocket connection opened");
-        const sampleRate = audioCtx.sampleRate;
-        sendSessionIdToServer(customSessionId, langPair, voice, sampleRate);
+        sendSessionIdToServer(customSessionId, langSel.value, voiceSel.value, sampleRate);
         ws.send(JSON.stringify({ type: "ping-init" }));
       };
 
