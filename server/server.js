@@ -2,14 +2,17 @@ import express from 'express';
 import path from 'path';
 
 const app = express();
-const PORT = process.env.PORT || 10000;  // Устанавливаем порт 10000
+const PORT = process.env.PORT || 10000;
+
+// Используем process.cwd() для получения текущей директории
+const rootPath = process.cwd();
 
 // Отдаём статику из папки smart
-app.use(express.static(path.join(__dirname, 'smart')));
+app.use(express.static(path.join(rootPath, 'smart')));
 
 // Обрабатываем запросы на главную страницу
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'smart', 'index.html'));
+  res.sendFile(path.join(rootPath, 'smart', 'index.html'));
 });
 
 // Запускаем сервер на порту 10000
