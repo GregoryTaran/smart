@@ -3,12 +3,12 @@ export async function renderTranslator(mount) {
 
   if (!customSessionId) {
     customSessionId = "user-sess-" + new Date().toISOString().split('T')[0] + '-' + Math.floor(Math.random() * 1000);
-    sessionStorage.setItem("user-sess", customSessionId);
+    sessionStorage.setItem("user-sess", customSessionId);  // Сохраняем в sessionStorage
   }
 
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p id="session-id-display" style="text-align:center; font-weight:bold;">Сессия ID: ${customSessionId}</p>
+      <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>
       <h2>🎙️ Переводчик — Суфлёр</h2>
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -31,7 +31,9 @@ export async function renderTranslator(mount) {
         <button id="translator-record-btn">Start</button>
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
-      <div id="ctx-log" style="min-height:300px;overflow:auto;"></div>
+      <div id="ctx-log" style="min-height:300px;overflow:auto;">
+        <!-- Лог сессии будет отображаться здесь -->
+      </div>
     </div>
   `;
 
@@ -102,50 +104,34 @@ export async function renderTranslator(mount) {
         console.error(error);
       };
 
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Получаем поток аудио с микрофона с дополнительными улучшениями
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,  // Подавление эха
+          noiseSuppression: true,  // Подавление шума
+          autoGainControl: true    // Контроль усиления
+        }
+      });
 
-      // --- Аудио фильтры ---
-      const thresholdFilter = audioCtx.createGain();
-      thresholdFilter.gain.value = 1.5;
-
-      const compressor = audioCtx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
-
-      const limiter = audioCtx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-10, audioCtx.currentTime);
-      limiter.knee.setValueAtTime(30, audioCtx.currentTime);
-
+      // Подключаем микрофон напрямую к WebSocket без фильтров
       const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(thresholdFilter);
-      thresholdFilter.connect(compressor);
-      compressor.connect(limiter);
-      limiter.connect(audioCtx.destination);
 
-      await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')
-        .then(() => {
-          const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
-          source.connect(worklet);
+      // Массив для хранения аудио-чанков
+      let audioBuffer = [];
+      const sendInterval = 2000;
 
-          let audioBuffer = [];
-          const sendInterval = 2000;
+      const sendAudioData = () => {
+        if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
+          const chunk = audioBuffer.shift();
+          ws.send(chunk.buffer);  // Отправляем звук на сервер
+        }
+      };
 
-          const sendAudioData = () => {
-            if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
-              const chunk = audioBuffer.shift();
-              ws.send(chunk.buffer);
-            }
-          };
+      setInterval(sendAudioData, sendInterval);
 
-          setInterval(sendAudioData, sendInterval);
-
-          worklet.port.onmessage = (e) => {
-            audioBuffer.push(e.data);
-          };
-        })
-        .catch((error) => {
-          log("❌ Ошибка при регистрации AudioWorkletNode: " + error.message);
-        });
-
+      // Накапливаем аудиофреймы
+      source.connect(audioCtx.destination);  // Пока что просто выводим звук, если нужно (или убери)
+      
       btnStart.disabled = true;
       btnStop.disabled = false;
       log("🎙️ Recording started");
