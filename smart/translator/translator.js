@@ -3,12 +3,12 @@ export async function renderTranslator(mount) {
 
   if (!customSessionId) {
     customSessionId = "user-sess-" + new Date().toISOString().split('T')[0] + '-' + Math.floor(Math.random() * 1000);
-    sessionStorage.setItem("user-sess", customSessionId);  // Сохраняем в sessionStorage
+    sessionStorage.setItem("user-sess", customSessionId);
   }
 
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>
+      <p id="session-id-display" style="text-align:center; font-weight:bold;">Сессия ID: ${customSessionId}</p>
       <h2>🎙️ Переводчик — Суфлёр</h2>
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -31,9 +31,7 @@ export async function renderTranslator(mount) {
         <button id="translator-record-btn">Start</button>
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
       </div>
-      <div id="ctx-log" style="min-height:300px;overflow:auto;">
-        <!-- Лог сессии будет отображаться здесь -->
-      </div>
+      <div id="ctx-log" style="min-height:300px;overflow:auto;"></div>
     </div>
   `;
 
@@ -50,23 +48,21 @@ export async function renderTranslator(mount) {
     const div = document.createElement("div");
     div.textContent = msg;
     logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;  // Прокручиваем до конца
+    logEl.scrollTop = logEl.scrollHeight;
   }
 
-  // Отправка на сервер сессии ID
   function sendSessionIdToServer(sessionId, langPair, voice, sampleRate) {
     log("✅ Session ID and meta-data sent to server: " + sessionId);
     const metaData = {
-      type: "register",  // Тип сообщения для регистрации сессии
-      session: sessionId,  // Уникальный ID сессии
-      langPair: langPair,  // Языковая пара
-      voice: voice,  // Голос для озвучивания
-      sampleRate: sampleRate  // Частота дискретизации
+      type: "register",
+      session: sessionId,
+      langPair: langPair,
+      voice: voice,
+      sampleRate: sampleRate
     };
     ws.send(JSON.stringify(metaData));
   }
 
-  // Логируем customSessionId на странице
   log("Сессия ID: " + customSessionId);
 
   btnStart.onclick = async () => {
@@ -74,89 +70,76 @@ export async function renderTranslator(mount) {
       const voice = voiceSel.value;
       const langPair = langSel.value;
 
+      // Инициализация audioCtx до WebSocket
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
       // Создание WebSocket-соединения
       ws = new WebSocket(WS_URL);
-      ws.binaryType = "arraybuffer";  // Устанавливаем тип бинарных данных
+      ws.binaryType = "arraybuffer";
 
       ws.onmessage = (e) => {
         const msg = String(e.data);
         log("📩 Сообщение от сервера: " + msg);
         if (msg.startsWith("SESSION:")) {
-          customSessionId = msg.split(":")[1];  // Получаем обновлённый sessionId с буквой "a"
-          document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`; // Обновляем UI
+          customSessionId = msg.split(":")[1];
+          document.getElementById("session-id-display").textContent = `Сессия ID: ${customSessionId}`;
           log(`✅ Session ID received from server: ${customSessionId}`);
         }
       };
 
       ws.onopen = () => {
         log("✅ WebSocket connection opened");
-        const sampleRate = audioCtx.sampleRate;  // Частота дискретизации
-        sendSessionIdToServer(customSessionId, langPair, voice, sampleRate); // Отправляем сессию и данные на сервер
-        ws.send(JSON.stringify({ type: "ping-init" })); // Исправлено: отправляем как JSON
+        const sampleRate = audioCtx.sampleRate;
+        sendSessionIdToServer(customSessionId, langPair, voice, sampleRate);
+        ws.send(JSON.stringify({ type: "ping-init" }));
       };
 
       ws.onclose = () => log("❌ WebSocket connection closed");
-
       ws.onerror = (error) => {
         log(`⚠️ WebSocket ошибка: ${error.message}`);
-        console.error(`WebSocket ошибка: ${error.message}`);
+        console.error(error);
       };
 
-      // Инициализация audioContext только один раз, если он ещё не создан
-      if (!audioCtx) {
-        audioCtx = new AudioContext();
-      }
-
-      // Получаем поток аудио с микрофона
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Применяем фильтры ко всему потоку
-
-      // 1. Пороговая регулировка (Threshold)
+      // --- Аудио фильтры ---
       const thresholdFilter = audioCtx.createGain();
-      thresholdFilter.gain.value = 1.5;  // Усиливаем слабые звуки
+      thresholdFilter.gain.value = 1.5;
 
-      // 2. Компрессор (Compressor)
       const compressor = audioCtx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-20, audioContext.currentTime); // Устанавливаем порог сжатия
+      compressor.threshold.setValueAtTime(-20, audioCtx.currentTime);
 
-      // 3. Лимитер (Limiter)
       const limiter = audioCtx.createDynamicsCompressor();
-      limiter.threshold.setValueAtTime(-10, audioContext.currentTime);  // Устанавливаем уровень лимита
-      limiter.knee.setValueAtTime(30, audioContext.currentTime); // Степень компрессии
+      limiter.threshold.setValueAtTime(-10, audioCtx.currentTime);
+      limiter.knee.setValueAtTime(30, audioCtx.currentTime);
 
-      // Подключаем фильтры последовательно:
       const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(thresholdFilter);  // Источник → пороговая регулировка
-      thresholdFilter.connect(compressor);  // Порог → компрессор
-      compressor.connect(limiter);  // Компрессор → лимитер
-      limiter.connect(audioCtx.destination);  // Лимитер → вывод
+      source.connect(thresholdFilter);
+      thresholdFilter.connect(compressor);
+      compressor.connect(limiter);
+      limiter.connect(audioCtx.destination);
 
-      // Регистрация и создание AudioWorkletNode
-      await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')  // Указываем правильный путь к worklet
+      await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')
         .then(() => {
           const worklet = new AudioWorkletNode(audioCtx, "recorder-processor");
           source.connect(worklet);
 
-          // Массив для хранения аудиофреймов
           let audioBuffer = [];
-          const sendInterval = 2000; // Отправляем данные каждые 2 секунды
+          const sendInterval = 2000;
 
           const sendAudioData = () => {
             if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
-              const chunk = audioBuffer.shift();  // Берем первый элемент из массива
-              console.log("Отправляем данные:", chunk.buffer);
-              ws.send(chunk.buffer);  // Отправляем аудиофрейм
+              const chunk = audioBuffer.shift();
+              ws.send(chunk.buffer);
             }
           };
 
-          // Устанавливаем интервал для отправки данных
           setInterval(sendAudioData, sendInterval);
 
-          // Накапливаем аудиофреймы
           worklet.port.onmessage = (e) => {
-            const chunk = e.data;  // Получаем аудиофрейм
-            audioBuffer.push(chunk);  // Добавляем аудиофрейм в массив
+            audioBuffer.push(e.data);
           };
         })
         .catch((error) => {
@@ -178,10 +161,7 @@ export async function renderTranslator(mount) {
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
-
-      if (customSessionId) {
-        log(`🎧 Finished session: ${customSessionId}`);
-      }
+      if (customSessionId) log(`🎧 Finished session: ${customSessionId}`);
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
