@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import http from 'http';
 import { WebSocketServer } from 'ws';
-import { handleSessionRegistration, processChunks, processWhisper, processGPT, processTTS } from './server-translator.js';  // Импортируем функции из server-translator.js
+import { handleSessionRegistration } from './server-translator.js';  // Импортируем только регистрацию сессии
 import { logToFile } from './utils.js';  // Для логирования
 
 const PORT = process.env.PORT || 10000;
@@ -12,7 +12,6 @@ const httpServer = http.createServer(app);  // HTTP сервер
 const wss = new WebSocketServer({ server: httpServer });
 
 const sessions = new Map();
-let sessionCounter = 1;
 
 // Центральное хранилище состояния сессий
 const sessionState = new Map();
@@ -72,12 +71,13 @@ wss.on("connection", (ws) => {
     try {
       const data = JSON.parse(msg);
 
+      // Обработка регистрации сессии
       if (data.type === "register") {
         const sessionId = data.session;
         ws.sessionId = sessionId;
         sessions.set(sessionId, ws);
 
-        const updatedSessionId = handleSessionRegistration(sessionId);  // server-translator.js добавляет "a" к sessionId
+        const updatedSessionId = handleSessionRegistration(sessionId);  // Регистрация сессии
 
         // Обновление состояния сессии
         sessionState.set(ws.id, { status: 'registered', sessionId: updatedSessionId });
@@ -88,28 +88,21 @@ wss.on("connection", (ws) => {
         logToFile(`✅ Сессия: "${updatedSessionId}"`);
       }
 
-      // Обработка аудио данных (чанков)
+      // Передача данных на обработку (отправляем на server-translator.js)
       else if (data.type === "audio") {
+        // Просто передаем данные на обработку в server-translator.js
+        // Логика обработки данных будет в server-translator.js
         const buf = Buffer.from(data.audio);
         const f32 = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-
-        // Передаем аудио чанки на обработку
-        const filename = await processChunks(ws.sessionId, [f32], 44100);  // Генерация WAV
-
-        // Отправка на Whisper для транскрипции
-        const whisperResult = await processWhisper(ws.sessionId, 'en-ru');
-
-        // Отправка текста в GPT для обработки
-        const gptResult = await processGPT(whisperResult.text, 'translate', 'en-ru', whisperResult.detectedLang);
-
-        // Генерация речи через TTS
-        const ttsResult = await processTTS(gptResult, ws.sessionId);
-
-        // Отправляем все результаты обратно клиенту
+        
+        // Логика обработки данных в server-translator.js
         ws.send(JSON.stringify({
-          type: 'result',
-          text: gptResult,
-          ttsUrl: ttsResult
+          type: 'process',
+          sessionId: ws.sessionId,
+          audioData: f32,
+          langPair: data.langPair,  // Языковая пара
+          voice: data.voice,  // Голос для озвучивания
+          sampleRate: data.sampleRate  // Частота дискретизации
         }));
       }
 
