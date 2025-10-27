@@ -69,7 +69,7 @@ export async function renderTranslator(mount) {
 
       // Создание WebSocket-соединения
       ws = new WebSocket(WS_URL);
-      ws.binaryType = "arraybuffer";
+      ws.binaryType = "arraybuffer";  // Устанавливаем тип бинарных данных
 
       ws.onmessage = (e) => {
         const msg = String(e.data);
@@ -109,7 +109,7 @@ export async function renderTranslator(mount) {
 
           // Обработка и отправка аудио чанков через WebSocket
           worklet.port.onmessage = (e) => {
-            const chunk = e.data;
+            const chunk = e.data;  // Получаем аудиофрейм
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(chunk.buffer);  // Отправляем как ArrayBuffer
             }
