@@ -46,7 +46,7 @@ export async function renderTranslator(mount) {
   const langSel = mount.querySelector("#lang-pair");
 
   let ws, audioCtx, stream;
-  let recordedChunks = [];  // Массив для хранения аудио-чанков
+  let audioBuffer = [];  // Массив для хранения аудио чанков
   const WS_URL = location.protocol === "https:" ? "wss://" + location.host : "ws://" + location.host;
   let sendTimer;
 
@@ -126,32 +126,38 @@ export async function renderTranslator(mount) {
         }
       });
 
-      // Подключаем микрофон напрямую, но не выводим его на динамики
+      // Создаем аудиоконтекст для обработки данных
       const source = audioCtx.createMediaStreamSource(stream);
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (event) => {
-        recordedChunks.push(event.data);  // Добавляем аудиофрейм в массив
-      };
+      // Регистрация AudioWorklet для обработки аудио в реальном времени
+      await audioCtx.audioWorklet.addModule('smart/translator/recorder-worklet.js')
+        .then(() => {
+          const workletNode = new AudioWorkletNode(audioCtx, 'recorder-processor');
+          source.connect(workletNode);
+          workletNode.connect(audioCtx.destination);
 
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(recordedChunks, { type: "audio/wav" });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        btnPlay.disabled = false; // Разблокируем кнопку "Play"
-        audio.onplay = () => {
-          log("▶️ Playback started");
-        };
-        // Сохраняем ссылку для воспроизведения
-        btnPlay.onclick = () => {
-          audio.play();
-        };
-      };
+          // При получении данных от worklet добавляем их в буфер
+          workletNode.port.onmessage = (e) => {
+            const chunk = e.data;  // Получаем аудиофрейм
+            audioBuffer.push(chunk);  // Добавляем в буфер
+          };
+        })
+        .catch((error) => {
+          log("❌ Ошибка при регистрации AudioWorkletNode: " + error.message);
+        });
 
-      mediaRecorder.start();
+      // Отправляем аудио данные каждую секунду
+      sendTimer = setInterval(() => {
+        if (audioBuffer.length > 0 && ws.readyState === WebSocket.OPEN) {
+          const chunk = audioBuffer.splice(0, audioBuffer.length);  // Берем все данные из буфера
+          ws.send(chunk.buffer);  // Отправляем весь чанк
+        }
+      }, 1000);  // Интервал отправки данных — 1 секунда
+
       btnStart.disabled = true;
       btnStop.disabled = false;
       log("🎙️ Recording started");
+
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
