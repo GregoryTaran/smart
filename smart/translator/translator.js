@@ -105,6 +105,9 @@ export async function renderTranslator(mount) {
       // Регистрация worklet перед его использованием
       audioCtx = new AudioContext();
 
+      // Получаем поток аудио с микрофона
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
       // Регистрируем worklet
       await audioCtx.audioWorklet.addModule('/smart/translator/recorder-worklet.js')  // Указываем правильный путь к worklet
         .then(() => {
