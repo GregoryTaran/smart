@@ -1,16 +1,18 @@
 import express from 'express';
+import path from 'path';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;  // Устанавливаем порт 10000
 
-// Основной файл сервера, минимальная настройка для деплоя
+// Отдаём статику из папки smart
+app.use(express.static(path.join(__dirname, 'smart')));
 
-app.use(express.json());
+// Обрабатываем запросы на главную страницу
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'smart', 'index.html'));
+});
 
-// Временно не используем роутеры, чтобы избежать ошибок при деплое
-// app.use('/translate', translationRouter);
-// app.use('/session', sessionRouter);
-
+// Запускаем сервер на порту 10000
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
