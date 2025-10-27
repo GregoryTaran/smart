@@ -1,21 +1,18 @@
 export async function renderTranslator(mount) {
-  const randomNumber = Math.floor(Math.random() * 1000);  // Генерация случайного числа
-
-  // Проверка и создание customSessionId
-  let customSessionId = localStorage.getItem("customSessionId");
+  // Получаем или создаём новую сессию
+  let customSessionId = sessionStorage.getItem("user-sess");
+  
   if (!customSessionId) {
-    customSessionId = "sess-" + Date.now();  // Генерация customSessionId
-    localStorage.setItem("customSessionId", customSessionId);  // Сохраняем в localStorage
+    // Генерация нового ID
+    customSessionId = "user-sess-" + new Date().toISOString().split('T')[0] + '-' + Math.floor(Math.random() * 1000);
+    sessionStorage.setItem("user-sess", customSessionId);  // Сохраняем в sessionStorage
   }
 
+  // Обновляем UI с ID сессии
   mount.innerHTML = `
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <p style="text-align:center; font-weight: bold;">Случайное число: ${randomNumber}</p>  <!-- Добавляем случайное число первой строкой -->
+      <p style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>  <!-- Выводим сессию первой строкой -->
       <h2>🎙️ Переводчик — Суфлёр</h2>
-
-      <div id="session-info" style="text-align:center;font-weight:600;color:#4caf50;margin-top:10px;">
-        Custom Session ID: <span id="session-id-display"></span> <!-- Место для customSessionId -->
-      </div>
 
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
@@ -48,8 +45,6 @@ export async function renderTranslator(mount) {
   `;
 
   const logEl = mount.querySelector("#ctx-log");
-  const sessionInfoEl = mount.querySelector("#session-info");
-  const sessionIdDisplay = mount.querySelector("#session-id-display"); // Место для вывода customSessionId под кнопкой Start
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
   const voiceSel = mount.querySelector("#voice-select");
@@ -66,8 +61,15 @@ export async function renderTranslator(mount) {
     logEl.scrollTop = logEl.scrollHeight;
   }
 
+  // Отправка на сервер сесси ID
+  function sendSessionIdToServer(sessionId) {
+    // Отправка на сервер для регистрации сессии
+    ws.send(JSON.stringify({ type: "register", session: sessionId }));
+    log("✅ Session ID sent to server: " + sessionId);
+  }
+
   // Логируем customSessionId на странице
-  sessionIdDisplay.textContent = customSessionId;
+  log("Сессия ID: " + customSessionId);
 
   // Далее идет остальной код...
   btnStart.onclick = async () => {
@@ -89,7 +91,7 @@ export async function renderTranslator(mount) {
       };
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "register", voice, langPair }));
+        sendSessionIdToServer(customSessionId); // Отправляем сессию на сервер
         ws.send("ping-init");
         log("✅ Connected to WebSocket");
       };
