@@ -1,32 +1,29 @@
 /* smart/css/index.css
-   Полный, самодостаточный файл стилей для layout/menu/mobile/desktop.
-   Комментарии подробно объясняют, зачем нужны те или иные правила.
-   Заменяй файл целиком.
+   Полный файл стилей (минимальные и безопасные правки для стабильности тапов на мобилe)
+   Автор: Smart Vision (патч: исправление overlay/footer tap issue)
+   Принцип: не ломаем desktop, минимально меняем поведение на mobile.
 */
 
 /* =========================
    CSS-переменные (настройки проекта)
    ========================= */
 :root{
-  --max-width: 1000px;        /* максимальная ширина wrapper */
-  --menu-width: 30%;          /* доля сайдбара на desktop от wrapper */
-  --menu-mobile-width: 80%;   /* ширина mobile menu */
+  --max-width: 1000px;
+  --menu-width: 30%;
+  --menu-mobile-width: 80%;
   --gap: 16px;
   --bg: #ffffff;
   --text: #222;
   --muted: #666;
   --accent: #007bff;
-  --menu-active-bg: #e9ecef;  /* фон активного пункта меню (светло-серый) */
+  --menu-active-bg: #e9ecef;
   --overlay-color: rgba(0,0,0,0.28);
 }
 
 /* =========================
    Базовый ресет и общие правила
    ========================= */
-/* Box sizing: удобнее считать ширины */
 * { box-sizing: border-box; }
-
-/* Базовые настройки typography / body */
 html,body {
   margin: 0;
   padding: 0;
@@ -40,67 +37,36 @@ html,body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Ссылки и изображения */
+/* Картинки и ссылки */
 a { color: var(--accent); text-decoration: none; }
 img { max-width: 100%; height: auto; display: block; }
-
-/* Кнопки: унаследовать шрифт */
 button { font-family: inherit; cursor: pointer; }
 
 /* =========================
    Защита от горизонтального скролла (важно для мобильных)
    ========================= */
-/* Глобально запрещаем вылазить контенту за ширину экрана */
 html, body, #wrapper, .content-zone, main {
   max-width: 100%;
   overflow-x: hidden; /* предотвращаем горизонтальную прокрутку */
 }
+#module-root, .module-root { width: 100%; box-sizing: border-box; overflow-x: hidden; }
 
-/* Контроль для вложенных компонентов модулей */
-#module-root, .module-root {
-  width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-/* Элементы, которые могут ломать layout — ограничиваем */
-img, picture, video, iframe, table {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-pre, code {
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  max-width: 100%;
-}
-
-/* Перенос длинных слов в текстовых блоках */
+/* Простейшая обработка длинных слов, код-блоков и т.д. */
+pre, code { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; max-width: 100%; }
 p,h1,h2,h3,li,a { word-break: break-word; overflow-wrap: anywhere; }
 
 /* =========================
    Wrapper / layout
    ========================= */
-/* Центрируем основной wrapper и задаём фикс макс ширины */
 #wrapper {
   max-width: var(--max-width);
   margin: 0 auto;
-  display: flex;           /* важно: делает predictable column layout */
+  display: flex;
   min-height: 100vh;
   width: 100%;
-  background: transparent;
 }
+.content-zone { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 100vh; }
 
-/* Контентная зона справа (основной поток) */
-.content-zone {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-/* Header — поверхность, но ниже mobile menu (z-index настроим для menu) */
 header {
   height: 64px;
   display:flex;
@@ -109,46 +75,29 @@ header {
   border-bottom: 1px solid #eee;
   background: #fff;
   position: relative;
-  z-index: 800; /* по умолчанию ниже мобильного меню (1000) */
+  z-index: 800; /* ниже мобильного меню */
 }
+main { flex: 1 1 auto; padding: 28px; overflow-x: hidden; }
 
-/* Main area */
-main {
-  flex: 1 1 auto;
-  padding: 28px;
-  overflow-x: hidden; /* дополнительная защита */
-}
-
-/* Footer */
 footer {
   border-top: 1px solid #eee;
   padding: 12px;
   text-align: center;
   font-size: 14px;
   color: var(--muted);
+  position: relative; /* по умолчанию relative — нужно для z-index */
 }
+
+/* Класс контейнера ссылок в футере (используется в HTML) */
+.footer-links{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:center; }
 
 /* =========================
-   Side menu: общие стили (вне медиазапросов)
+   Side menu: общие стили
    ========================= */
-#side-menu {
-  background: #ffffff; /* всегда белый */
-  color: var(--text);
-}
-
-/* Внутренние элементы меню */
-.menu-header {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:12px;
-  border-bottom:1px solid #f1f1f1;
-  background:#fff;
-}
+#side-menu { background: #ffffff; color: var(--text); }
+.menu-header { display:flex; align-items:center; justify-content:space-between; padding:12px; border-bottom:1px solid #f1f1f1; background:#fff; }
 .menu-title { font-size:13px; color:#333; font-weight:600; }
 .menu-close { background:none; border:0; font-size:18px; cursor:pointer; }
-
-/* Список пунктов */
 .menu-list { list-style:none; margin:0; padding:0; }
 .menu-list li a {
   display:block;
@@ -160,30 +109,15 @@ footer {
   text-decoration: none;
 }
 .menu-list li a:hover { background: #fafafa; }
-
-/* Активный пункт меню — серый фон */
-.menu-list li a.active {
-  background: var(--menu-active-bg);
-  font-weight: 600;
-  color: #111;
-}
+.menu-list li a.active { background: var(--menu-active-bg); font-weight: 600; color: #111; }
 
 /* =========================
    Preload / flash fixes (чтобы не было "красного квадратика" при первом рендере)
    - body.preload используется, пока DOMContentLoaded или CSS ещё не применены
    ========================= */
-/* Если есть .preload — прячем menu до применения стилей (исключаем визуальные артефакты) */
+/* Скрываем меню в .preload, чтобы избежать визуальных артефактов */
 body.preload #side-menu { visibility: hidden; opacity: 0; pointer-events: none; }
-/* После загрузки — показываем */
 body:not(.preload) #side-menu { visibility: visible; opacity: 1; pointer-events: auto; }
-
-/* Убираем резкие border/outline-артефакты при раннем рендере */
-#side-menu, .menu-header, .menu-list, .menu-list li a {
-  border-color: transparent;
-  outline: none;
-}
-
-/* Убираем heavy tints до окончания загрузки, затем включаем тень */
 body.preload #side-menu { box-shadow: none !important; }
 body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
 
@@ -191,23 +125,16 @@ body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
    Desktop styles (>=769px)
    ========================= */
 @media (min-width: 769px) {
-  /* Side menu занимает ровно 30% от wrapper и не прыгает */
   #side-menu {
-    flex: 0 0 var(--menu-width); /* фиксированная доля от wrapper */
+    flex: 0 0 var(--menu-width);
     min-height: 100vh;
     border-right: 1px solid #eaeaea;
     position: relative;
     z-index: 700;
     box-shadow: 6px 0 18px rgba(0,0,0,0.03);
   }
-
-  /* Меню-кнопка невидима на десктопе */
   #menu-toggle { display: none; }
-
-  /* Логотип для ПК — максимальная ширина 300px */
   #site-logo { max-width: 300px; width: 100%; height: auto; }
-
-  /* На ПК крестик закрытия меню не нужен — скрываем */
   .menu-close { display: none; }
 }
 
@@ -215,48 +142,42 @@ body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
    Mobile styles (<=768px)
    ========================= */
 @media (max-width: 768px) {
-  /* Wrapper становится колонкой */
+  /* Layout */
   #wrapper { flex-direction: column; }
 
-  /* Menu fixed поверх header (top:0), белое и непрозрачное */
+  /* Side menu fixed поверх header */
   #side-menu {
     position: fixed;
     left: 0;
     top: 0;
     height: 100vh;
     width: var(--menu-mobile-width);
-    transform: translateX(-100%); /* скрыто за левым краем */
+    transform: translateX(-100%);
     transition: transform .36s ease, opacity .12s ease;
-    z-index: 1000; /* выше header (800) и overlay (950) */
-    background: #ffffff; /* строго белый */
-    box-shadow: none;    /* включим после preload */
+    z-index: 1000; /* выше header */
+    background: #ffffff;
+    box-shadow: none;
     border-right: 1px solid rgba(0,0,0,0.06);
   }
-
-  /* Открытое меню — сдвигаем в видимость */
   body.menu-open #side-menu { transform: translateX(0); }
 
-  /* Overlay затемняет контент, но лежит под меню (меньший z-index) */
-  /* <-- ПОМЕНЯНО: добавлен display:none по умолчанию, и display:block при открытом меню.
-     Это предотвращает перехват тапов прозрачным элементом в браузерах, где pointer-events
-     или opacity могут вести себя непредсказуемо. */
+  /* Overlay затемняет контент и блокирует клики — но по умолчанию НЕ должен перехватывать события */
+  /* Изменение: делаем overlay НЕучастником hit-test'а (display:none) пока меню закрыто */
   #overlay {
     position: fixed;
     inset: 0;
     background: var(--overlay-color);
-    display: none;              /* <--- добавлено */
+    display: none;          /* <- обязательно: удаляет элемент из hit-testing, когда он скрыт */
     opacity: 0;
     pointer-events: none;
     transition: opacity .25s;
     z-index: 950; /* ниже чем #side-menu(1000) */
   }
-  /* При открытом меню overlay появляется и блокирует клики под ним */
+  /* Когда меню открыто — показываем overlay и он блокирует клики под собой */
   body.menu-open #overlay { display: block; opacity: 1; pointer-events: auto; }
 
-  /* Логотип для мобильной: max-width 220px */
+  /* Логотип, кнопка меню и z-index для кнопки */
   #site-logo { max-width: 220px; width: 100%; height: auto; }
-
-  /* Кнопка меню видна поверх overlay (забираем z-index чуть выше) */
   #menu-toggle {
     position: absolute;
     left: 12px;
@@ -264,38 +185,72 @@ body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
     background: none;
     border: 0;
     cursor: pointer;
-    z-index: 1100; /* чуть выше overlay */
+    z-index: 1100; /* чуть выше overlay, чтобы кнопка всегда кликабельна */
   }
-
-  /* Крестик закрытия меню виден на мобиле */
   .menu-close { display: inline-block; }
 }
 
 /* =========================
-   Дополнительные мелкие улучшения
+   Далее — общие мелочи и улучшения
    ========================= */
-/* Слегка уменьшаем контраст ссылок на hover */
-.menu-list li a:focus,
-.menu-list li a:active {
-  outline: none;
-  background: #f7f9fa;
-}
 
-/* Делаем overlay более плавным */
+/* Плавнее overlay */
 #overlay { transition: opacity .2s ease; }
 
 /* Защита от переноса inline-block элементов */
 .menu-header .menu-title { white-space: nowrap; }
 
-/* Небольшая утилита для центровки модулей */
+/* Центровка модулей */
 .main-block { max-width: 900px; margin: 0 auto; }
 
-/* =========================
-   Debug helper (комментируй, если не нужен)
-   ========================= */
-/* .debug-outline * { outline: 1px dashed rgba(255,0,0,0.08); } */
+/* ============================================
+   FIX: сделать футер точно кликабельным на mobile
+   (минимальная, безопасная правка — локальная и пояснённая)
+   ============================================
+   Проблема: при первом рендере / на некоторых устройствах прозрачный или скрытый
+   overlay/другой фиксированный элемент может перехватывать события, и футер
+   оказывается некликабельным. Простое pointer-events или opacity не всегда
+   спасают в разных браузерах (особенно при анимациях).
+   Решение:
+   - Когда меню ЗАКРЫТО (body:not(.menu-open)) — повышаем stacking и включаем
+     pointer-events у футера, чтобы он был выше любых невидимых слоёв.
+   - Когда меню ОТКРЫТО (body.menu-open) — возвращаем нормальное поведение
+     (overlay блокирует клики).
+   Это безопасно: мы поднимаем футер в стэке только если меню закрыто.
+*/
+
+/* 1) Улучшение отклика тапов на ссылки футера всегда */
+.footer-links a {
+  touch-action: manipulation;      /* уменьшает вероятность конфликтов жест/тап */
+  -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+}
+
+/* 2) При закрытом меню — делаем футер "выше" (чтобы избежать непредвиденных прозрачных слоёв),
+   и гарантируем pointer-events: auto (кликабельность).
+   ПРИМЕЧАНИЕ: используем точный селектор body:not(.menu-open) — это гарантирует,
+   что при реальном открытом меню (menu-open) поведение не изменится. */
+body:not(.menu-open) footer,
+body:not(.menu-open) .site-footer,
+body:not(.menu-open) .footer-links {
+  position: relative;   /* гарантируем, что z-index работает */
+  z-index: 2000;        /* выше любого скрытого/невидимого overlay'а */
+  pointer-events: auto; /* явно разрешаем клики по футеру */
+}
+
+/* 3) При открытом меню — возвращаем разумные z-index и позволяем overlay блокировать клики */
+body.menu-open footer,
+body.menu-open .site-footer,
+body.menu-open .footer-links {
+  z-index: auto;
+  pointer-events: none; /* защищаем от кликов под overlay — overlay должен блокировать */
+}
 
 /* =========================
-   Mobile tap improvements: ensure footer links receive taps
+   Дополнительные мелкие улучшения / debug
    ========================= */
-.footer-links a { touch-action: manipulation; -webkit-tap-highlight-color: rgba(0,0,0,0.05); }
+/* slightly reduce hover contrast */
+.menu-list li a:focus,
+.menu-list li a:active { outline: none; background: #f7f9fa; }
+
+/* debug helper (комментируй если не нужен) */
+/* .debug-outline * { outline: 1px dashed rgba(255,0,0,0.08); } */
