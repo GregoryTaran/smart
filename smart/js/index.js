@@ -2,12 +2,8 @@
 import { CONFIG } from "./config.js";
 
 /*
-  Unified index.js
-  - render header/menu/footer
-  - accessible mobile menu with focus trap
-  - router (hash)
-  - safe dynamic module loading from ./modules/
-  - contract: module.render(container, opts), module.unload()
+  Unified index.js — версия с устойчивым попыточным импортом модулей.
+  Каждый важный блок подробно прокомментирован (как просил).
 */
 
 const STATE = {
@@ -21,6 +17,7 @@ const STATE = {
 const E = {}; // dom refs
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Кешируем DOM-узлы
   E.menu = document.getElementById("side-menu");
   E.header = document.getElementById("site-header");
   E.main = document.getElementById("content");
@@ -29,11 +26,10 @@ document.addEventListener("DOMContentLoaded", () => {
   E.wrapper = document.getElementById("wrapper");
 
   document.body.dataset.env = STATE.env;
-  renderShell();
-  attachGlobalEvents();
-  setPageFromHash();
+  renderShell();      // собираем header/menu/footer
+  attachGlobalEvents(); // навешиваем слушатели
+  setPageFromHash();  // рендерим страницу по хэшу
   document.body.classList.remove("preload");
-  console.log("index.js initialized — env:", STATE.env);
 });
 
 /* --------------------------
@@ -41,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
    -------------------------- */
 function renderShell() {
   renderHeader();
-  renderMenu(); // построит меню на основе CONFIG.PAGES
+  renderMenu();
   renderFooter();
 }
 
@@ -62,7 +58,6 @@ function renderMenu() {
   list.className = "menu-list";
 
   for (const p of pages) {
-    // skip hidden pages if wanted: we respect only pages with id/label
     if (!p.id || !p.label) continue;
     const li = document.createElement("li");
     const a = document.createElement("a");
@@ -79,7 +74,6 @@ function renderMenu() {
     list.appendChild(li);
   }
 
-  // header inside menu (with close btn for mobile)
   const menuHeader = document.createElement("div");
   menuHeader.className = "menu-header";
   menuHeader.innerHTML = `
@@ -87,17 +81,12 @@ function renderMenu() {
     <button id="menu-close" class="menu-close" aria-label="Закрыть меню">✕</button>
   `;
 
-  // clear and append
   E.menu.innerHTML = "";
   E.menu.appendChild(menuHeader);
   E.menu.appendChild(list);
 
   const closeBtn = E.menu.querySelector("#menu-close");
   if (closeBtn) closeBtn.addEventListener("click", () => closeMenu());
-
-  // Ensure first focusable element for focus trap
-  E.menuFirstFocusable = E.menu.querySelector("a, button");
-  E.menuLastFocusable = list.querySelector("a:last-of-type") || closeBtn;
 }
 
 /* Footer */
@@ -111,7 +100,7 @@ function renderFooter() {
 }
 
 /* --------------------------
-   Menu open/close + focus trap
+   Menu controls + accessibility (focus trap, Esc)
    -------------------------- */
 function toggleMenu() {
   if (STATE.ui.menuOpen) closeMenu();
@@ -121,9 +110,10 @@ function toggleMenu() {
 function openMenu() {
   STATE.ui.menuOpen = true;
   document.body.classList.add("menu-open");
-  E.header.querySelector("#menu-toggle").setAttribute("aria-expanded", "true");
+  const toggle = E.header.querySelector("#menu-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", "true");
   E.overlay.setAttribute("aria-hidden", "false");
-  // accessibility: trap focus inside menu
+  // фокус в первое интерактивное в меню
   setTimeout(() => {
     const first = E.menu.querySelector("a, button");
     if (first) first.focus();
@@ -134,50 +124,37 @@ function openMenu() {
 function closeMenu() {
   STATE.ui.menuOpen = false;
   document.body.classList.remove("menu-open");
-  E.header.querySelector("#menu-toggle").setAttribute("aria-expanded", "false");
+  const toggle = E.header.querySelector("#menu-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", "false");
   E.overlay.setAttribute("aria-hidden", "true");
   document.removeEventListener("keydown", handleMenuKeydown);
-  // return focus to menu toggle
-  const toggle = E.header.querySelector("#menu-toggle");
+  // возвращаем фокус к кнопке меню
   if (toggle) toggle.focus();
 }
 
 function handleMenuKeydown(e) {
   if (!STATE.ui.menuOpen) return;
-  if (e.key === "Escape") {
-    e.preventDefault();
-    closeMenu();
-    return;
-  }
-  // focus trap Tab
+  if (e.key === "Escape") { e.preventDefault(); closeMenu(); return; }
   if (e.key === "Tab") {
     const focusables = Array.from(E.menu.querySelectorAll("a,button")).filter(Boolean);
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
     const active = document.activeElement;
-    if (e.shiftKey && active === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   }
 }
 
 /* --------------------------
-   Router + module loading
+   Router + устойчивый загрузчик модулей
    -------------------------- */
 function attachGlobalEvents() {
   window.addEventListener("hashchange", setPageFromHash);
   window.addEventListener("resize", onResize);
   E.overlay.addEventListener("click", () => closeMenu());
-  // keyboard: global Escape to close menu if open
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && STATE.ui.menuOpen) {
-      closeMenu();
-    }
+    if (e.key === "Escape" && STATE.ui.menuOpen) closeMenu();
   });
 }
 
@@ -194,17 +171,12 @@ function onResize() {
 function setPageFromHash() {
   const raw = (window.location.hash || "").replace(/^#\/?/, "");
   const page = raw || CONFIG.DEFAULT_PAGE || STATE.page;
-  if (page !== STATE.page) {
-    navigateTo(page);
-  } else {
-    // still update active classes if needed
-    updateMenuActive(page);
-  }
+  if (page !== STATE.page) { navigateTo(page); }
+  else { updateMenuActive(page); }
   if (STATE.env === "mobile") closeMenu();
 }
 
 async function navigateTo(pageId) {
-  // ensure page exists in config
   const pageCfg = (CONFIG.PAGES || []).find(p => p.id === pageId);
   if (!pageCfg) {
     renderStatic("notfound");
@@ -213,7 +185,7 @@ async function navigateTo(pageId) {
     return;
   }
 
-  // call unload if module present
+  // Вызов unload если есть
   if (STATE.currentModuleRef && typeof STATE.currentModuleRef.unload === "function") {
     try { await STATE.currentModuleRef.unload(); } catch (e) { console.warn("module.unload error:", e); }
   }
@@ -221,22 +193,17 @@ async function navigateTo(pageId) {
   STATE.currentModulePath = null;
 
   STATE.page = pageId;
-  // update the hash (without adding extra history if already correct)
-  if ((window.location.hash || "").replace(/^#/, "") !== pageId) {
-    window.location.hash = pageId;
-  }
-
+  if ((window.location.hash || "").replace(/^#/, "") !== pageId) window.location.hash = pageId;
   updateMenuActive(pageId);
 
   if (pageCfg.module) {
-    const safePath = sanitizeModulePath(pageCfg.module); // returns like './modules/context/index.js'
+    // Загрузить модуль, пробуя несколько путей (корень, /modules, /js/modules и т.д.)
     E.main.innerHTML = `<section class="main-block"><div id="module-root" class="module-root">Загрузка...</div></section>`;
     const mount = document.getElementById("module-root");
-    await loadModuleSafe(safePath, mount);
+    await loadModuleWithFallbacks(pageCfg.module, mount);
   } else {
     renderStatic(pageId);
   }
-
   if (STATE.env === "mobile") closeMenu();
 }
 
@@ -245,36 +212,71 @@ function updateMenuActive(pageId) {
   links.forEach(a => a.classList.toggle("active", a.dataset.page === pageId));
 }
 
-/* Module helpers */
-function sanitizeModulePath(modulePath) {
-  // allow only relative inside /modules/ and strip dangerous fragments
-  // modulePath expected like "context/index.js" or "translator/index.js"
-  const cleaned = String(modulePath).replace(/^\/+/, "").replace(/\.\./g, "").replace(/^https?:\/\//, "");
-  return `./modules/${cleaned}`;
-}
+/* --------------------------
+   Устойчивый загрузчик: пытаем несколько candidate путей
+   Возвращает reference модуля, либо показывает ошибку с перечнем попыток
+   -------------------------- */
+async function loadModuleWithFallbacks(modulePathFromConfig, mountEl) {
+  // candidatePaths: порядок важен — сначала корень ("/..."), потом /modules, потом /js/modules, потом относительные.
+  // Это покрывает большинство возможных раскладок (по твоей структуре модули могут лежать в корне smart/<mod>/..., или в js/modules, или modules)
+  const normalized = String(modulePathFromConfig).replace(/^\.\/+/, ""); // убираем ведущие ./ если есть
+  const candidates = [
+    `/${normalized}`,                       // /context/index.js  или /translator/index.js
+    `/${normalized.replace(/index\.js$/, "")}index.js`, // на случай если в конфиг дали папку
+    `/modules/${normalized}`,               // /modules/context/index.js
+    `/js/modules/${normalized}`,            // /js/modules/context/index.js
+    `./modules/${normalized}`,              // относительно /js
+    `./${normalized}`                       // относительный к js/index.js
+  ];
 
-async function loadModuleSafe(path, mountEl) {
-  try {
-    const mod = await import(path);
-    STATE.currentModuleRef = mod;
-    STATE.currentModulePath = path;
-    if (typeof mod.render === "function") {
-      await mod.render(mountEl, { CONFIG, STATE });
-    } else {
-      mountEl.innerHTML = `<div class="module-error">Модуль загружен, но не содержит render()</div>`;
+  // убираем дубли
+  const seen = new Set();
+  const candidateList = candidates.filter(p => {
+    if (!p) return false;
+    if (seen.has(p)) return false;
+    seen.add(p); return true;
+  });
+
+  let lastError = null;
+  const tried = [];
+  for (const c of candidateList) {
+    tried.push(c);
+    try {
+      // динамический import; он бросит если 404 или синтаксическая ошибка
+      const mod = await import(c);
+      // Успех — запоминаем модуль и вызываем render
+      STATE.currentModuleRef = mod;
+      STATE.currentModulePath = c;
+      if (typeof mod.render === "function") {
+        await mod.render(mountEl, { CONFIG, STATE });
+      } else {
+        mountEl.innerHTML = `<div class="module-error">Модуль загружен из ${escapeHtml(c)}, но не содержит render()</div>`;
+      }
+      return; // успех — выходим
+    } catch (err) {
+      // сохраняем ошибку и пробуем следующий путь
+      console.warn("module import failed for", c, err && err.message);
+      lastError = err;
+      // продолжаем цикл
     }
-  } catch (err) {
-    console.error("Ошибка загрузки модуля:", err);
-    mountEl.innerHTML = `
-      <div class="module-error">Ошибка загрузки модуля: ${escapeHtml(String(err && err.message || err))}</div>
-      <div style="margin-top:12px;"><button id="module-retry">Повторить</button></div>
-    `;
-    const retry = document.getElementById("module-retry");
-    if (retry) retry.addEventListener("click", () => loadModuleSafe(path, mountEl));
   }
+
+  // если дошли сюда — все попытки упали — показываем дружелюбную ошибку и список путей, которые пробовали
+  console.error("Все попытки импорта модуля неуспешны. Попытки:", tried, lastError);
+  mountEl.innerHTML = `
+    <div class="module-error">
+      Ошибка загрузки модуля. Пробованные пути:<br/><pre>${escapeHtml(tried.join("\n"))}</pre>
+      <div>Ошибка: ${escapeHtml(String(lastError && lastError.message || lastError))}</div>
+      <div style="margin-top:10px;"><button id="module-retry">Попробовать снова</button></div>
+    </div>
+  `;
+  const retry = document.getElementById("module-retry");
+  if (retry) retry.addEventListener("click", () => loadModuleWithFallbacks(modulePathFromConfig, mountEl));
 }
 
-/* Static page renderer fallback */
+/* --------------------------
+   Статические шаблоны (fallback)
+   -------------------------- */
 function renderStatic(id) {
   const templates = {
     home: `<section class="main-block"><h2>Главная</h2><p>Добро пожаловать в Smart Vision.</p></section>`,
@@ -288,7 +290,7 @@ function renderStatic(id) {
 }
 
 /* --------------------------
-   Utils
+   Utilities
    -------------------------- */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
