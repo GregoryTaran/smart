@@ -293,6 +293,10 @@ function render(mount) {
 
   // Controls
   document.getElementById("start-rec").onclick = async function(){
+    // прочитаем UI-опции (getter создавали в helper)
+    try { CURRENT_CONTEXT_OPTIONS = (typeof window.getContextOptions === 'function') ? window.getContextOptions() : {}; } catch(e){ CURRENT_CONTEXT_OPTIONS = {}; }
+    log("Options at start: " + JSON.stringify(CURRENT_CONTEXT_OPTIONS));
+
     await initRecorder();
     if (CONFIG.USE_WEBSOCKET) openWS();
     log("Recording...");
@@ -319,56 +323,99 @@ function render(mount) {
   };
 
   async function mergeSession() {
-    try {
-      if (!sessionId) {
-        log("No session ID — nothing to merge");
-        return;
-      }
-      log("Requesting merge for " + sessionId);
-      const r = await fetch(MERGE_URL + "?session=" + encodeURIComponent(sessionId), { method: 'POST' });
-      const jr = await r.json();
-      log("Merge result: " + JSON.stringify(jr));
-      if (CONFIG.AUTO_WHISPER_AFTER_MERGE) {
-        await callWhisper(sessionId);
-      }
-    } catch (e) {
-      log("mergeSession error: " + e.message);
+  try {
+    if (!sessionId) {
+      log("No session ID — nothing to merge");
+      return;
     }
-  }
+    log("Requesting merge for " + sessionId);
+    const r = await fetch(MERGE_URL + "?session=" + encodeURIComponent(sessionId), { method: 'POST' });
+    const jr = await r.json();
+    log("Merge result: " + JSON.stringify(jr));
 
-  async function callWhisper(session) {
+    // Если не хотим автоматически вызывать whisper — всё равно даём возможность:
+    if (!CONFIG.AUTO_WHISPER_AFTER_MERGE) {
+      log("AUTO_WHISPER_AFTER_MERGE disabled — merge finished");
+      return;
+    }
+
+    // вызов распознавания
+    const whisperRes = await callWhisper(sessionId);
+    if (!whisperRes) {
+      log("Whisper failed or returned empty");
+      return;
+    }
+
+    const text = whisperRes.text || whisperRes.result || "";
+    const detectedLang = whisperRes.detectedLang || whisperRes.language || null;
+
+    // решаем что делать дальше по опции processingMode (значение берём из CURRENT_CONTEXT_OPTIONS)
+    const mode = (CURRENT_CONTEXT_OPTIONS && CURRENT_CONTEXT_OPTIONS.processingMode) ? CURRENT_CONTEXT_OPTIONS.processingMode : 'recognize';
+    const langPair = (CURRENT_CONTEXT_OPTIONS && CURRENT_CONTEXT_OPTIONS.langPair) ? CURRENT_CONTEXT_OPTIONS.langPair : null;
+
+    if (mode === 'recognize') {
+      log("Processing mode: recognize — final text: " + (text || "[empty]"));
+      // нет дальнейших действий — при необходимости можно отобразить текст в UI
+      return;
+    }
+
+    if (mode === 'translate') {
+      log("Processing mode: translate — calling GPT translate with langPair=" + langPair);
+      const gptRes = await callGPT(text, { mode: 'translate', langPair, detectedLang });
+      const outText = gptRes && (gptRes.text || gptRes.finalText || "");
+      log("Translate result: " + outText);
+      if (outText) await callTTS(outText);
+      return;
+    }
+
+    if (mode === 'assistant') {
+      log("Processing mode: assistant — calling GPT assistant");
+      const gptRes = await callGPT(text, { mode: 'assistant' });
+      const outText = gptRes && (gptRes.text || gptRes.finalText || "");
+      log("Assistant result: " + outText);
+      if (outText) await callTTS(outText);
+      return;
+    }
+
+    // fallback — if unknown mode, just log
+    log("Unknown processing mode: " + mode);
+
+  } catch (e) {
+    log("mergeSession error: " + (e.message || String(e)));
+  }
+}
+async function callWhisper(session) {
     try {
       log("Calling whisper for " + session);
       const r = await fetch(WHISPER_URL + "?session=" + encodeURIComponent(session));
       const jr = await r.json();
       log("Whisper: " + JSON.stringify(jr));
-      if (jr && jr.text) {
-        await callGPT(jr.text);
-      }
+      // Возвращаем результат для дальнейшей обработки (mergeSession будет решать дальнейшие шаги)
+      return jr;
     } catch (e) {
-      log("callWhisper error: " + e.message);
+      log("callWhisper error: " + (e.message || String(e)));
+      return null;
     }
   }
-
-  async function callGPT(text) {
-    try {
-      log("Calling GPT...");
-      const r = await fetch(GPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ text })
-      });
-      const jr = await r.json();
-      log("GPT: " + JSON.stringify(jr));
-      if (jr && jr.finalText) {
-        await callTTS(jr.finalText);
-      }
-    } catch (e) {
-      log("callGPT error: " + e.message);
-    }
+// callGPT принимает text и опциональный объект opts { mode, langPair, detectedLang, ... }
+// Возвращает разобранный JSON-ответ от сервера
+async function callGPT(text, opts = {}) {
+  try {
+    log("Calling GPT with opts: " + JSON.stringify(opts));
+    const r = await fetch(GPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign({ text }, opts))
+    });
+    const jr = await r.json();
+    log("GPT: " + JSON.stringify(jr));
+    return jr;
+  } catch (e) {
+    log("callGPT error: " + (e.message || String(e)));
+    return null;
   }
-
-  async function callTTS(finalText) {
+}
+async function callTTS(finalText) {
     try {
       log("🔊 TTS...");
       const t = await fetch(`${TTS_URL}?session=${encodeURIComponent(sessionId)}&voice=${encodeURIComponent(document.getElementById('voice-select').value)}&text=${encodeURIComponent(finalText)}`);
