@@ -44,40 +44,97 @@ const CONFIG = {
 
 function render(mount) {
   mount.innerHTML = `
-    <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-      <h2 style="margin:0 0 12px 0;">🎧 Context — Audio → Whisper → GPT → TTS</h2>
+<div style="background:#f2f2f2;border-radius:12px;padding:18px;">
+  <h2 style="margin:0 0 12px 0;">🎧 Context — Audio → Whisper → GPT → TTS</h2>
 
-      <div style="text-align:center;margin-bottom:10px;">
-        <label style="font-weight:600;">🎙️ Режим захвата:</label>
-        <select id="capture-mode" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
-          <option value="raw">RAW — без обработки</option>
-          <option value="agc">AGC — автоусиление и шумоподавление</option>
-          <option value="gain">GAIN — ручное усиление</option>
-        </select>
-      </div>
-
-      <div style="text-align:center;margin-bottom:10px;">
-        <label style="font-weight:600;">🧑 Голос озвучки:</label>
-        <select id="voice-select" style="margin-left:8px;padding:6px 10px;border-radius:6px;">
-          <option value="alloy">Alloy (универсальный)</option>
-          <option value="verse">Verse (бархатный мужской)</option>
-          <option value="echo">Echo (низкий тембр)</option>
-          <option value="breeze">Breeze (лёгкий мужской)</option>
-          <option value="coral">Coral (мягкий мужской)</option>
-        </select>
-      </div>
-
-      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
-        <button id="start-rec" style="padding:8px 12px;border-radius:8px;">Start</button>
-        <button id="stop-rec" style="padding:8px 12px;border-radius:8px;">Stop</button>
-        <button id="merge-now" style="padding:8px 12px;border-radius:8px;">Merge</button>
-      </div>
-
-      <div id="log" style="height:200px;overflow:auto;background:#fff;border-radius:8px;padding:10px;border:1px solid #eee;"></div>
+  <!-- Capture mode + Voice -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-weight:600;">🎙️ Режим захвата:</label>
+      <select id="capture-mode" style="padding:6px 10px;border-radius:6px;">
+        <option value="raw">RAW — без обработки</option>
+        <option value="agc">AGC — автоусиление и шумоподавление</option>
+        <option value="gain">GAIN — ручное усиление</option>
+      </select>
     </div>
-  `;
 
-  // ===== URLs built from embedded CONFIG (merged) =====
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-weight:600;">🧑 Голос озвучки:</label>
+      <select id="voice-select" style="padding:6px 10px;border-radius:6px;">
+        <option value="alloy">Alloy (универсальный)</option>
+        <option value="verse">Verse (бархатный мужской)</option>
+        <option value="echo">Echo (низкий тембр)</option>
+        <option value="breeze">Breeze (лёгкий мужской)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Processing mode + Language pair -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-weight:600;">Режим обработки:</label>
+      <select id="processing-mode" style="padding:6px 10px;border-radius:6px;">
+        <option value="recognize">🎧 Только распознавание</option>
+        <option value="translate">🔤 Перевод через GPT</option>
+        <option value="assistant">🤖 Ответ ассистента</option>
+      </select>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-weight:600;">Языковая пара:</label>
+      <select id="lang-pair" style="padding:6px 10px;border-radius:6px;">
+        <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
+        <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
+        <option value="fr-ru">🇫🇷 FR ↔ 🇷🇺 RU</option>
+        <option value="de-ru">🇩🇪 DE ↔ 🇷🇺 RU</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
+    <button id="start-rec" style="padding:8px 12px;border-radius:8px;">Start</button>
+    <button id="stop-rec" style="padding:8px 12px;border-radius:8px;">Stop</button>
+    <button id="merge-now" style="padding:8px 12px;border-radius:8px;">Merge</button>
+  </div>
+
+  <div id="log" style="height:200px;overflow:auto;background:#fff;border-radius:8px;padding:10px;border:1px solid #eee;"></div>
+</div>
+`;
+
+  
+// Minimal init — attach helpers but don't alter behavior
+(function attachContextUIHelpers(){
+  try {
+    // expose getter to read UI values later
+    window.getContextOptions = function() {
+      return {
+        captureMode: document.getElementById('capture-mode')?.value || 'raw',
+        voice: document.getElementById('voice-select')?.value || 'alloy',
+        processingMode: document.getElementById('processing-mode')?.value || 'recognize',
+        langPair: document.getElementById('lang-pair')?.value || 'en-ru'
+      };
+    };
+
+    // optional: log changes to debug console (no logic changes)
+    ['capture-mode','voice-select','processing-mode','lang-pair'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        console.log('[context UI] option changed', window.getContextOptions());
+      });
+    });
+
+    // set sensible defaults (if you want different defaults, change here)
+    const defaults = window.getContextOptions();
+    // quick visual log
+    const log = document.getElementById('log');
+    if (log) log.innerHTML += `<div>UI ready — defaults: ${JSON.stringify(defaults)}</div>`;
+  } catch (e) {
+    console.warn('attachContextUIHelpers error', e);
+  }
+})();
+
+// ===== URLs built from embedded CONFIG (merged) =====
   (function build_urls_from_config(){
     const ORIGIN = location.origin.replace(/\/$/, '');
     const WS_PATH = (CONFIG && CONFIG.WS_PATH) ? CONFIG.WS_PATH : '/context/ws';
