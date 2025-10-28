@@ -1,54 +1,77 @@
 // server/server-translator.js
-// Translator module. Exports { router, prefix, init? }.
-// Main server will mount it at prefix (default '/translate').
+// Модуль "translator" для модульного главного сервера.
+// - Экспорт: `router`, `prefix` и опционально `init` (здесь init noop).
+// - Хранение/логи/временные файлы ориентируются на process.cwd().
+// - Важно: здесь только логика модуля — главный сервер монтирует router.
 
 import express from "express";
 import fs from "fs";
 import path from "path";
 
-export const prefix = "/translate";
-export const router = express.Router();
+export const prefix = "/translate";        // точка монтирования: /translate
+export const router = express.Router();    // основной Express Router модуля
 
-// Optional: directory for module-specific files — use process.cwd()
-const MODULE_ROOT = process.cwd();
-const LOG_DIR = path.join(MODULE_ROOT, "server-data");
-if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
+// Используем process.cwd() как корень проекта — согласовано с архитектурой
+const ROOT = process.cwd();
+const MODULE_STORAGE = path.join(ROOT, "server-data", "translator");
+try { fs.mkdirSync(MODULE_STORAGE, { recursive: true }); } catch (e) { /* ignore */ }
 
+/**
+ * GET /status
+ * Простой health для модуля (полезно для smoke-tests и деплоя)
+ */
 router.get("/status", (req, res) => {
-  res.json({ ok: true, module: "translator", ts: Date.now(), root: MODULE_ROOT });
+  return res.json({
+    ok: true,
+    module: "translator",
+    ts: Date.now(),
+    root: ROOT
+  });
 });
 
 /**
  * POST /
- * Body: { text: string, lang?: string }
- * Replace the mock logic below with your real translator implementation.
+ * Ожидает JSON: { text: string, lang?: string }
+ * Возвращает: { result: string, meta: {...} }
+ *
+ * Здесь — место для вставки вашей старой логики перевода.
+ * Постарайтесь вынести сложные функции в отдельные helper-файлы внутри server/ если нужно.
  */
 router.post("/", async (req, res) => {
   try {
-    const { text, lang } = req.body || {};
+    const body = req.body || {};
+    const text = typeof body.text === "string" ? body.text : "";
+    const lang = body.lang || "auto";
+
     if (!text) return res.status(400).json({ error: "missing_text" });
 
-    // ====== TODO: paste your old translator logic here ======
-    // Example placeholder synchronous logic (safe fallback):
-    const result = `[TRANSLATOR-MIGRATED] (${lang || "auto"}) ${String(text)}`;
-    // =======================================================
+    // ======= TODO: вставьте сюда старую логику перевода (oldTranslate) ========
+    // Пример-шаблон (замените на реальный вызов):
+    // const result = await oldTranslate({ text, lang, options: {...} });
+    //
+    // Для безопасности пока делаем нейтральный миграционный ответ:
+    const result = `[TRANSLATOR-MIGRATED] (${lang}) ${text}`;
+    // ========================================================================
 
-    // optional: write simple log for audit
+    // Лёгкая запись лога модуля (не критично — оборачиваем в try/catch)
     try {
-      fs.appendFileSync(path.join(LOG_DIR, "translator.log"), `${new Date().toISOString()} | ${lang||"auto"} | ${String(text).slice(0,200)}\n`);
-    } catch (e) {
-      // ignore logging errors
-    }
+      const logLine = `${new Date().toISOString()} | lang=${lang} | text=${text.slice(0,200)}\n`;
+      fs.appendFileSync(path.join(MODULE_STORAGE, "requests.log"), logLine);
+    } catch(e) { /* ignore logging errors */ }
 
     return res.json({ result, meta: { length: result.length } });
   } catch (err) {
-    console.error("[translator] error:", err && err.message ? err.message : err);
-    return res.status(500).json({ error: err && err.message ? err.message : "translator_error" });
+    console.error("[translator] unexpected error:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "translator_internal", message: err && err.message ? err.message : String(err) });
   }
 });
 
-// optional init function (not needed here) — exported if required
+/**
+ * init(app, server)
+ * Модуль предоставляет hook на инициализацию с http.Server, но переводчику WS обычно не нужен.
+ * Оставляем noop, но экспортируем для совместимости.
+ */
 export function init(app, server) {
-  // no-op by default; translator doesn't need WS. But leaving hook for future.
+  // noop — translator не поднимает дополнительных протоколов по умолчанию
   console.log("[translator] init() called (no-op)");
 }
