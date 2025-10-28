@@ -194,3 +194,37 @@ export async function renderTranslator(mount) {
     }
   };
 }
+
+// Стиль для кнопок
+const style = document.createElement('style');
+style.innerHTML = `
+  #translator-record-btn, #ctx-stop {
+    background-color: white;
+    color: black;
+    border: 2px solid #ccc; /* Легкая рамка */
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s, border-color 0.3s;
+  }
+
+  #translator-record-btn:hover, #ctx-stop:hover {
+    background-color: #f0f0f0; /* Легкая подсветка */
+    border-color: #888; /* Более темная рамка при наведении */
+  }
+
+  /* Когда кнопка активна (нажата) */
+  #translator-record-btn.active, #ctx-stop.active {
+    background-color: #f44336; /* Красный фон */
+    color: white;
+    border-color: #f44336; /* Красная рамка */
+  }
+
+  #ctx-stop:disabled, #translator-record-btn:disabled {
+    background-color: #e0e0e0; /* Блеклый фон для неактивной кнопки */
+    border-color: #ccc;
+    cursor: not-allowed;
+  }
+`;
+document.head.appendChild(style);
