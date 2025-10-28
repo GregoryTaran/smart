@@ -1,28 +1,34 @@
 :root{
-  --menu-w: 30vw;          /* left menu = 30% of viewport width on desktop */
-  --menu-w-min: 260px;     /* min width for menu */
+  --site-max: 1000px;
+  --menu-percent: 30%; /* left menu 30% of the site width */
+  --menu-min: 220px;
+  --menu-max: 400px;
   --topbar-h: 64px;
-  --accent: #197f6f;
-  --bg: #f3f6f6;
+  --logo-desktop: 250px;
+  --logo-mobile: 200px;
   --muted: #667;
+  --bg: #f3f6f6;
   --surface: #fff;
-  --content-max: 1000px;   /* requested width */
-  --overlay-width: 80vw;   /* mobile menu overlay width */
-  --transition: 240ms ease;
+  --accent: #197f6f;
+  --content-max: 1000px;
+  --overlay-width: 80vw;
+  --transition: 220ms ease;
 }
 
-/* Basic reset */
+/* Reset */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#111}
 a{color:inherit;text-decoration:none}
 
-/* App shell layout - desktop */
+/* Center the whole site to max width */
+.site-wrapper{max-width:var(--site-max);margin:0 auto;}
+
+/* App shell inside the centered wrapper */
 .app-shell{display:flex;min-height:100vh;align-items:stretch}
 
-/* LEFT MENU (full height) */
+/* Left menu - 30% of wrapper */
 .site-menu{
-  width: clamp(var(--menu-w-min), var(--menu-w), 360px); /* responsive min/max */
-  flex: 0 0 auto;
+  flex: 0 0 clamp(var(--menu-min), var(--menu-percent), var(--menu-max));
   background: var(--surface);
   border-right:1px solid #e8ecec;
   padding:20px;
@@ -30,82 +36,82 @@ a{color:inherit;text-decoration:none}
   position:sticky;
   top:0;
   overflow:auto;
-  transition: transform var(--transition);
-  z-index: 30;
+  z-index:30;
 }
 
-/* RIGHT COL: topbar + main + footer; whole column is white background as requested */
+/* Right column is white and contains topbar, main, footer */
 .right-col{
   flex:1 1 auto;
   display:flex;
   flex-direction:column;
   min-height:100vh;
-  background: var(--surface); /* right area fully white */
+  background:var(--surface);
 }
 
-/* TOPBAR */
+/* Topbar */
 .site-topbar{
   height:var(--topbar-h);
   display:flex;
   align-items:center;
   border-bottom:1px solid #ececec;
   padding:0 20px;
-  background: transparent; /* since right-col is white, keep consistent */
+  background:transparent;
 }
 .topbar-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
-.top-title{font-weight:700;color:var(--accent);font-size:18px;text-align:center;flex:1}
+.menu-toggle{background:none;border:none;padding:8px 10px;font-size:22px;cursor:pointer;display:none}
+.top-logo{flex:1;display:flex;justify-content:center;align-items:center;}
+#site-logo{width:var(--logo-desktop);height:auto;max-width:90%;}
 
-/* burger button */
-.menu-toggle{background:none;border:none;padding:8px 10px;font-size:20px;cursor:pointer;display:none}
-.menu-toggle .burger{line-height:1}
-
-/* MAIN CONTENT */
+/* Main content - center text on desktop */
 .site-main{flex:1;padding:28px;display:flex;justify-content:center;align-items:flex-start;background:transparent}
-.content-inner{width:100%;max-width:var(--content-max)}
-.page-card{background:transparent;padding:0;border-radius:0;box-shadow:none} /* main background is entire right-col, so make inner content visually neutral */
+.content-inner{width:100%;max-width:var(--content-max);margin:0 auto;}
+.page-card{background:transparent;padding:0;border-radius:0;box-shadow:none}
 .page-card h1{margin:0 0 12px}
-.page-card p{line-height:1.6;color:#1a1a1a}
+.page-card p{line-height:1.6;color:#1a1a1a;}
 
-/* FOOTER */
-.site-footer{flex:0 0 auto;border-top:1px solid #ececec;padding:16px 20px;text-align:center;color:var(--muted);background:transparent;}
+/* center text for desktop */
+@media (min-width: 901px) {
+  .content-inner { text-align: center; }
+}
 
-/* Simple nav styling inside menu */
+/* Footer */
+.site-footer{flex:0 0 auto;border-top:1px solid #ececec;padding:16px 20px;text-align:center;color:var(--muted);background:transparent}
+
+/* Navigation */
 .site-nav{display:flex;flex-direction:column;gap:12px}
 .site-nav .brand{font-weight:700;color:var(--muted);font-size:18px;margin-bottom:6px}
 .site-nav ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
 .site-nav a{display:block;padding:10px 12px;border-radius:8px;border:1px solid transparent}
 .site-nav a:hover{background:#fbfffd}
-.site-nav a.active{background:var(--accent);color:#fff;border-color:rgba(0,0,0,0.04)}
 
-/* MOBILE: collapse to topbar + overlay menu */
-@media (max-width: 900px) {
+/* Active menu item: subtle grey */
+.site-nav a.active{
+  background:#efefef;
+  color:#111;
+  border-color:rgba(0,0,0,0.03);
+}
+
+/* Mobile: overlay menu + burger visible */
+@media (max-width:900px){
+  .site-wrapper{max-width:100%;padding:0 0;}
   .app-shell{flex-direction:column}
   .site-menu{
     position:fixed;
     left:0;
     top:0;
     height:100vh;
-    width: var(--overlay-width);
-    max-width: 420px;
-    transform: translateX(-120%); /* hidden by default */
+    width:var(--overlay-width);
+    max-width:420px;
+    transform:translateX(-120%);
+    transition: transform var(--transition);
     box-shadow: 3px 0 18px rgba(15,15,15,0.12);
   }
-  body.menu-open .site-menu{
-    transform: translateX(0);
-  }
-  /* show burger in topbar */
+  body.menu-open .site-menu{transform:translateX(0);}
   .menu-toggle{display:inline-block}
-  /* when menu open, add semi-transparent backdrop */
-  body.menu-open::after{
-    content:"";
-    position:fixed;
-    inset:0;
-    background: rgba(0,0,0,0.35);
-    z-index: 20;
-  }
-  /* right-col stays white and stacked under the overlay */
-  .right-col{min-height:100vh}
+  /* logo smaller on mobile */
+  #site-logo{width:var(--logo-mobile)}
+  /* content text left on mobile for readability */
+  .content-inner{padding:0 12px;text-align:left}
+  /* backdrop when menu open */
+  body.menu-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:20}
 }
-
-/* small helpers */
-.small{font-size:13px;color:var(--muted)}
