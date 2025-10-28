@@ -1,451 +1,349 @@
-/* Context module — merged Config + Context.js
-   Generated: merged by assistant
-*/
+// context.js — SMART VISION context module
+// Safe, defensive module: initializes audio recorder (AudioWorklet if available),
+// handles start/stop/merge commands and exposes a minimal public API.
+//
+// Path assumptions:
+// - recorder worklet is available at /context/recorder-worklet.js
+// - If you use different paths, change WORKLET_URL constant below.
 
-/* Embedded config (was smart/context/config.js) */
-const CONFIG = {
-  MODULE_NAME: "context",
+const WORKLET_URL = '/context/recorder-worklet.js';
+const WORKLET_NAME = 'recorder-worklet';
 
-  // Audio params
-  AUDIO_SAMPLE_RATE: 44100,         // prefered sample rate for recorder worklet
-  CHANNELS: 1,
+(function globalInit(){
+  if (window.__SMART_CONTEXT_INIT) return;
+  window.__SMART_CONTEXT_INIT = true;
 
-  // How often send accumulated chunks (client-side can override)
-  CHUNK_SEND_INTERVAL_MS: 2000,
+  // Public-ish objects (exposed for debugging)
+  window.CURRENT_CONTEXT_OPTIONS = window.CURRENT_CONTEXT_OPTIONS || {};
+  window.SMART_CONTEXT = window.SMART_CONTEXT || {};
+  const SMART = window.SMART_CONTEXT;
 
-  // Maximum size (bytes) of a single chunk send (safety)
-  CHUNK_MAX_BYTES: 30 * 1024 * 1024, // 30 MB
+  // Config defaults
+  const CONFIG = {
+    USE_WEBSOCKET: false,            // enable if you implement WS server
+    WORKLET_URL: WORKLET_URL,
+    WORKLET_NAME: WORKLET_NAME,
+    AUTO_MERGE_ON_STOP: false,       // set true to call mergeSession() on stop
+    RECORD_CHUNK_MS: 250,            // informational
+  };
 
-  // Networking: module decides whether to use WS or HTTP
-  USE_WEBSOCKET: true,
-  WS_PATH: "/context/ws",            // WebSocket path (server module may mount it here)
-  HTTP_CHUNK_PATH: "/context/chunk", // HTTP fallback endpoint
-
-  // Merge/processing endpoints (server-side endpoints)
-  MERGE_ENDPOINT: "/context/merge",
-  WHISPER_ENDPOINT: "/context/whisper",
-  GPT_ENDPOINT: "/context/gpt",
-  TTS_ENDPOINT: "/context/tts",
-
-  // Client behavior toggles
-  AUTO_MERGE_ON_STOP: true,         // call /merge when recording stops
-  AUTO_WHISPER_AFTER_MERGE: true,   // call /whisper automatically after merge
-
-  // Debug
-  DEBUG: false
-};
-
-/* ====== End of embedded config ===== */
-
-/* --- Original context.js content (unchanged logic), but endpoints replaced to use CONFIG --- */
-
-// UI + recorder + networking module for Context
-// (the rest of the original file follows — only endpoints were rewritten to use CONFIG)
-
-function render(mount) {
-  mount.innerHTML = `
-<div style="background:#f2f2f2;border-radius:12px;padding:18px;">
-  <h2 style="margin:0 0 12px 0;">🎧 Context — Audio → Whisper → GPT → TTS</h2>
-
-  <!-- Capture mode + Voice -->
-  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <label style="font-weight:600;">🎙️ Режим захвата:</label>
-      <select id="capture-mode" style="padding:6px 10px;border-radius:6px;">
-        <option value="raw">RAW — без обработки</option>
-        <option value="agc">AGC — автоусиление и шумоподавление</option>
-        <option value="gain">GAIN — ручное усиление</option>
-      </select>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:8px;">
-      <label style="font-weight:600;">🧑 Голос озвучки:</label>
-      <select id="voice-select" style="padding:6px 10px;border-radius:6px;">
-        <option value="alloy">Alloy (универсальный)</option>
-        <option value="verse">Verse (бархатный мужской)</option>
-        <option value="echo">Echo (низкий тембр)</option>
-        <option value="breeze">Breeze (лёгкий мужской)</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Processing mode + Language pair -->
-  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:10px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <label style="font-weight:600;">Режим обработки:</label>
-      <select id="processing-mode" style="padding:6px 10px;border-radius:6px;">
-        <option value="recognize">🎧 Только распознавание</option>
-        <option value="translate">🔤 Перевод через GPT</option>
-        <option value="assistant">🤖 Ответ ассистента</option>
-      </select>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:8px;">
-      <label style="font-weight:600;">Языковая пара:</label>
-      <select id="lang-pair" style="padding:6px 10px;border-radius:6px;">
-        <option value="en-ru">🇬🇧 EN ↔ 🇷🇺 RU</option>
-        <option value="es-ru">🇪🇸 ES ↔ 🇷🇺 RU</option>
-        <option value="fr-ru">🇫🇷 FR ↔ 🇷🇺 RU</option>
-        <option value="de-ru">🇩🇪 DE ↔ 🇷🇺 RU</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Controls -->
-  <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
-    <button id="start-rec" style="padding:8px 12px;border-radius:8px;">Start</button>
-    <button id="stop-rec" style="padding:8px 12px;border-radius:8px;">Stop</button>
-    <button id="merge-now" style="padding:8px 12px;border-radius:8px;">Merge</button>
-  </div>
-
-  <div id="log" style="height:200px;overflow:auto;background:#fff;border-radius:8px;padding:10px;border:1px solid #eee;"></div>
-</div>
-`;
-
-  
-// Minimal init — attach helpers but don't alter behavior
-(function attachContextUIHelpers(){
-  try {
-    // expose getter to read UI values later
-    window.getContextOptions = function() {
-      return {
-        captureMode: document.getElementById('capture-mode')?.value || 'raw',
-        voice: document.getElementById('voice-select')?.value || 'alloy',
-        processingMode: document.getElementById('processing-mode')?.value || 'recognize',
-        langPair: document.getElementById('lang-pair')?.value || 'en-ru'
-      };
-    };
-
-    // optional: log changes to debug console (no logic changes)
-    ['capture-mode','voice-select','processing-mode','lang-pair'].forEach(id=>{
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', () => {
-        console.log('[context UI] option changed', window.getContextOptions());
-      });
-    });
-
-    // set sensible defaults (if you want different defaults, change here)
-    const defaults = window.getContextOptions();
-    // quick visual log
-    const log = document.getElementById('log');
-    if (log) log.innerHTML += `<div>UI ready — defaults: ${JSON.stringify(defaults)}</div>`;
-  } catch (e) {
-    console.warn('attachContextUIHelpers error', e);
+  // Logging helper
+  function log(...args){
+    console.log('SMART CONTEXT:', ...args);
   }
-})();
+  SMART.log = log;
 
-// ===== URLs built from embedded CONFIG (merged) =====
-  (function build_urls_from_config(){
-    const ORIGIN = location.origin.replace(/\/$/, '');
-    const WS_PATH = (CONFIG && CONFIG.WS_PATH) ? CONFIG.WS_PATH : '/context/ws';
-    const HTTP_CHUNK_PATH = (CONFIG && CONFIG.HTTP_CHUNK_PATH) ? CONFIG.HTTP_CHUNK_PATH : '/context/chunk';
-    const MERGE_PATH = (CONFIG && CONFIG.MERGE_ENDPOINT) ? CONFIG.MERGE_ENDPOINT : '/context/merge';
-    const WHISPER_PATH = (CONFIG && CONFIG.WHISPER_ENDPOINT) ? CONFIG.WHISPER_ENDPOINT : '/context/whisper';
-    const GPT_PATH = (CONFIG && CONFIG.GPT_ENDPOINT) ? CONFIG.GPT_ENDPOINT : '/context/gpt';
-    const TTS_PATH = (CONFIG && CONFIG.TTS_ENDPOINT) ? CONFIG.TTS_ENDPOINT : '/context/tts';
-    const USE_WS = (CONFIG && typeof CONFIG.USE_WEBSOCKET === 'boolean') ? CONFIG.USE_WEBSOCKET : true;
+  // State
+  let audioCtx = null;
+  let workletNode = null;
+  let localStream = null;
+  let bufferQueue = []; // array of Float32Array chunks
+  let isRecording = false;
+  let ws = null;
 
-    // expose for debugging
-    window.CONTEXT_CFG = CONFIG;
-    window.CONTEXT_URLS = {
-      WS_URL: USE_WS ? ORIGIN.replace(/^http/, 'ws') + WS_PATH : null,
-      HTTP_CHUNK_URL: ORIGIN + HTTP_CHUNK_PATH,
-      MERGE_URL: ORIGIN + MERGE_PATH,
-      WHISPER_URL: ORIGIN + WHISPER_PATH,
-      GPT_URL: ORIGIN + GPT_PATH,
-      TTS_URL: ORIGIN + TTS_PATH
-    };
-  })();
+  // Utility: safe element getter
+  function q(id){ return document.getElementById(id) || document.querySelector(id); }
 
-  const WS_URL = window.CONTEXT_URLS.WS_URL;
-  const MERGE_URL = window.CONTEXT_URLS.MERGE_URL;
-  const WHISPER_URL = window.CONTEXT_URLS.WHISPER_URL;
-  const GPT_URL = window.CONTEXT_URLS.GPT_URL;
-  const TTS_URL = window.CONTEXT_URLS.TTS_URL;
-  const CHUNK_URL = window.CONTEXT_URLS.HTTP_CHUNK_URL;
+  // Initialize UI hooks (if elements exist)
+  function initUI(){
+    const startBtn = q('#start-rec') || q('[data-action="start-rec"]');
+    const stopBtn = q('#stop-rec') || q('[data-action="stop-rec"]');
+    const mergeBtn = q('#merge-now') || q('[data-action="merge-now"]');
 
-  const logEl = document.getElementById("log");
-  function log(t){ 
-    try{
-      const p = document.createElement('div');
-      p.textContent = (new Date()).toLocaleTimeString() + " — " + t;
-      logEl.appendChild(p);
-      logEl.scrollTop = logEl.scrollHeight;
-    }catch(e){}
-    if (CONFIG.DEBUG) console.log("[context] ", t);
+    if (startBtn) startBtn.addEventListener('click', onStartClick);
+    if (stopBtn) stopBtn.addEventListener('click', onStopClick);
+    if (mergeBtn) mergeBtn.addEventListener('click', onMergeClick);
+
+    log('UI handlers attached (start/stop/merge) if elements present');
   }
 
-  // Recorder + worklet setup (uses CONFIG.AUDIO_SAMPLE_RATE, etc.)
-  let ws, audioCtx, worklet, stream, gainNode;
-// локальное состояние опций (инициализируется при старте записи)
-let CURRENT_CONTEXT_OPTIONS = {};
-
-  let buffer = [], sessionId = null, sampleRate = CONFIG.AUDIO_SAMPLE_RATE || 44100, lastSendTs = 0;
-  const CHUNK_SEND_INTERVAL = CONFIG.CHUNK_SEND_INTERVAL_MS || 2000;
-  const CHUNK_MAX_BYTES = CONFIG.CHUNK_MAX_BYTES || (30 * 1024 * 1024);
-
-  // simple helpers
-  function base64EncodeFloat32(float32Array) {
-    const bytes = new Uint8Array(float32Array.buffer);
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i=0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-    }
-    return btoa(binary);
-  }
-
-  // Worklet-based recorder init
-  async function initRecorder() {
+  // Open WebSocket (stub — only opens if CONFIG.USE_WEBSOCKET true and WS URL set on window)
+  function openWS(){
+    if (!CONFIG.USE_WEBSOCKET) return;
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-      await audioCtx.audioWorklet.addModule('/context/recorder-worklet.js');
-      worklet = new AudioWorkletNode(audioCtx, 'recorder-worklet');
-      // connect to mic
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const src = audioCtx.createMediaStreamSource(stream);
-      gainNode = audioCtx.createGain();
-      src.connect(gainNode).connect(worklet);
-      worklet.port.onmessage = e => {
-        if (e.data && e.data.event === 'chunk') {
-          handleChunk(e.data.buffer);
-        }
-      };
-      log("Recorder initialized");
-    } catch (e) {
-      log("Recorder init failed: " + e.message);
-    }
-  }
-
-  // WS connection (optional)
-  function openWS() {
-    if (!WS_URL) {
-      log("WS disabled or URL not set; using HTTP fallback");
-      return;
-    }
-    try {
-      ws = new WebSocket(WS_URL);
-      ws.binaryType = 'arraybuffer';
-      ws.onopen = () => { log("WS connected to " + WS_URL); };
-      ws.onmessage = (m) => {
-        // server messages (JSON)
-        try {
-          const d = JSON.parse(m.data);
-          log("Server: " + (d.msg || JSON.stringify(d)));
-        } catch (e) {}
-      };
-      ws.onclose = () => { log("WS closed"); ws = null; };
-      ws.onerror = (err) => { log("WS error: " + err.message); };
-    } catch (e) {
-      log("WS create failed: " + e.message);
-    }
-  }
-
-  function closeWS() {
-    try { if (ws) ws.close(); ws = null; } catch(e){}
-  }
-
-  // chunk handling: accumulate and send periodically
-  function handleChunk(float32Buffer) {
-    // convert to base64 to send via HTTP easily; if WS available, send binary
-    try {
-      const arr = new Float32Array(float32Buffer);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        // send as raw Float32 array buffer
-        ws.send(arr.buffer);
-      } else {
-        // buffer and schedule HTTP POST
-        buffer.push(arr);
-        const now = Date.now();
-        if (now - lastSendTs > CHUNK_SEND_INTERVAL) {
-          flushChunks();
-          lastSendTs = now;
-        }
+      const url = window.SMART_CONTEXT && window.SMART_CONTEXT.WS_URL;
+      if (!url) {
+        log('WS requested but no SMART_CONTEXT.WS_URL defined');
+        return;
       }
-    } catch (e) {
-      log("handleChunk error: " + e.message);
+      ws = new WebSocket(url);
+      ws.onopen = () => log('WS open');
+      ws.onclose = () => log('WS closed');
+      ws.onerror = (e) => log('WS error', e);
+      ws.onmessage = (m) => log('WS msg', m.data);
+    } catch(e){
+      log('openWS error', e);
     }
   }
 
-  async function flushChunks() {
-    if (!buffer.length) return;
-    try {
-      // concatenate Float32Arrays into one blob
-      let totalLen = buffer.reduce((s, x) => s + x.length, 0);
-      let out = new Float32Array(totalLen);
-      let offset = 0;
-      buffer.forEach(arr => { out.set(arr, offset); offset += arr.length; });
-      buffer = [];
-      // send via fetch as application/octet-stream
-      const res = await fetch(CHUNK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: out.buffer
-      });
-      const json = await res.json();
-      if (json && json.session) {
-        sessionId = json.session;
-        log("Chunks uploaded, session: " + sessionId);
-      } else {
-        log("Chunks response: " + JSON.stringify(json));
-      }
-    } catch (e) {
-      log("flushChunks error: " + e.message);
+  function closeWS(){
+    if (ws) {
+      try { ws.close(); } catch(e){ log('ws.close error', e); }
+      ws = null;
     }
   }
 
-  // Controls
-  document.getElementById("start-rec").onclick = async function(){
-  // safe read UI options into local declared variable
-  try {
-    CURRENT_CONTEXT_OPTIONS = (typeof window.getContextOptions === 'function') ? window.getContextOptions() : {};
-  } catch (e) {
-    CURRENT_CONTEXT_OPTIONS = {};
-  }
-  log("Options at start: " + JSON.stringify(CURRENT_CONTEXT_OPTIONS));
-
-  await initRecorder();
-  if (CONFIG.USE_WEBSOCKET) openWS();
-  log("Recording...");
-  if (worklet) worklet.port.postMessage({ cmd: 'start' });
-}; } catch(e){ CURRENT_CONTEXT_OPTIONS = {}; }
-    log("Options at start: " + JSON.stringify(CURRENT_CONTEXT_OPTIONS));
-
-    await initRecorder();
-    if (CONFIG.USE_WEBSOCKET) openWS();
-    log("Recording...");
-    // tell worklet to start
-    if (worklet) worklet.port.postMessage({ cmd: 'start' });
-  };
-
-  document.getElementById("stop-rec").onclick = async function(){
-    if (worklet) worklet.port.postMessage({ cmd: 'stop' });
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-    }
-    closeWS();
-    // optionally auto-merge
-    if (CONFIG.AUTO_MERGE_ON_STOP) {
-      await mergeSession();
-    }
-    log("Stopped");
-  };
-
-  document.getElementById("merge-now").onclick = async function(){
-    await mergeSession();
-  };
-
-  async function mergeSession() {
-  try {
-    if (!sessionId) {
-      log("No session ID — nothing to merge");
-      return;
-    }
-    log("Requesting merge for " + sessionId);
-    const r = await fetch(MERGE_URL + "?session=" + encodeURIComponent(sessionId), { method: 'POST' });
-    const jr = await r.json();
-    log("Merge result: " + JSON.stringify(jr));
-
-    // Если не хотим автоматически вызывать whisper — всё равно даём возможность:
-    if (!CONFIG.AUTO_WHISPER_AFTER_MERGE) {
-      log("AUTO_WHISPER_AFTER_MERGE disabled — merge finished");
-      return;
-    }
-
-    // вызов распознавания
-    const whisperRes = await callWhisper(sessionId);
-    if (!whisperRes) {
-      log("Whisper failed or returned empty");
-      return;
-    }
-
-    const text = whisperRes.text || whisperRes.result || "";
-    const detectedLang = whisperRes.detectedLang || whisperRes.language || null;
-
-    // решаем что делать дальше по опции processingMode (значение берём из CURRENT_CONTEXT_OPTIONS)
-    const mode = (CURRENT_CONTEXT_OPTIONS && CURRENT_CONTEXT_OPTIONS.processingMode) ? CURRENT_CONTEXT_OPTIONS.processingMode : 'recognize';
-    const langPair = (CURRENT_CONTEXT_OPTIONS && CURRENT_CONTEXT_OPTIONS.langPair) ? CURRENT_CONTEXT_OPTIONS.langPair : null;
-
-    if (mode === 'recognize') {
-      log("Processing mode: recognize — final text: " + (text || "[empty]"));
-      // нет дальнейших действий — при необходимости можно отобразить текст в UI
-      return;
-    }
-
-    if (mode === 'translate') {
-      log("Processing mode: translate — calling GPT translate with langPair=" + langPair);
-      const gptRes = await callGPT(text, { mode: 'translate', langPair, detectedLang });
-      const outText = gptRes && (gptRes.text || gptRes.finalText || "");
-      log("Translate result: " + outText);
-      if (outText) await callTTS(outText);
-      return;
-    }
-
-    if (mode === 'assistant') {
-      log("Processing mode: assistant — calling GPT assistant");
-      const gptRes = await callGPT(text, { mode: 'assistant' });
-      const outText = gptRes && (gptRes.text || gptRes.finalText || "");
-      log("Assistant result: " + outText);
-      if (outText) await callTTS(outText);
-      return;
-    }
-
-    // fallback — if unknown mode, just log
-    log("Unknown processing mode: " + mode);
-
-  } catch (e) {
-    log("mergeSession error: " + (e.message || String(e)));
-  }
-}
-async function callWhisper(session) {
-    try {
-      log("Calling whisper for " + session);
-      const r = await fetch(WHISPER_URL + "?session=" + encodeURIComponent(session));
-      const jr = await r.json();
-      log("Whisper: " + JSON.stringify(jr));
-      // Возвращаем результат для дальнейшей обработки (mergeSession будет решать дальнейшие шаги)
-      return jr;
-    } catch (e) {
-      log("callWhisper error: " + (e.message || String(e)));
+  // Merge session (placeholder). Implement POST to your backend if needed.
+  async function mergeSession(){
+    log('mergeSession called — assembling audio parts:', bufferQueue.length);
+    if (bufferQueue.length === 0) {
+      log('mergeSession: nothing to merge');
       return null;
     }
+
+    // Convert queue of Float32Array chunks into a single Float32Array
+    const totalLen = bufferQueue.reduce((s, a) => s + a.length, 0);
+    const out = new Float32Array(totalLen);
+    let offset = 0;
+    for (const chunk of bufferQueue){
+      out.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    // Create WAV Blob (mono, 44.1 kHz) — minimal implementation
+    function floatTo16BitPCM(float32Array) {
+      const buffer = new ArrayBuffer(float32Array.length * 2);
+      const view = new DataView(buffer);
+      let offset = 0;
+      for (let i = 0; i < float32Array.length; i++, offset += 2) {
+        let s = Math.max(-1, Math.min(1, float32Array[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return view;
+    }
+
+    function encodeWAV(samples, sampleRate = (audioCtx ? audioCtx.sampleRate : 44100)) {
+      const bytesPerSample = 2;
+      const blockAlign = bytesPerSample * 1;
+      const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+      const view = new DataView(buffer);
+
+      // RIFF identifier
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); // fmt chunk size
+      view.setUint16(20, 1, true); // PCM format
+      view.setUint16(22, 1, true); // channels
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bytesPerSample * 8, true);
+      writeString(view, 36, 'data');
+      view.setUint32(40, samples.length * bytesPerSample, true);
+
+      // PCM samples
+      const pcmView = floatTo16BitPCM(samples);
+      for (let i = 0; i < pcmView.byteLength; i++) {
+        view.setUint8(44 + i, pcmView.getUint8(i));
+      }
+      return new Blob([view], { type: 'audio/wav' });
+    }
+
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+
+    const wav = encodeWAV(out);
+    log('mergeSession: created wav blob, size=', wav.size);
+
+    // Keep buffer queue until explicitly cleared
+    // You can send wav to server:
+    // await fetch('/context/merge', { method: 'POST', body: wav });
+
+    return wav;
   }
-// callGPT принимает text и опциональный объект opts { mode, langPair, detectedLang, ... }
-// Возвращает разобранный JSON-ответ от сервера
-async function callGPT(text, opts = {}) {
-  try {
-    log("Calling GPT with opts: " + JSON.stringify(opts));
-    const r = await fetch(GPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(Object.assign({ text }, opts))
-    });
-    const jr = await r.json();
-    log("GPT: " + JSON.stringify(jr));
-    return jr;
-  } catch (e) {
-    log("callGPT error: " + (e.message || String(e)));
-    return null;
-  }
-}
-async function callTTS(finalText) {
+
+  // Recorder initialization
+  async function initRecorder(){
+    if (isRecording) return;
+    bufferQueue = [];
+
+    // Try AudioWorklet
     try {
-      log("🔊 TTS...");
-      const t = await fetch(`${TTS_URL}?session=${encodeURIComponent(sessionId)}&voice=${encodeURIComponent(document.getElementById('voice-select').value)}&text=${encodeURIComponent(finalText)}`);
-      const tData = await t.json();
-      log(`🔊 ${tData.url}`);
-    } catch (e) {
-      log("callTTS error: " + e.message);
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // load worklet
+      if (audioCtx.audioWorklet) {
+        await audioCtx.audioWorklet.addModule(CONFIG.WORKLET_URL);
+        workletNode = new AudioWorkletNode(audioCtx, CONFIG.WORKLET_NAME);
+        workletNode.port.onmessage = (ev) => {
+          // expected: Float32Array (or plain array)
+          const data = ev.data;
+          // normalize incoming typed arrays
+          if (data instanceof Float32Array) {
+            bufferQueue.push(new Float32Array(data));
+          } else if (Array.isArray(data) || data.buffer instanceof ArrayBuffer) {
+            try {
+              bufferQueue.push(new Float32Array(data));
+            } catch(e){
+              // ignore
+            }
+          }
+          // optionally forward to WS:
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            // careful: binary send might be desired; here we send raw float32 as ArrayBuffer
+            try { ws.send((data instanceof Float32Array) ? data.buffer : new Float32Array(data).buffer); } catch(e) {}
+          }
+        };
+        log('AudioWorklet loaded and node created');
+      } else {
+        log('AudioWorklet not supported in this browser — will fallback to MediaRecorder');
+        workletNode = null;
+      }
+    } catch(err) {
+      log('initRecorder: worklet load error', err);
+      workletNode = null;
+    }
+
+    // Acquire microphone
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (audioCtx && workletNode) {
+        const src = audioCtx.createMediaStreamSource(localStream);
+        src.connect(workletNode);
+        workletNode.connect(audioCtx.destination); // keep audio graph connected for processing
+      } else {
+        // fallback: nothing connected — we'll rely on MediaRecorder in that case
+      }
+    } catch(e){
+      log('getUserMedia error', e);
+      throw e;
     }
   }
-}
 
-// if module system expects named export — export render/unload
-// try to not break existing loader: attach to window and export if module system present
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { render };
-}
-if (typeof window !== 'undefined') {
-  window.contextRender = render;
-}
+  async function startRecording(){
+    try {
+      if (isRecording) return;
+      await initRecorder();
+      if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+
+      // If worklet exists we expect it to post frames
+      if (workletNode && localStream) {
+        isRecording = true;
+        // send a start message to worklet (if implemented)
+        try { workletNode.port.postMessage({ cmd: 'start' }); } catch(e){ }
+        log('Recording started (worklet mode)');
+      } else {
+        // MEDIARECORDER fallback
+        if (!localStream) await initRecorder();
+        if (localStream) {
+          const mediaRecorder = new MediaRecorder(localStream);
+          const chunks = [];
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size) chunks.push(e.data);
+          };
+          mediaRecorder.onstop = async () => {
+            // decode & convert blob to Float32Array using offline audio context
+            const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' });
+            const arrayBuf = await blob.arrayBuffer();
+            const decoded = await (audioCtx ? audioCtx.decodeAudioData(arrayBuf) : (new Promise(res => res(null))));
+            if (decoded && decoded.getChannelData) {
+              bufferQueue.push(new Float32Array(decoded.getChannelData(0)));
+            }
+            log('MediaRecorder stopped, chunks pushed');
+          };
+          mediaRecorder.start();
+          SMART._mediaRecorder = mediaRecorder;
+          isRecording = true;
+          log('Recording started (MediaRecorder fallback)');
+        } else {
+          throw new Error('No audio input available');
+        }
+      }
+    } catch(e){
+      log('startRecording error', e);
+      throw e;
+    }
+  }
+
+  async function stopRecording(){
+    try {
+      if (!isRecording) {
+        log('stopRecording: not recording');
+        return;
+      }
+      isRecording = false;
+      if (workletNode) {
+        try { workletNode.port.postMessage({ cmd: 'stop' }); } catch(e) {}
+      }
+      // stop MediaRecorder fallback
+      if (SMART._mediaRecorder && SMART._mediaRecorder.state !== 'inactive') {
+        SMART._mediaRecorder.stop();
+      }
+      // stop tracks
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      closeWS();
+      log('Recording stopped');
+
+      if (CONFIG.AUTO_MERGE_ON_STOP) {
+        await mergeSession();
+      }
+    } catch(e){
+      log('stopRecording error', e);
+    }
+  }
+
+  // UI handlers
+  async function onStartClick(){
+    try {
+      // try to read options getter if provided by embedding page
+      try {
+        if (typeof window.getContextOptions === 'function') {
+          const opts = window.getContextOptions();
+          if (opts && typeof opts === 'object') window.CURRENT_CONTEXT_OPTIONS = opts;
+        }
+      } catch(e){}
+      openWS();
+      await startRecording();
+    } catch(e){
+      log('onStartClick error', e);
+      alert('Не удалось запустить запись: ' + (e.message || e));
+    }
+  }
+
+  async function onStopClick(){
+    await stopRecording();
+  }
+
+  async function onMergeClick(){
+    try {
+      const wav = await mergeSession();
+      if (wav) {
+        log('merge complete. WAV size:', wav.size);
+        // optional: download for quick check
+        const url = URL.createObjectURL(wav);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'smart-merge.wav';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch(e){
+      log('onMergeClick error', e);
+    }
+  }
+
+  // safe exports
+  SMART.startRecording = startRecording;
+  SMART.stopRecording = stopRecording;
+  SMART.mergeSession = mergeSession;
+  SMART.initUI = initUI;
+  SMART.initRecorder = initRecorder;
+  SMART.CONFIG = CONFIG;
+  SMART.bufferQueue = bufferQueue;
+
+  // Auto-init UI when DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUI);
+  } else {
+    initUI();
+  }
+
+  log('SMART CONTEXT: ready');
+})();
