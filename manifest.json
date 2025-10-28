@@ -8,24 +8,30 @@
   "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
-  ],
-  "screenshots": [
     {
-      "src": "/screenshots/1.jpg",
-      "sizes": "720x1280",
-      "type": "image/jpeg"
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
     },
     {
-      "src": "/screenshots/2.jpg",
-      "sizes": "720x1280",
-      "type": "image/jpeg"
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     },
     {
-      "src": "/screenshots/3.jpg",
-      "sizes": "720x1280",
-      "type": "image/jpeg"
+      "src": "/assets/icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
     }
   ]
 }
