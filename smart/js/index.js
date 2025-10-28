@@ -1,53 +1,68 @@
-// index.js — resilient SPA loader (fixed fallback for empty CONFIG.PAGES)
-// - если CONFIG.PAGES пуст, попытается загрузить /menu1.js, /context/index.js, /translate/index.js и т.п.
-// - использует абсолютные пути от корня (BASE/)
-// - удобные и понятные сообщения для разработчика (и немного юмора, потому что Грег любит шутки)
-// Помести вместо старого smart/index.js
+// js/index.js
+// SMART VISION — SPA loader (robust + safe)
+// - expects site config in window.CONFIG (js/config.js should set it before this script runs)
+// - loads page modules by absolute path: /<module>?v=VERSION (or uses CONFIG.BASE_URL)
+// - renders modules into #page-content and NEVER removes header/footer/menu
+// - safeImport with timeout, unload() contract for modules, friendly errors
+// - exposes window.SV.loadPage and window.APP.addWorklet
+// - authored: Bro-approved, a tiny joke in the logs
 
 (function () {
-  console.log("SMART VISION loader — ваш Бро в деле. Если я шучу — значит всё под контролем.");
+  console.log("SMART VISION loader — ваш Бро. Смотрю аккуратно, шучу по делу.");
 
-  const CONFIG = window.CONFIG || {};
-  const BASE = (CONFIG.BASE_URL ? String(CONFIG.BASE_URL).replace(/\/$/, '') : '') || '';
-  const VERSION = CONFIG.VERSION || (new Date()).toISOString().slice(0,10);
-  const MOUNT_ID = CONFIG.MOUNT_ID || "app";
-  const mount = document.getElementById(MOUNT_ID) || createMount(MOUNT_ID);
-
-  function createMount(id) {
-    const el = document.createElement("div");
-    el.id = id;
-    document.body.appendChild(el);
-    return el;
+  // --- Config (fallback try import if window.CONFIG absent) ---
+  async function ensureConfig() {
+    if (window.CONFIG) return window.CONFIG;
+    try {
+      // config likely at /js/config.js — try to import as script-exported global first,
+      // or dynamic import if it's an ESM export.
+      if (await tryFetch("/js/config.js")) {
+        // if script attached earlier it should have set window.CONFIG
+        if (window.CONFIG) return window.CONFIG;
+        // otherwise try dynamic import
+        const m = await import("/js/config.js?v=" + Date.now());
+        if (m && (m.CONFIG || m.default)) {
+          window.CONFIG = m.CONFIG || m.default;
+          return window.CONFIG;
+        }
+      }
+    } catch (e) {
+      console.warn("config load fallback failed:", e && e.message ? e.message : e);
+    }
+    // final fallback minimal config
+    window.CONFIG = window.CONFIG || { BASE_URL: "", VERSION: String(new Date().toISOString().slice(0,10)), MOUNT_ID: "app", PAGES: [] };
+    return window.CONFIG;
   }
 
-  function showLoading(text = "Loading…") {
-    mount.innerHTML = `<div style="padding:18px;color:#444;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;"><strong>${text}</strong></div>`;
+  // quick HEAD check to avoid 404 import attempt (helps in some CDNs)
+  async function tryFetch(path) {
+    try {
+      const r = await fetch(path, { method: "HEAD", cache: "no-store" });
+      return r && (r.status === 200 || r.status === 204);
+    } catch { return false; }
   }
-  function showErrorHtml(title, html) {
-    mount.innerHTML = `<div style="padding:18px;color:#a00;background:#fff6f6;border-radius:8px;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;">
-      <strong>${escapeHtml(title)}</strong>
-      <div style="margin-top:8px;color:#333">${html}</div>
-      <div style="margin-top:8px;color:#666;font-size:13px">Если что — зови Бро (он рядом).</div>
-    </div>`;
-    console.error(title, html);
-  }
-  function showError(text) { showErrorHtml("Ошибка", escapeHtml(String(text))); }
-  function escapeHtml(s){ return String(s||"").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+  // --- helpers ---
   function moduleUrl(modulePath) {
+    const cfg = window.CONFIG || {};
+    const base = (cfg.BASE_URL || "").replace(/\/$/, "");
     const trimmed = String(modulePath || "").replace(/^\//, "");
-    return `${BASE}/${trimmed}?v=${encodeURIComponent(VERSION)}`;
+    const version = encodeURIComponent(cfg.VERSION || "");
+    return (base ? base + "/" : "/") + trimmed + (version ? `?v=${version}` : "");
   }
 
+  // addWorklet helper
   window.APP = window.APP || {};
-  window.APP.BASE = BASE;
-  window.APP.VERSION = VERSION;
-  window.APP.addWorklet = async function(audioCtx, relPath){
+  window.APP.addWorklet = async function (audioCtx, relPath) {
     const url = moduleUrl(relPath);
     return audioCtx.audioWorklet.addModule(url);
   };
 
-  // Normalize pages config into map { id: {id,module,title} }
+  // expose SV
+  window.SV = window.SV || {};
+  // will be set later: SV.pages, SV.loadPage, SV.config
+
+  // --- page list normalization ---
   function normalizePages(pages) {
     if (!pages) return {};
     if (Array.isArray(pages)) {
@@ -56,10 +71,11 @@
       return map;
     }
     if (typeof pages === "object") {
+      // object map or keyed config
       const map = {};
       for (const k of Object.keys(pages)) {
         const v = pages[k];
-        if (typeof v === "string") map[k] = { id: k, module: v, title: k };
+        if (typeof v === "string") map[k] = { id: k, module: v, label: k };
         else if (v && v.module) map[k] = Object.assign({ id: k }, v);
       }
       return map;
@@ -67,155 +83,228 @@
     return {};
   }
 
-  const PAGES = normalizePages(CONFIG.PAGES || {});
-  const PAGE_IDS = Object.keys(PAGES);
-  const DEFAULT_PAGE = PAGE_IDS[0] || null;
-
-  async function dynamicImport(url) {
-    // dynamic import with nicer error wrapping
-    try {
-      return await import(url);
-    } catch (e) {
-      throw e;
-    }
+  // --- DOM helpers for graceful UI in #page-content ---
+  function getPageContentContainer() {
+    // prefer explicit id 'page-content' (rendered by menu1.js). fallback to mount or #app.
+    const byId = document.getElementById("page-content");
+    if (byId) return byId;
+    const mount = document.getElementById((window.CONFIG && window.CONFIG.MOUNT_ID) || "app");
+    if (mount) return mount;
+    const body = document.body;
+    return body;
   }
 
-  async function loadModuleByPath(modulePath, pageInfo) {
-    const url = moduleUrl(modulePath);
-    showLoading(`Loading module ${pageInfo ? (pageInfo.title||pageInfo.id) : modulePath}…`);
-    try {
-      const mod = await dynamicImport(url);
-      if (mod && typeof mod.render === "function") {
-        await mod.render(mount);
-        return true;
-      } else if (typeof mod.default === "function") {
-        await mod.default(mount);
-        return true;
-      } else if (mod && typeof mod.init === "function") {
-        await mod.init(mount);
-        return true;
-      } else if (typeof mod.main === "function") {
-        await mod.main(mount);
-        return true;
-      } else {
-        throw new Error(`Модуль ${modulePath} загружен, но не экспортирует render/default/init/main`);
-      }
-    } catch (e) {
-      throw e;
-    }
+  function showLoadingIn(container, text = "Загрузка…") {
+    container.innerHTML = `<div class="sv-loading" style="padding:18px;color:#444">${escapeHtml(text)}</div>`;
   }
 
-  async function tryFallbacks() {
-    // Попробуем в порядке приоритетов загрузить что-то полезное:
-    const tryList = [
-      { path: "menu1.js", label: "menu1.js" },
-      { path: "menu.js", label: "menu.js" },
-      { path: "context/index.js", label: "context/index.js" },
-      { path: "context/context.js", label: "context/context.js" },
-      { path: "translate/index.js", label: "translate/index.js" },
-      { path: "translator/index.js", label: "translator/index.js" },
-      { path: "app.js", label: "app.js" }
-    ];
+  function showModuleError(container, title, message) {
+    container.innerHTML = `
+      <div class="sv-module-error" style="padding:18px;border-radius:8px;background:#fff6f6;color:#a00">
+        <strong>${escapeHtml(title)}</strong>
+        <div style="margin-top:8px;color:#333">${escapeHtml(message)}</div>
+        <div style="margin-top:10px"><button id="sv-retry-btn" style="padding:8px 12px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer">Попробовать снова</button></div>
+      </div>`;
+    const btn = document.getElementById("sv-retry-btn");
+    if (btn) btn.addEventListener("click", () => {
+      // re-trigger hashchange handling
+      handleHashChange();
+    });
+  }
 
-    const tried = [];
-    for (const t of tryList) {
+  function escapeHtml(s) { return String(s || "").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // --- safe dynamic import with timeout ---
+  function timeout(ms) { return new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms)); }
+  async function safeImport(specifier, msTimeout = 8000) {
+    // race import with timeout
+    return Promise.race([ import(specifier), timeout(msTimeout) ]);
+  }
+
+  // --- module lifecycle tracking ---
+  let currentModuleApi = null; // module exports object for unload
+  let currentModulePath = null;
+
+  async function unloadCurrentModule() {
+    if (currentModuleApi && typeof currentModuleApi.unload === "function") {
       try {
-        await loadModuleByPath(t.path, { title: t.label });
-        return; // success -> done
+        await currentModuleApi.unload();
       } catch (e) {
-        tried.push({ path: t.path, error: e && e.message ? e.message : String(e) });
-        // continue to next
+        console.warn("Error during module unload()", e);
+      }
+    } else if (currentModuleApi && typeof currentModuleApi.dispose === "function") {
+      try {
+        await currentModuleApi.dispose();
+      } catch (e) {
+        console.warn("Error during module dispose()", e);
       }
     }
-
-    // If nothing удалось — выводим дружелюбный экран с подсказкой
-    const triedHtml = tried.map(x => `<div><strong>${escapeHtml(x.path)}</strong> — ${escapeHtml(x.error)}</div>`).join("");
-    showErrorHtml("Не удалось автоматически найти модуль.", `
-      <div>Похоже, CONFIG.PAGES пуст или модули не найдены на стандартных путях.</div>
-      <div style="margin-top:8px">Попытки загрузки модулей:</div>
-      <div style="margin-top:8px">${triedHtml}</div>
-      <div style="margin-top:12px">Решение: добавь <code>window.CONFIG.PAGES</code> в <code>config.js</code> или помести модуль меню <code>/menu1.js</code> или страницу <code>/context/index.js</code>.</div>
-    `);
+    currentModuleApi = null;
+    currentModulePath = null;
   }
 
-  async function loadPageById(pageId) {
-    const page = PAGES[pageId];
-    if (!page) throw new Error(`Unknown page: ${pageId}`);
-    if (!page.module) throw new Error(`Page ${pageId} has no module`);
-    return await loadModuleByPath(page.module, page);
+  // --- protected render pipeline ---
+  async function renderModuleSafely(modulePath) {
+    const container = getPageContentContainer();
+    if (!container) {
+      console.error("No container for page content");
+      return;
+    }
+
+    // unload previous module first (graceful)
+    await unloadCurrentModule();
+
+    showLoadingIn(container, `Загрузка ${modulePath}…`);
+
+    const url = moduleUrl(modulePath);
+    try {
+      const mod = await safeImport(url, 8000); // 8s timeout
+      // find runner
+      const runner = mod.render || mod.default || mod.init || mod.main;
+      if (!runner || typeof runner !== "function") {
+        throw new Error("Модуль загружен, но не экспортирует render/default/init/main");
+      }
+
+      // runner should render into container; wrap in try/catch
+      try {
+        const maybe = runner(container);
+        if (maybe && typeof maybe.then === "function") await maybe;
+        // keep module exports for later unload
+        currentModuleApi = mod;
+        currentModulePath = modulePath;
+      } catch (e) {
+        console.error("Error during module render:", e);
+        showModuleError(container, "Ошибка модуля при рендере", e && e.message ? e.message : String(e));
+      }
+    } catch (e) {
+      console.error("Failed to load module:", e);
+      let msg = e && e.message ? e.message : String(e);
+      if (msg === "timeout") msg = "Время загрузки модуля истекло";
+      showModuleError(container, "Не удалось загрузить страницу", msg);
+    }
   }
 
+  // --- Router: hash-based ---
   function getPageIdFromHash() {
     const h = (location.hash || "").replace(/^#/, "");
     const p = h.replace(/^\//, "");
     return p || null;
   }
 
+  // Fallback list when CONFIG.PAGES empty: try to load one of these modules
+  const FALLBACK_TRIES = [
+    "js/menu1.js", "js/menu.js", "js/context/context.js", "js/context/index.js",
+    "js/translator/translator.js", "js/translate/index.js", "js/app.js"
+  ];
+
+  async function tryFallbacks() {
+    const container = getPageContentContainer();
+    for (const p of FALLBACK_TRIES) {
+      try {
+        await renderModuleSafely(p);
+        // if success (no error UI) then stop
+        return;
+      } catch (e) {
+        // continue trying others
+      }
+    }
+    // if none worked, show global hint
+    const c = getPageContentContainer();
+    c.innerHTML = `<div style="padding:18px;color:#666">Не найдено ни одного модуля для отображения. Проверьте js/config.js и файлы в /js/. (Бро советует: убедись, что menu1.js или context/index.js на месте.)</div>`;
+  }
+
+  // --- Menu highlighting helper (menu1.js should define updateMenuActive but we call anyway) ---
+  function updateMenuActive(pageId) {
+    if (window.updateMenuActive) {
+      try { window.updateMenuActive(pageId); } catch (e) { /* ignore */ }
+    } else {
+      // fallback: try to highlight links with data-page
+      const links = document.querySelectorAll('[data-page]');
+      links.forEach(l => {
+        const id = l.getAttribute('data-page');
+        if (id === pageId) {
+          l.classList && l.classList.add('active');
+          l.style.background = "#0f62fe"; l.style.color = "#fff";
+        } else {
+          if (l.classList) l.classList.remove('active');
+          l.style.background = "transparent"; l.style.color = "#333";
+        }
+      });
+    }
+  }
+
+  // --- handle hash change and initial load ---
+  let PAGES_MAP = {};
+
   async function handleHashChange() {
     const pageId = getPageIdFromHash();
     if (pageId) {
-      try {
-        await loadPageById(pageId);
-        if (window.updateMenuActive) try { window.updateMenuActive(pageId); } catch {}
+      const entry = PAGES_MAP[pageId];
+      if (entry && entry.module) {
+        updateMenuActive(pageId);
+        await renderModuleSafely(entry.module);
         return;
-      } catch (e) {
-        // failed to load requested pageId -> show friendly error but try fallbacks
-        console.warn("Failed to load pageId:", pageId, e);
-        showErrorHtml(`Ошибка загрузки модуля`, `<div>Unknown page: ${escapeHtml(pageId)}.</div><div>Попытаюсь автопоиском...</div>`);
+      } else {
+        // requested unknown pageId -> try fallback attempts but don't crash
+        const container = getPageContentContainer();
+        showLoadingIn(container, `Страница "${pageId}" не найдена — пробуем автопоиск...`);
         await tryFallbacks();
         return;
       }
     }
 
-    // no hash specified
-    if (PAGE_IDS.length) {
-      // load default configured page
-      try {
-        await loadPageById(DEFAULT_PAGE);
-        if (window.updateMenuActive) try { window.updateMenuActive(DEFAULT_PAGE); } catch {}
-        return;
-      } catch (e) {
-        console.warn("Failed to load default page:", DEFAULT_PAGE, e);
-        showErrorHtml("Ошибка загрузки модуля", `Default page ${escapeHtml(String(DEFAULT_PAGE||""))} failed. Попытаюсь автопоиском...`);
-        await tryFallbacks();
-        return;
-      }
+    // No hash: load default page from config if any, else try fallbacks
+    const keys = Object.keys(PAGES_MAP);
+    if (keys.length) {
+      const def = keys[0]; // first declared as default
+      updateMenuActive(def);
+      await renderModuleSafely(PAGES_MAP[def].module);
+      return;
     }
 
-    // CONFIG.PAGES empty -> try sensible fallbacks
+    // no pages configured, fallback
     await tryFallbacks();
   }
 
-  // attach handlers
-  window.addEventListener("hashchange", handleHashChange, false);
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      handleHashChange();
-      attachMenuLinks();
-    });
-  } else {
-    handleHashChange();
-    attachMenuLinks();
-  }
+  // attach hash listener
+  window.addEventListener("hashchange", () => { handleHashChange().catch(e=>console.error(e)); }, false);
 
-  function attachMenuLinks() {
-    document.body.addEventListener("click", (ev) => {
-      const a = ev.target.closest && ev.target.closest("[data-page]");
-      if (!a) return;
-      const pageId = a.getAttribute("data-page");
-      if (!pageId) return;
-      ev.preventDefault();
-      location.hash = `#/${pageId}`;
-    });
-  }
+  // --- attach delegated click handler for nav links [data-page] to set hash ---
+  document.body.addEventListener("click", (ev) => {
+    const a = ev.target.closest && ev.target.closest('[data-page]');
+    if (!a) return;
+    const pid = a.getAttribute('data-page');
+    if (!pid) return;
+    ev.preventDefault();
+    location.hash = `#/${pid}`;
+  });
 
-  // expose API
+  // --- public API ---
   window.SV = window.SV || {};
-  window.SV.loadPage = async (id) => {
-    location.hash = `#/${id}`;
-  };
-  window.SV.pages = PAGES;
-  window.SV.config = CONFIG;
+  window.SV.loadPage = (id) => { location.hash = `#/${id}`; };
+  window.SV.pages = () => PAGES_MAP;
+  window.SV.config = () => window.CONFIG;
 
-  console.log("Loader ready. Pages:", Object.keys(PAGES).join(", ") || "(none declared). Trying fallbacks.)");
+  // --- bootstrap: ensure config, build pages map and start ---
+  (async function bootstrap() {
+    await ensureConfig();
+    const cfg = window.CONFIG || {};
+    PAGES_MAP = normalizePages(cfg.PAGES || {});
+    // expose pages map
+    window.SV.pages = () => PAGES_MAP;
+
+    // If menu renderer exists (menu1.js) we should let it render; but loader's job is to ensure content loads.
+    // Initial handle
+    try {
+      await handleHashChange();
+    } catch (e) {
+      console.error("Initial load error:", e);
+      const c = getPageContentContainer();
+      c.innerHTML = `<div style="padding:18px;color:#900">Ошибка инициализации: ${escapeHtml(e && e.message ? e.message : String(e))}</div>`;
+    }
+
+    // small log for devs
+    console.log("Loader ready. Pages:", Object.keys(PAGES_MAP).join(", ") || "(none declared).");
+  })();
+
 })();
