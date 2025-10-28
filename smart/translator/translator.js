@@ -10,7 +10,7 @@ export async function renderTranslator(mount) {
     <div style="background:#f2f2f2;border-radius:12px;padding:18px;">
       <p id="session-id-display" style="text-align:center; font-weight: bold;">Сессия ID: ${customSessionId}</p>
       <h2>🎙️ Переводчик — Суфлёр</h2>
-      <p id="sample-rate-display" style="text-align:center; font-weight: bold;">Частота дискретизации:</p> <!-- Здесь будет частота -->
+      <p id="sample-rate-display" style="text-align:center; font-weight: bold;">Частота дискретизации:</p>
       <div style="text-align:center;margin-bottom:10px;">
         <label style="font-weight:600;">🧑 Голос озвучки:</label>
         <select id="voice-select">
@@ -31,7 +31,6 @@ export async function renderTranslator(mount) {
       <div style="text-align:center;margin-bottom:10px;">
         <button id="translator-record-btn">Start</button>
         <button id="ctx-stop" style="background:#f44336;" disabled>Stop</button>
-        <button id="play-recording" disabled>Play Recording</button>
       </div>
       <div id="ctx-log" style="min-height:300px;overflow:auto;">
         <!-- Лог сессии будет отображаться здесь -->
@@ -42,7 +41,6 @@ export async function renderTranslator(mount) {
   const logEl = mount.querySelector("#ctx-log");
   const btnStart = mount.querySelector("#translator-record-btn");
   const btnStop = mount.querySelector("#ctx-stop");
-  const btnPlay = mount.querySelector("#play-recording");
   const voiceSel = mount.querySelector("#voice-select");
   const langSel = mount.querySelector("#lang-pair");
 
@@ -162,6 +160,8 @@ export async function renderTranslator(mount) {
         }
       }, 1000);  // Интервал отправки данных — 1 секунда
 
+      btnStart.classList.add("active"); // Добавляем класс для красной кнопки
+      btnStop.classList.remove("active"); // Убираем класс с кнопки Stop
       btnStart.disabled = true;
       btnStop.disabled = false;
       log("🎙️ Recording started");
@@ -183,6 +183,8 @@ export async function renderTranslator(mount) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
+      btnStop.classList.add("active"); // Добавляем класс для красной кнопки
+      btnStart.classList.remove("active"); // Убираем класс с кнопки Start
       log("⏹️ Recording stopped");
       btnStart.disabled = false;
       btnStop.disabled = true;
