@@ -1,4 +1,6 @@
-// ======== Context Module (v2.0 — передаётся langPair в Whisper) ========
+// context.js
+// Client-side module for Context page (mount — DOM element).
+// Adapted from your original module; uses /context/* endpoints and /context/ws WebSocket.
 
 export async function render(mount) {
   mount.innerHTML = `
@@ -62,9 +64,16 @@ export async function render(mount) {
   const langSel  = mount.querySelector("#lang-pair");
   const voiceSel = mount.querySelector("#voice-select");
 
-  const WS_URL = `${location.origin.replace(/^http/, "ws")}/ws`;
+  // namespaced WS + HTTP endpoints
+  const WS_URL = `${location.origin.replace(/^http/, "ws")}/context/ws`;
+  const MERGE_URL = `/context/merge`;
+  const WHISPER_URL = `/context/whisper`;
+  const GPT_URL = `/context/gpt`;
+  const TTS_URL = `/context/tts`;
+  const CHUNK_URL = `/context/chunk`;
+
   let ws, audioCtx, worklet, stream, gainNode;
-  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0;
+  let buffer = [], sessionId = null, sampleRate = 44100, lastSend = 0, fallbackSession = null;
 
   function log(msg) {
     const div = document.createElement("div");
@@ -80,14 +89,25 @@ export async function render(mount) {
       const langPair = langSel.value;
       const voice = voiceSel.value;
 
-      ws = new WebSocket(WS_URL);
-      ws.binaryType = "arraybuffer";
-      ws.onmessage = (e) => {
-        const msg = String(e.data);
-        if (msg.startsWith("SESSION:")) sessionId = msg.split(":")[1];
-        log("📩 " + msg);
-      };
-      ws.onclose = () => log("❌ Disconnected");
+      // reset
+      buffer = [];
+      sessionId = null;
+      fallbackSession = `sess-${Date.now()}`;
+
+      // try WebSocket first
+      try {
+        ws = new WebSocket(WS_URL);
+        ws.binaryType = "arraybuffer";
+        ws.onmessage = (e) => {
+          const msg = String(e.data);
+          if (msg.startsWith("SESSION:")) sessionId = msg.split(":")[1];
+          log("📩 " + msg);
+        };
+        ws.onclose = () => log("❌ WS Disconnected");
+      } catch (e) {
+        console.warn("WS open error", e);
+        ws = null;
+      }
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       sampleRate = audioCtx.sampleRate;
@@ -95,10 +115,14 @@ export async function render(mount) {
 
       await audioCtx.audioWorklet.addModule("context/recorder-worklet.js");
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
-        log("✅ Connected to WebSocket");
-      };
+      if (ws) {
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: "meta", sampleRate, mode, processMode, langPair, voice }));
+          log("✅ Connected to WebSocket");
+        };
+      } else {
+        log("⚠️ WebSocket failed — using HTTP fallback for chunks");
+      }
 
       const constraints = {
         audio: {
@@ -120,7 +144,7 @@ export async function render(mount) {
       }
 
       worklet.port.onmessage = (e) => {
-        const chunk = e.data;
+        const chunk = e.data; // Float32Array
         buffer.push(chunk);
         const now = performance.now();
         if (now - lastSend >= 2000) {
@@ -148,18 +172,45 @@ export async function render(mount) {
     return out;
   }
 
-  function sendBlock() {
-    if (!buffer.length || !ws || ws.readyState !== WebSocket.OPEN) return;
+  async function sendBlock() {
+    if (!buffer.length) return;
     const full = concat(buffer);
-    ws.send(full.buffer);
     buffer = [];
-    log(`🎧 Sent ${full.length} samples`);
+
+    // Try WS first
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(full.buffer);
+        log(`🎧 Sent ${full.length} samples via WS`);
+        return;
+      } catch (e) {
+        console.warn("ws send failed", e);
+      }
+    }
+
+    // Fallback: send via HTTP POST to /context/chunk
+    try {
+      const sess = sessionId || fallbackSession;
+      const resp = await fetch(`${CHUNK_URL}?session=${encodeURIComponent(sess)}&sampleRate=${sampleRate}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: full.buffer,
+      });
+      if (resp.ok) {
+        log(`🎧 Sent ${full.length} samples via HTTP fallback (session ${sess})`);
+      } else {
+        log("❌ HTTP chunk upload failed: " + resp.status);
+      }
+    } catch (e) {
+      console.error("chunk POST error", e);
+      log("❌ chunk POST error: " + e.message);
+    }
   }
 
   btnStop.onclick = async () => {
     try {
-      sendBlock();
-      if (audioCtx) audioCtx.close();
+      await sendBlock();
+      if (audioCtx) await audioCtx.close();
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (ws && ws.readyState === WebSocket.OPEN) ws.close();
 
@@ -167,26 +218,29 @@ export async function render(mount) {
       btnStart.disabled = false;
       btnStop.disabled = true;
 
-      if (!sessionId) return log("❔ Нет sessionId");
-      await processSession();
+      // choose session id
+      const sess = sessionId || fallbackSession;
+      if (!sess) return log("❔ Нет sessionId");
+
+      await processSession(sess);
     } catch (e) {
       log("❌ Ошибка: " + e.message);
     }
   };
 
-  async function processSession() {
+  async function processSession(sess) {
     try {
       const voice = voiceSel.value;
       const processMode = procSel.value;
       const langPair = langSel.value;
 
       log("🧩 Объединяем чанки...");
-      await fetch(`/merge?session=${sessionId}`);
-      const mergedUrl = location.origin + "/" + sessionId + "_merged.wav";
+      await fetch(`${MERGE_URL}?session=${encodeURIComponent(sess)}`);
+      const mergedUrl = location.origin + "/" + sess + "_merged.wav";
       log("💾 " + mergedUrl);
 
       log("🧠 Whisper...");
-      const w = await fetch(`/whisper?session=${sessionId}&langPair=${encodeURIComponent(langPair)}`); // ✅ теперь передаём langPair
+      const w = await fetch(`${WHISPER_URL}?session=${encodeURIComponent(sess)}&langPair=${encodeURIComponent(langPair)}`);
       const data = await w.json();
       const text = data.text || "";
       const detectedLang = data.detectedLang || null;
@@ -197,7 +251,7 @@ export async function render(mount) {
       if (processMode !== "recognize") {
         log("🤖 GPT...");
         const body = { text, mode: processMode, langPair, detectedLang };
-        const g = await fetch("/gpt", {
+        const g = await fetch(GPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -209,7 +263,7 @@ export async function render(mount) {
 
       if (finalText) {
         log("🔊 TTS...");
-        const t = await fetch(`/tts?session=${sessionId}&voice=${voice}&text=${encodeURIComponent(finalText)}`);
+        const t = await fetch(`${TTS_URL}?session=${encodeURIComponent(sess)}&voice=${encodeURIComponent(voice)}&text=${encodeURIComponent(finalText)}`);
         const tData = await t.json();
         log(`🔊 ${tData.url}`);
       }
