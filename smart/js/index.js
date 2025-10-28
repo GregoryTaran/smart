@@ -1,15 +1,17 @@
 // smart/js/index.js
-// Unified client entry — исправленная версия (initial render, logo behavior, robust handlers).
-// Комментарии объясняют блоки. Заменять файл целиком.
+// Обновлённая, готовая к использованию версия index.js
+// - Сохраняет структуру и логику из твоего файла
+// - Упрощённый и надёжный модульный загрузчик (вариант A)
+// - Подробные комментарии внутри — вставь файл целиком в smart/js/index.js
 
-/* CONFIG импортируется из js/config.js (тот же файл что у тебя) */
+/* CONFIG импортируется из js/config.js */
 import { CONFIG } from "./config.js";
 
 /* -------------------------
    Application state
    ------------------------- */
 const STATE = {
-  env: window.innerWidth <= 768 ? "mobile" : "desktop", // текущий режим
+  env: window.innerWidth <= 768 ? "mobile" : "desktop",
   page: CONFIG.DEFAULT_PAGE || (CONFIG.PAGES && CONFIG.PAGES[0] && CONFIG.PAGES[0].id) || "home",
   ui: { menuOpen: false },
   currentModuleRef: null,
@@ -29,10 +31,9 @@ const E = {
 };
 
 /* -------------------------
-   DOMContentLoaded init
+   Init on DOM ready
    ------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  // Сохраняем ссылки на основные элементы (index.html предполагает их наличие)
   E.menu = document.getElementById("side-menu");
   E.header = document.getElementById("site-header");
   E.main = document.getElementById("content");
@@ -40,28 +41,20 @@ document.addEventListener("DOMContentLoaded", () => {
   E.overlay = document.getElementById("overlay");
   E.wrapper = document.getElementById("wrapper");
 
-  // Если элементы не найдены — выводим ошибку в консоль и выходим
   if (!E.menu || !E.header || !E.main) {
     console.error("Critical DOM nodes missing (side-menu/site-header/content). Check index.html structure.");
     return;
   }
 
-  // Установить начальный env-тег на body
   document.body.dataset.env = STATE.env;
 
-  // Построить оболочку: header/menu/footer
   renderShell();
-
-  // Навесить глобальные события
   attachGlobalEvents();
 
-  // Всегда делаем initial navigate — чтобы главная отрисовалась на загрузке.
-  // Если есть hash, navigateTo его (hash приоритетен).
   const rawHash = (window.location.hash || "").replace(/^#\/?/, "");
   const initialPage = rawHash || STATE.page;
   navigateTo(initialPage).catch(err => console.error("Initial navigate error:", err));
 
-  // Снять возможный preload класс
   document.body.classList.remove("preload");
 });
 
@@ -69,12 +62,12 @@ document.addEventListener("DOMContentLoaded", () => {
    Shell rendering
    ------------------------- */
 function renderShell() {
-  renderHeader();  // отрисовать header (логотип + toggle)
-  renderMenu();    // отрисовать меню на основе CONFIG.PAGES
-  renderFooter();  // отрисовать footer
+  renderHeader();
+  renderMenu();
+  renderFooter();
 }
 
-/* Header rendering: логотип кликабельный, кнопка меню */
+/* Header */
 function renderHeader() {
   E.header.innerHTML = `
     <button id="menu-toggle" aria-controls="side-menu" aria-expanded="false" aria-label="Открыть меню">☰</button>
@@ -83,39 +76,25 @@ function renderHeader() {
     </div>
   `;
 
-  // menu toggle
   const toggle = E.header.querySelector("#menu-toggle");
   if (toggle) toggle.addEventListener("click", () => toggleMenu());
 
-  // logo behavior:
-  //  - вызываем unload() у модуля если есть,
-  //  - навигируем на DEFAULT_PAGE (без перезагрузки),
-  //  - затем заменяем URL в адресной строке на корень (history.replaceState) — чтобы не оставался хеш.
   const logoWrap = E.header.querySelector("#logo-wrap");
   if (logoWrap) {
     logoWrap.addEventListener("click", async (ev) => {
       ev.preventDefault();
-      // попытка аккуратно выгрузить модуль
       if (STATE.currentModuleRef && typeof STATE.currentModuleRef.unload === "function") {
         try { await STATE.currentModuleRef.unload(); } catch (err) { console.warn("module.unload failed on logo click", err); }
       }
-      // закрыть меню если открыто
       if (STATE.ui.menuOpen) closeMenu();
-      // навигация на дефолтную страницу (обновляет state и content)
       try {
         await navigateTo(CONFIG.DEFAULT_PAGE || STATE.page);
       } catch (err) {
         console.warn("navigateTo on logo failed", err);
       }
-      // убрать хеш/путь — показать просто origin/
-      try {
-        history.replaceState(null, "", location.origin + "/");
-      } catch (e) {
-        // ignore if not allowed
-      }
+      try { history.replaceState(null, "", location.origin + "/"); } catch (e) {}
     });
 
-    // keyboard support (Enter/Space)
     logoWrap.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -125,7 +104,7 @@ function renderHeader() {
   }
 }
 
-/* Menu rendering from CONFIG */
+/* Menu */
 function renderMenu() {
   const pages = Array.isArray(CONFIG.PAGES) ? CONFIG.PAGES : [];
   const ul = document.createElement("ul");
@@ -139,11 +118,9 @@ function renderMenu() {
     a.dataset.page = p.id;
     a.textContent = p.label;
     a.setAttribute("role", "link");
-    // active class based on current state
     a.className = p.id === STATE.page ? "active" : "";
     a.addEventListener("click", (ev) => {
       ev.preventDefault();
-      // если нажали на ту же страницу — просто закроем меню (mobile)
       if (p.id === STATE.page) {
         if (STATE.env === "mobile") closeMenu();
         return;
@@ -154,7 +131,6 @@ function renderMenu() {
     ul.appendChild(li);
   }
 
-  // menu header with close button (visible on mobile; hidden via CSS on desktop)
   const menuHeader = document.createElement("div");
   menuHeader.className = "menu-header";
   menuHeader.innerHTML = `
@@ -162,19 +138,17 @@ function renderMenu() {
     <button id="menu-close" class="menu-close" aria-label="Закрыть меню">✕</button>
   `;
 
-  // add to DOM
   E.menu.innerHTML = "";
   E.menu.appendChild(menuHeader);
   E.menu.appendChild(ul);
 
-  // attach close handler AFTER adding node to DOM to avoid missing binding
   const closeBtn = E.menu.querySelector("#menu-close");
   if (closeBtn) {
     closeBtn.addEventListener("click", () => closeMenu());
   }
 }
 
-/* Footer renderer */
+/* Footer */
 function renderFooter() {
   E.footer.innerHTML = `
     <div class="footer-links">
@@ -185,7 +159,7 @@ function renderFooter() {
 }
 
 /* -------------------------
-   Menu controls: open/close + keyboard focus trap
+   Menu controls
    ------------------------- */
 function toggleMenu() {
   if (STATE.ui.menuOpen) closeMenu(); else openMenu();
@@ -197,7 +171,6 @@ function openMenu() {
   const toggle = E.header.querySelector("#menu-toggle");
   if (toggle) toggle.setAttribute("aria-expanded", "true");
   if (E.overlay) E.overlay.setAttribute("aria-hidden", "false");
-  // focus first interactive in menu
   setTimeout(() => {
     const first = E.menu.querySelector("a, button");
     if (first) first.focus();
@@ -212,7 +185,6 @@ function closeMenu() {
   if (toggle) toggle.setAttribute("aria-expanded", "false");
   if (E.overlay) E.overlay.setAttribute("aria-hidden", "true");
   document.removeEventListener("keydown", handleMenuKeydown);
-  // return focus to toggle
   const toggleBtn = E.header.querySelector("#menu-toggle");
   if (toggleBtn) toggleBtn.focus();
 }
@@ -232,7 +204,7 @@ function handleMenuKeydown(e) {
 }
 
 /* -------------------------
-   Global events: hashchange, resize, overlay click
+   Global events
    ------------------------- */
 function attachGlobalEvents() {
   window.addEventListener("hashchange", setPageFromHash);
@@ -243,18 +215,16 @@ function attachGlobalEvents() {
   });
 }
 
-/* handle resize: switch env and ensure menu state consistent */
+/* handle resize */
 function onResize() {
   const newEnv = window.innerWidth <= 768 ? "mobile" : "desktop";
   if (newEnv !== STATE.env) {
     STATE.env = newEnv;
     document.body.dataset.env = STATE.env;
     if (STATE.env === "desktop") {
-      // on desktop, we want menu visible by default (visual)
       document.body.classList.add("menu-open");
       STATE.ui.menuOpen = true;
     } else {
-      // on mobile, default closed
       closeMenu();
     }
   }
@@ -274,7 +244,7 @@ function setPageFromHash() {
   if (STATE.env === "mobile") closeMenu();
 }
 
-/* navigateTo: core navigation logic */
+/* navigateTo */
 async function navigateTo(pageId) {
   const pageCfg = (CONFIG.PAGES || []).find(p => p.id === pageId);
   if (!pageCfg) {
@@ -284,7 +254,6 @@ async function navigateTo(pageId) {
     return;
   }
 
-  // try unload previous module if any
   if (STATE.currentModuleRef && typeof STATE.currentModuleRef.unload === "function") {
     try { await STATE.currentModuleRef.unload(); } catch (err) { console.warn("module.unload error:", err); }
   }
@@ -292,7 +261,6 @@ async function navigateTo(pageId) {
   STATE.currentModulePath = null;
 
   STATE.page = pageId;
-  // set hash to reflect current page (except when we just used logo -> and replaced URL)
   if ((window.location.hash || "").replace(/^#/, "") !== pageId) {
     window.location.hash = pageId;
   }
@@ -310,38 +278,35 @@ async function navigateTo(pageId) {
   if (STATE.env === "mobile") closeMenu();
 }
 
-/* update menu active classes */
+/* update menu active */
 function updateMenuActive(pageId) {
   const links = E.menu.querySelectorAll("a[data-page]");
   links.forEach(a => a.classList.toggle("active", a.dataset.page === pageId));
 }
 
 /* -------------------------
-   Robust module loader (absolute URL attempts)
-   - попробует /<normalized>, /<folder>/<name>.js, /modules/..., /js/modules/... и относительные
-   - использует new URL(candidate, location.origin).href для import()
+   Module loader
+   - Попытки загрузки с набором candidate-путей
+   - Ожидает, что модуль экспортирует render(mount, opts) по умолчанию или именованно
+   - Поддерживает mod.unload() если экспортирован
    ------------------------- */
+const MODULE_CANDIDATES = (name) => [
+  `/${name}/index.js`,            // preferred
+  `/modules/${name}/index.js`,
+  `/js/modules/${name}/index.js`,
+  `/${name}.js`,
+  `/${name}/`,                    // server may serve index.js for folder
+];
+
 async function loadModuleWithFallbacks(modulePathFromConfig, mountEl) {
-  const normalized = String(modulePathFromConfig || "").replace(/^\.\/+/, "");
-  const candidates = [
-    `/${normalized}`,                                        // /translator/index.js
-    `/${normalized.replace(/index\.js$/, "")}translator.js`, // /translator/translator.js
-    `/modules/${normalized}`,                                // /modules/translator/index.js
-    `/js/modules/${normalized}`,                             // /js/modules/translator/index.js
-    `./modules/${normalized}`,                               // ./modules/translator/index.js (relative)
-    `./${normalized}`                                        // ./translator/index.js (relative)
-  ];
-
-  const seen = new Set();
-  const list = candidates.filter(p => {
-    if (!p) return false;
-    if (seen.has(p)) return false;
-    seen.add(p); return true;
-  });
-
-  let lastError = null;
+  const normalized = String(modulePathFromConfig || "").replace(/^\.\//, "");
+  // if passed like "context" or "context/index.js" support both
+  const name = normalized.replace(/\/index\.js$/, "").replace(/\/$/, "");
+  const candidates = MODULE_CANDIDATES(name);
   const tried = [];
-  for (const candidate of list) {
+  let lastError = null;
+
+  for (const candidate of candidates) {
     let attemptUrl;
     try {
       attemptUrl = new URL(candidate, location.origin).href;
@@ -349,18 +314,31 @@ async function loadModuleWithFallbacks(modulePathFromConfig, mountEl) {
       console.warn("Invalid candidate URL", candidate, err);
       continue;
     }
+    // avoid duplicates
+    if (tried.includes(attemptUrl)) continue;
     tried.push(attemptUrl);
     console.log("module import attempt:", attemptUrl);
     try {
-      // dynamic import with absolute URL
+      // dynamic import — allow cross-origin absolute urls, so use /* @vite-ignore */ or similar in bundlers
       const mod = await import(/* @vite-ignore */ attemptUrl);
+      // keep ref
       STATE.currentModuleRef = mod;
       STATE.currentModulePath = attemptUrl;
-      if (typeof mod.render === "function") {
-        await mod.render(mountEl, { CONFIG, STATE });
+
+      // find render
+      const renderFn = (mod && (mod.default || mod.render));
+      if (!renderFn || typeof renderFn !== "function") {
+        // if module executed side-effect and attached window.contextRender (legacy)
+        if (typeof window !== "undefined" && typeof window.contextRender === "function") {
+          await Promise.resolve(window.contextRender(mountEl, { CONFIG, STATE }));
+        } else {
+          throw new Error("Модуль загружен, но не экспортирует render(mount). Ожидается default export или named export 'render'.");
+        }
       } else {
-        mountEl.innerHTML = `<div class="module-error">Модуль загружен, но не содержит render()</div>`;
+        await Promise.resolve(renderFn(mountEl, { CONFIG, STATE }));
       }
+
+      // done
       return;
     } catch (err) {
       console.warn("module import failed for", attemptUrl, err && (err.message || err));
@@ -382,7 +360,7 @@ async function loadModuleWithFallbacks(modulePathFromConfig, mountEl) {
 }
 
 /* -------------------------
-   Static page templates (fallback)
+   Static templates
    ------------------------- */
 function renderStatic(id) {
   const templates = {
@@ -397,7 +375,7 @@ function renderStatic(id) {
 }
 
 /* -------------------------
-   Utility
+   Utilities
    ------------------------- */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
