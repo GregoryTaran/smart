@@ -1,29 +1,26 @@
-/* css/index.css
-   Layout & menu styles — обновлённые под требования:
-   - mobile: menu накрывает header, menu белое, overlay затемняет контент справа.
-   - desktop: wrapper max-width 1000px, side-menu всегда занимает 30% от wrapper, no jump.
-   - логотип: 220px mobile, 300px desktop.
-   - активный пункт меню — серый фон.
+/* smart/css/index.css
+   Исправленные стили: mobile menu поверх header, overlay под меню,
+   wrapper/flex поведение на desktop, логотип размеры.
 */
 
-/* Variables (поддерживаются в main.css; если нет — повторим часть) */
+/* Переменные */
 :root {
   --max-width: 1000px;
-  --menu-width: 30%;         /* процент от wrapper */
+  --menu-width: 30%;
   --menu-mobile-width: 80%;
   --gap: 16px;
 }
 
-/* Wrapper — центрируем и задаём фиксированную максимальную ширину (1000px) */
+/* Wrapper: центрируем и делаем фикс. макс ширину */
 #wrapper {
   max-width: var(--max-width);
   margin: 0 auto;
-  display: flex;            /* важное правило: делает колонки предсказуемыми */
+  display: flex;       /* важно: фиксированные колонки */
   min-height: 100vh;
   width: 100%;
 }
 
-/* Контентная зона — занимает оставшееся место */
+/* Контентная зона */
 .content-zone {
   flex: 1 1 auto;
   display: flex;
@@ -31,60 +28,43 @@
   min-height: 100vh;
 }
 
-/* HEADER & FOOTER — z-index ниже, чтобы menu мог накрывать на mobile */
+/* Header: ниже z-index чем меню на мобиле */
 header {
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-bottom: 1px solid #eee;
-  z-index: 800; /* ниже, чем menu (mobile) */
+  z-index: 800;      /* ниже, чем #side-menu на mobile (1000) */
   background: #fff;
   position: relative;
 }
 
-/* FOOTER */
-footer {
-  border-top: 1px solid #eee;
-  padding: 12px;
-  text-align: center;
-  font-size: 14px;
-}
+/* Main and footer */
+main { flex: 1 1 auto; padding: 28px; }
+footer { border-top: 1px solid #eee; padding: 12px; text-align: center; font-size: 14px; }
 
-/* MAIN area */
-main {
-  flex: 1 1 auto;
-  padding: 28px;
-}
-
-/* --- Desktop styles (>=769px) --- */
+/* --- Desktop (>=769px) --- */
 @media (min-width: 769px) {
-  /* Side menu на десктопе — занимает ровно 30% от wrapper (flex-basis) */
   #side-menu {
-    flex: 0 0 var(--menu-width);   /* фиксированная доля от wrapper, не зависит от контента */
-    background: #ffffff;           /* белый фон всегда */
+    flex: 0 0 var(--menu-width); /* ровно 30% от wrapper */
+    background: #ffffff;
     border-right: 1px solid #eaeaea;
     min-height: 100vh;
     position: relative;
     z-index: 700;
     box-shadow: 6px 0 18px rgba(0,0,0,0.03);
   }
-  /* Кнопка меню скрыта на десктопе */
   #menu-toggle { display: none; }
-
-  /* Логотип для ПК */
-  #site-logo { max-width: 300px; width: 100%; height: auto; }
-
-  /* Крестик закрытия меню не нужен — скрываем */
-  .menu-close { display: none; }
+  #site-logo { max-width: 300px; width: 100%; height: auto; } /* ПК: 300px */
+  .menu-close { display: none; } /* крестик не нужен на ПК */
 }
 
-/* --- Mobile styles (<=768px) --- */
+/* --- Mobile (<=768px) --- */
 @media (max-width: 768px) {
-  /* Wrapper на мобильном — колонка */
   #wrapper { flex-direction: column; }
 
-  /* Side menu — фиксированный, выезжающий, поверх хедера */
+  /* Side menu fixed, поверх header */
   #side-menu {
     position: fixed;
     left: 0;
@@ -93,6 +73,67 @@ main {
     width: var(--menu-mobile-width);
     transform: translateX(-100%);
     transition: transform .36s ease;
-    z-index: 1000;                 /* больше, чем header (800) и overlay (950) */
-    background: #ffffff;           /* белый и непрозрачный */
-    box-
+    z-index: 1000;            /* выше header и overlay */
+    background: #ffffff;      /* белый и непрозрачный */
+    box-shadow: 6px 0 20px rgba(0,0,0,0.12);
+    border-right: 1px solid rgba(0,0,0,0.06);
+  }
+  body.menu-open #side-menu { transform: translateX(0); }
+
+  /* Overlay затемняет контент, находится под меню (z-index меньше menu) */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s;
+    z-index: 950;
+  }
+  body.menu-open #overlay { opacity: 1; pointer-events: auto; }
+
+  /* mobile logo */
+  #site-logo { max-width: 220px; width: 100%; height: auto; }
+
+  /* menu button visible */
+  #menu-toggle {
+    position: absolute;
+    left: 12px;
+    font-size: 22px;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    z-index: 1100; /* выше overlay чтобы оставаться кликабельным */
+  }
+}
+
+/* Menu internals */
+.menu-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px;
+  border-bottom:1px solid #f1f1f1;
+  background:#fff;
+}
+.menu-title { font-size:13px; color:#333; font-weight:600; }
+.menu-close { background:none; border:0; font-size:18px; cursor:pointer; }
+
+/* Menu items */
+.menu-list { list-style:none; margin:0; padding:0; }
+.menu-list li a {
+  display:block;
+  padding:12px 14px;
+  border-bottom:1px solid #f2f2f2;
+  color: #222;
+  background: transparent;
+  transition: background .12s, color .12s;
+}
+.menu-list li a:hover { background: #fafafa; }
+
+/* Active item: light gray */
+.menu-list li a.active {
+  background: #e9ecef;
+  font-weight: 600;
+  color: #111;
+}
