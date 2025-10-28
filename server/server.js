@@ -5,7 +5,7 @@ const SMART_ROOT = path.join(__dirname, '..', 'smart');
 const PORT = process.env.PORT || 10000;
 app.use(express.static(SMART_ROOT, { extensions:['html'] }));
 app.use((req, res, next) => {
-  const reserved = ['/Context/', '/Translator/', '/SMS/', '/css/', '/js/', '/assets/'];
+  const reserved = ['/menu.html','/topbar.html','/footer.html','/css/','/js/','/Context/','/Translator/','/SMS/'];
   if (reserved.some(p => req.path.startsWith(p))) {
     return res.status(404).send('Not found');
   }
