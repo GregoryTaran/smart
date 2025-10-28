@@ -1,8 +1,8 @@
 import express from 'express';
 import path from 'path';
 
-// Импортируем роутеры для перевода и других функциональностей
-import translationRouter from './server-translator.js';
+// Импортируем роутер для перевода
+import translatorRouter from './server-translator.js';  // Теперь правильно
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -15,8 +15,8 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'smart', 'index.html'));
 });
 
-// Перенаправляем запросы на перевод в translationRouter
-app.use('/translate', translationRouter);
+// Перенаправляем запросы на перевод в translatorRouter
+app.use('/translate', translatorRouter);  // Теперь логично
 
 // Запуск сервера
 app.listen(PORT, () => {

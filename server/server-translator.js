@@ -5,16 +5,15 @@ const router = express.Router();
 
 // Пример обработки запроса на перевод
 router.post('/', (req, res) => {
-  const { text, targetLanguage } = req.body;  // Получаем текст для перевода и целевой язык
-
+  const { text, targetLanguage } = req.body;  // Получаем текст и целевой язык
+  
   // Логирование входных данных
   logError(`Запрос на перевод: ${text} на язык ${targetLanguage}`);
 
-  // Пример логики перевода
-  // Здесь можно использовать API для реального перевода
+  // Логика перевода (реальный перевод или эмуляция)
   const translatedText = `${text} (переведено на ${targetLanguage})`;
 
-  // Отправляем переведённый текст обратно
+  // Отправка переведённого текста
   res.json({ translatedText });
 });
 
