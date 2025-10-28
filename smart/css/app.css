@@ -1,44 +1,111 @@
 :root{
-  --menu-width:260px;
-  --topbar-height:64px;
-  --accent:#197f6f;
-  --bg:#f7faf9;
-  --muted:#667;
-  --surface:#fff;
-  --gap:16px;
-  --radius:10px;
-  --content-max:1100px;
+  --menu-w: 30vw;          /* left menu = 30% of viewport width on desktop */
+  --menu-w-min: 260px;     /* min width for menu */
+  --topbar-h: 64px;
+  --accent: #197f6f;
+  --bg: #f3f6f6;
+  --muted: #667;
+  --surface: #fff;
+  --content-max: 1000px;   /* requested width */
+  --overlay-width: 80vw;   /* mobile menu overlay width */
+  --transition: 240ms ease;
 }
+
+/* Basic reset */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#111}
-a{color:inherit}
+a{color:inherit;text-decoration:none}
+
+/* App shell layout - desktop */
 .app-shell{display:flex;min-height:100vh;align-items:stretch}
-.site-menu{width:var(--menu-width);flex:0 0 var(--menu-width);background:var(--surface);border-right:1px solid #e8ecec;padding:20px;height:100vh;overflow:auto;position:sticky;top:0}
-.right-col{flex:1;display:flex;flex-direction:column;min-height:100vh}
-.site-topbar{height:var(--topbar-height);flex:0 0 var(--topbar-height);background:var(--surface);border-bottom:1px solid #eee;display:flex;align-items:center;padding:0 20px}
-.site-main{flex:1;padding:28px;display:flex;justify-content:center;align-items:flex-start}
-.content-inner{width:100%;max-width:var(--content-max)}
-.site-footer{flex:0 0 auto;background:var(--surface);border-top:1px solid #ececec;padding:12px 20px;text-align:center;color:var(--muted);font-size:13px}
 
-/* menu styles */
-.site-nav{display:flex;flex-direction:column;gap:12px}
-.site-nav .brand{font-weight:700;color:var(--accent);font-size:18px;margin-bottom:6px}
-.site-nav ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
-.site-nav a{display:block;padding:10px 12px;border-radius:8px;text-decoration:none;color:#111}
-.site-nav a:hover{background:#f0f8f6}
-.site-nav a.active{background:var(--accent);color:#fff}
-
-/* topbar */
-.topbar-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
-.logo{font-weight:700;color:var(--accent)}
-
-/* responsive */
-@media (max-width:900px){
-  .app-shell{flex-direction:column}
-  .site-menu{width:100%;height:auto;position:relative;border-right:0;border-bottom:1px solid #e8ecec}
-  .site-topbar{order:0}
-  .site-main{order:1;padding:16px}
-  .site-footer{order:2}
+/* LEFT MENU (full height) */
+.site-menu{
+  width: clamp(var(--menu-w-min), var(--menu-w), 360px); /* responsive min/max */
+  flex: 0 0 auto;
+  background: var(--surface);
+  border-right:1px solid #e8ecec;
+  padding:20px;
+  height:100vh;
+  position:sticky;
+  top:0;
+  overflow:auto;
+  transition: transform var(--transition);
+  z-index: 30;
 }
-.page-card{background:var(--surface);padding:18px;border-radius:10px;box-shadow:0 1px 4px rgba(10,10,10,.04);max-width:1000px}
-.hint{color:var(--muted);font-size:13px;margin-top:8px}
+
+/* RIGHT COL: topbar + main + footer; whole column is white background as requested */
+.right-col{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+  background: var(--surface); /* right area fully white */
+}
+
+/* TOPBAR */
+.site-topbar{
+  height:var(--topbar-h);
+  display:flex;
+  align-items:center;
+  border-bottom:1px solid #ececec;
+  padding:0 20px;
+  background: transparent; /* since right-col is white, keep consistent */
+}
+.topbar-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
+.top-title{font-weight:700;color:var(--accent);font-size:18px;text-align:center;flex:1}
+
+/* burger button */
+.menu-toggle{background:none;border:none;padding:8px 10px;font-size:20px;cursor:pointer;display:none}
+.menu-toggle .burger{line-height:1}
+
+/* MAIN CONTENT */
+.site-main{flex:1;padding:28px;display:flex;justify-content:center;align-items:flex-start;background:transparent}
+.content-inner{width:100%;max-width:var(--content-max)}
+.page-card{background:transparent;padding:0;border-radius:0;box-shadow:none} /* main background is entire right-col, so make inner content visually neutral */
+.page-card h1{margin:0 0 12px}
+.page-card p{line-height:1.6;color:#1a1a1a}
+
+/* FOOTER */
+.site-footer{flex:0 0 auto;border-top:1px solid #ececec;padding:16px 20px;text-align:center;color:var(--muted);background:transparent;}
+
+/* Simple nav styling inside menu */
+.site-nav{display:flex;flex-direction:column;gap:12px}
+.site-nav .brand{font-weight:700;color:var(--muted);font-size:18px;margin-bottom:6px}
+.site-nav ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+.site-nav a{display:block;padding:10px 12px;border-radius:8px;border:1px solid transparent}
+.site-nav a:hover{background:#fbfffd}
+.site-nav a.active{background:var(--accent);color:#fff;border-color:rgba(0,0,0,0.04)}
+
+/* MOBILE: collapse to topbar + overlay menu */
+@media (max-width: 900px) {
+  .app-shell{flex-direction:column}
+  .site-menu{
+    position:fixed;
+    left:0;
+    top:0;
+    height:100vh;
+    width: var(--overlay-width);
+    max-width: 420px;
+    transform: translateX(-120%); /* hidden by default */
+    box-shadow: 3px 0 18px rgba(15,15,15,0.12);
+  }
+  body.menu-open .site-menu{
+    transform: translateX(0);
+  }
+  /* show burger in topbar */
+  .menu-toggle{display:inline-block}
+  /* when menu open, add semi-transparent backdrop */
+  body.menu-open::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    background: rgba(0,0,0,0.35);
+    z-index: 20;
+  }
+  /* right-col stays white and stacked under the overlay */
+  .right-col{min-height:100vh}
+}
+
+/* small helpers */
+.small{font-size:13px;color:var(--muted)}
