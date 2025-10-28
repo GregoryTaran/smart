@@ -1,8 +1,7 @@
 // server/server-context.js
 // Модуль "context" — сборка аудиочанков, merge -> whisper -> gpt -> tts.
-// - Экспорт: `router`, `prefix`, и `init(app, server)` для WebSocket (опционально).
-// - Использует process.cwd() для хранения wav/tts файлов.
-// - В endpoints минимальная валидация и подробные комментарии.
+// - Export: prefix, router, init(app, server), shutdown()
+// - Writes files into STORAGE_DIR (process.env.STORAGE_DIR || ./server-data)
 
 import express from "express";
 import fs from "fs";
@@ -13,41 +12,32 @@ import { WebSocketServer } from "ws";
 export const prefix = "/context";
 export const router = express.Router();
 
-// Путь хранения — корень проекта (process.cwd()) по архитектурному контракту
-const CHUNKS_DIR = process.cwd();
+// STORAGE_DIR: prefer env-configured directory; fallback to ./server-data
+const STORAGE_DIR = process.env.STORAGE_DIR ? path.resolve(process.env.STORAGE_DIR) : path.join(process.cwd(), "server-data");
+// ensure directory exists
+try { fs.mkdirSync(STORAGE_DIR, { recursive: true }); } catch (e) { /* ignore */ }
 
-// Для приёма бинарных чанков (Float32Array) используем raw middleware
+// For binary chunk uploads (Float32Array)
 const rawMiddleware = express.raw({ type: "application/octet-stream", limit: "30mb" });
 
-// --- === Набор вспомогательных функций === ---
-
-/**
- * Convert Float32Array -> WAV (16-bit PCM little-endian) as Buffer
- * - sampleRate: integer (обычно 44100)
- * - f32: Float32Array
- */
+// --- helpers ---
 function floatToWav(f32, sampleRate) {
-  // Создаём Buffer с заголовком 44 байта и PCM16 данных
   const pcmLen = f32.length * 2;
   const buffer = Buffer.alloc(44 + pcmLen);
-  // RIFF header
   buffer.write("RIFF", 0);
   buffer.writeUInt32LE(36 + pcmLen, 4);
   buffer.write("WAVE", 8);
-  // fmt chunk
   buffer.write("fmt ", 12);
-  buffer.writeUInt32LE(16, 16);          // PCM header size
-  buffer.writeUInt16LE(1, 20);           // PCM format (1)
-  buffer.writeUInt16LE(1, 22);           // mono
-  buffer.writeUInt32LE(sampleRate, 24);  // sample rate
-  buffer.writeUInt32LE(sampleRate * 2, 28); // byte rate
-  buffer.writeUInt16LE(2, 32);           // block align
-  buffer.writeUInt16LE(16, 34);          // bits per sample
-  // data chunk
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
   buffer.write("data", 36);
   buffer.writeUInt32LE(pcmLen, 40);
 
-  // write samples
   let offset = 44;
   for (let i = 0; i < f32.length; i++) {
     const s = Math.max(-1, Math.min(1, f32[i]));
@@ -57,27 +47,19 @@ function floatToWav(f32, sampleRate) {
   return buffer;
 }
 
-/**
- * listChunks(session) -> sorted filenames for session
- */
 function listChunks(session) {
-  if (!fs.existsSync(CHUNKS_DIR)) return [];
-  return fs.readdirSync(CHUNKS_DIR)
-    .filter(f => f.startsWith(`${session}_chunk_`))
-    .sort((a,b)=>{
+  if (!fs.existsSync(STORAGE_DIR)) return [];
+  return fs.readdirSync(STORAGE_DIR)
+    .filter(f => f.startsWith(`${session}_chunk_`) && f.endsWith(".wav"))
+    .sort((a,b) => {
       const na = +(a.match(/chunk_(\d+)/)||[])[1] || 0;
       const nb = +(b.match(/chunk_(\d+)/)||[])[1] || 0;
       return na - nb;
     });
 }
 
-// === HTTP endpoints (router) ===
+// === HTTP endpoints ===
 
-/**
- * POST /context/chunk?session=...&sampleRate=...
- * - body: application/octet-stream (Float32Array.buffer)
- * - saves chunk as `${session}_chunk_<idx>.wav` in CHUNKS_DIR
- */
 router.post("/chunk", rawMiddleware, (req, res) => {
   try {
     const session = String(req.query.session || `sess-${Date.now()}`);
@@ -85,14 +67,14 @@ router.post("/chunk", rawMiddleware, (req, res) => {
 
     if (!req.body || !req.body.byteLength) return res.status(400).json({ error: "no_body" });
 
-    // Buffer -> Float32Array (Node Buffer backing ArrayBuffer)
     const buf = Buffer.from(req.body);
     const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
 
     const idx = listChunks(session).length;
     const filename = `${session}_chunk_${idx}.wav`;
     const wav = floatToWav(f32, sampleRate);
-    fs.writeFileSync(path.join(CHUNKS_DIR, filename), wav);
+    const outPath = path.join(STORAGE_DIR, filename);
+    fs.writeFileSync(outPath, wav);
 
     return res.json({ ok: true, file: filename });
   } catch (e) {
@@ -101,11 +83,6 @@ router.post("/chunk", rawMiddleware, (req, res) => {
   }
 });
 
-/**
- * GET /context/merge?session=...
- * - читает все `${session}_chunk_*` файлы, объединяет PCM и пишет `${session}_merged.wav`
- * - возвращает { ok:true, file: "/<session>_merged.wav" }
- */
 router.get("/merge", (req, res) => {
   try {
     const session = String(req.query.session || "");
@@ -115,14 +92,12 @@ router.get("/merge", (req, res) => {
     if (!files.length) return res.status(404).send("no chunks");
 
     const headerSize = 44;
-    const first = fs.readFileSync(path.join(CHUNKS_DIR, files[0]));
-    const sr = first.readUInt32LE(24); // sampleRate from header
+    const first = fs.readFileSync(path.join(STORAGE_DIR, files[0]));
+    const sr = first.readUInt32LE(24);
 
-    // concat pcm payloads without headers
-    const pcmParts = files.map(f => fs.readFileSync(path.join(CHUNKS_DIR, f)).subarray(headerSize));
+    const pcmParts = files.map(f => fs.readFileSync(path.join(STORAGE_DIR, f)).subarray(headerSize));
     const mergedPCM = Buffer.concat(pcmParts);
 
-    // build merged wav header + data
     const outHeader = Buffer.alloc(44);
     outHeader.write("RIFF", 0);
     outHeader.writeUInt32LE(36 + mergedPCM.length, 4);
@@ -140,9 +115,8 @@ router.get("/merge", (req, res) => {
 
     const merged = Buffer.concat([outHeader, mergedPCM]);
     const outFile = `${session}_merged.wav`;
-    fs.writeFileSync(path.join(CHUNKS_DIR, outFile), merged);
+    fs.writeFileSync(path.join(STORAGE_DIR, outFile), merged);
 
-    // возвращаем путь (static server в главном server.js обслуживает корень)
     return res.json({ ok: true, file: `/${outFile}` });
   } catch (e) {
     console.error("[context/merge] error:", e && e.message ? e.message : e);
@@ -150,35 +124,29 @@ router.get("/merge", (req, res) => {
   }
 });
 
-/**
- * GET /context/whisper?session=...&langPair=...
- * - Отправляет `${session}_merged.wav` в Whisper (OpenAI) и возвращает { text, detectedLang }
- * - Требуется OPENAI_API_KEY в env (модули должны проверять это)
- */
 router.get("/whisper", async (req, res) => {
   try {
     const session = String(req.query.session || "");
     const langPair = String(req.query.langPair || "");
     if (!session) return res.status(400).send("no session");
 
-    const filePath = path.join(CHUNKS_DIR, `${session}_merged.wav`);
+    const filePath = path.join(STORAGE_DIR, `${session}_merged.wav`);
     if (!fs.existsSync(filePath)) return res.status(404).send("no merged file");
 
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
     if (!OPENAI_API_KEY) return res.status(500).json({ error: "OPENAI_API_KEY not set" });
 
-    // prepare form-data
     const form = new FormData();
     form.append("file", fs.createReadStream(filePath));
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
     form.append("task", "transcribe");
 
-    // use global fetch if available (Node18+) or fall back to node-fetch
     const fetchImpl = global.fetch ? global.fetch : (await import("node-fetch")).default;
+    const headers = form.getHeaders ? form.getHeaders() : {};
     const r = await fetchImpl("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, ...headers },
       body: form
     });
     const data = await r.json();
@@ -186,7 +154,6 @@ router.get("/whisper", async (req, res) => {
     const text = data.text || "";
     let detectedLang = data.language || null;
 
-    // Optional: if detectedLang seems wrong relative to langPair, ask GPT for correction.
     if (langPair && (!detectedLang || !langPair.split("-").includes(detectedLang))) {
       const [a,b] = langPair.split("-");
       try {
@@ -199,7 +166,7 @@ router.get("/whisper", async (req, res) => {
         const checkJson = await checkR.json();
         const corrected = checkJson.choices?.[0]?.message?.content?.trim().toLowerCase();
         if (corrected && [a,b].includes(corrected)) detectedLang = corrected;
-      } catch (e) { /* ignore correction errors */ }
+      } catch (e) { /* ignore */ }
     }
 
     return res.json({ text, detectedLang });
@@ -209,11 +176,6 @@ router.get("/whisper", async (req, res) => {
   }
 });
 
-/**
- * POST /context/gpt
- * - body: { text, mode, langPair, detectedLang }
- * - forward prompt to GPT (OpenAI) and return { text }
- */
 router.post("/gpt", express.json(), async (req, res) => {
   try {
     const { text, mode, langPair, detectedLang } = req.body || {};
@@ -248,10 +210,6 @@ router.post("/gpt", express.json(), async (req, res) => {
   }
 });
 
-/**
- * GET /context/tts?session=&voice=&text=
- * - sends text to TTS model (OpenAI) and saves result as `${session}_tts.<ext>` in CHUNKS_DIR
- */
 router.get("/tts", async (req, res) => {
   try {
     const text = String(req.query.text || "");
@@ -270,7 +228,7 @@ router.get("/tts", async (req, res) => {
     });
     const audio = await r.arrayBuffer();
     const file = `${session}_tts.mp3`;
-    fs.writeFileSync(path.join(CHUNKS_DIR, file), Buffer.from(audio));
+    fs.writeFileSync(path.join(STORAGE_DIR, file), Buffer.from(audio));
     return res.json({ url: `/${file}` });
   } catch (e) {
     console.error("[context/tts] error:", e && e.message ? e.message : e);
@@ -278,45 +236,47 @@ router.get("/tts", async (req, res) => {
   }
 });
 
-// === WebSocket attachment (optional) ===
-// Если главный server.js вызовет init(app, server), модуль поднимет ws на path `${prefix}/ws`.
-// WS принимает мета в виде JSON string (type: "meta") и бинарные чанки (Float32Array.buffer).
+// WebSocket support (init attaches ws to server)
+let _wss = null;
 export function init(app, server) {
   if (!server) {
     console.log("[context] init: server not provided, skipping WS attach");
     return;
   }
 
-  const wss = new WebSocketServer({ server, path: `${prefix}/ws` });
+  if (_wss) {
+    console.log("[context] init: wss already attached");
+    return;
+  }
+
+  _wss = new WebSocketServer({ server, path: `${prefix}/ws` });
   let counter = 1;
 
-  wss.on("connection", (ws) => {
+  _wss.on("connection", (ws) => {
     ws.sessionId = `sess-${counter++}`;
     ws.sampleRate = 44100;
     ws.chunkCounter = 0;
-    ws.send(`SESSION:${ws.sessionId}`);
+    ws.send(JSON.stringify({ type: "session", session: ws.sessionId }));
 
     ws.on("message", (data) => {
-      // string messages are meta: { type: "meta", sampleRate }
       if (typeof data === "string") {
         try {
           const meta = JSON.parse(data);
           if (meta.type === "meta") {
             ws.sampleRate = meta.sampleRate || ws.sampleRate;
-            return ws.send(`META_OK:${ws.sampleRate}`);
+            return ws.send(JSON.stringify({ type: "meta_ok", sampleRate: ws.sampleRate }));
           }
-        } catch (e) { /* ignore parse errors */ }
+        } catch (e) { /* ignore */ }
         return;
       }
 
-      // binary -> Float32 -> save as wav chunk
       try {
         const buf = Buffer.from(data);
         const f32 = new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
         const wav = floatToWav(f32, ws.sampleRate);
         const filename = `${ws.sessionId}_chunk_${ws.chunkCounter++}.wav`;
-        fs.writeFileSync(path.join(CHUNKS_DIR, filename), wav);
-        ws.send(`SAVED:${filename}`);
+        fs.writeFileSync(path.join(STORAGE_DIR, filename), wav);
+        ws.send(JSON.stringify({ type: "saved", file: filename }));
       } catch (e) {
         console.error("[context/ws] save error:", e && e.message ? e.message : e);
       }
@@ -326,4 +286,17 @@ export function init(app, server) {
   });
 
   console.log(`[context] WebSocket attached at ${prefix}/ws`);
+}
+
+// expose shutdown to be invoked by main server
+export async function shutdown() {
+  try {
+    if (_wss) {
+      await new Promise((resolve) => _wss.close(resolve));
+      _wss = null;
+      console.log("[context] WebSocketServer closed");
+    }
+  } catch (e) {
+    console.warn("[context] shutdown error:", e && e.message ? e.message : e);
+  }
 }
