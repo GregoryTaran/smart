@@ -237,16 +237,21 @@ body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
   body.menu-open #side-menu { transform: translateX(0); }
 
   /* Overlay затемняет контент, но лежит под меню (меньший z-index) */
+  /* <-- ПОМЕНЯНО: добавлен display:none по умолчанию, и display:block при открытом меню.
+     Это предотвращает перехват тапов прозрачным элементом в браузерах, где pointer-events
+     или opacity могут вести себя непредсказуемо. */
   #overlay {
     position: fixed;
     inset: 0;
     background: var(--overlay-color);
+    display: none;              /* <--- добавлено */
     opacity: 0;
     pointer-events: none;
     transition: opacity .25s;
     z-index: 950; /* ниже чем #side-menu(1000) */
   }
-  body.menu-open #overlay { opacity: 1; pointer-events: auto; }
+  /* При открытом меню overlay появляется и блокирует клики под ним */
+  body.menu-open #overlay { display: block; opacity: 1; pointer-events: auto; }
 
   /* Логотип для мобильной: max-width 220px */
   #site-logo { max-width: 220px; width: 100%; height: auto; }
@@ -289,3 +294,8 @@ body:not(.preload) #side-menu { box-shadow: 6px 0 20px rgba(0,0,0,0.12); }
    Debug helper (комментируй, если не нужен)
    ========================= */
 /* .debug-outline * { outline: 1px dashed rgba(255,0,0,0.08); } */
+
+/* =========================
+   Mobile tap improvements: ensure footer links receive taps
+   ========================= */
+.footer-links a { touch-action: manipulation; -webkit-tap-highlight-color: rgba(0,0,0,0.05); }
