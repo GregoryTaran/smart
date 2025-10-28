@@ -1,235 +1,188 @@
-// ======== Smart Vision INDEX (v3.0 — универсальная загрузка модулей) ========
+// index.js — minimal SPA module loader for SMART VISION
+// - грузит модули по абсолютным путям от корня (или CONFIG.BASE_URL)
+// - использует ?v=VERSION для сброса кеша
+// - поддерживает hash-based маршруты (/#/pageId)
+// - поставляет простой API: loadPage(pageId)
+// - expose window.APP.helper для ворклета: APP.addWorklet(audioCtx, moduleRelPath)
+//
+// Помести этот файл вместо старого index.js в клиент (smart/).
+// Про сервер: статик должен отдавать корень клиента (process.cwd()/smart) — так и настроено у вас.
 
-import { CONFIG } from "./config.js";
-import { renderMenu } from "./menu1.js";
+(function () {
+  // friendly banner — коротко и мило
+  console.log("SMART VISION — frontend loader. Ассистент: Бро. Быстро и аккуратно.");
 
-console.log(`🌍 Smart Vision (${CONFIG.PROJECT_NAME}) v${CONFIG.VERSION}`);
+  // --- CONFIG: ожидаем, что config.js определяет window.CONFIG ---
+  const CONFIG = window.CONFIG || {};
+  const BASE = (CONFIG.BASE_URL ? String(CONFIG.BASE_URL).replace(/\/$/, '') : '') || ''; // без завершающего '/'
+  const VERSION = CONFIG.VERSION || (new Date()).toISOString().slice(0,10);
 
-const STATE = {
-  env: window.SMART_ENV || (window.innerWidth <= 768 ? "mobile" : "desktop"),
-  user: null,
-  page: "home",
-  uiFlags: { menuOpen: false, debugVisible: false }
-};
+  // root DOM
+  const MOUNT_ID = CONFIG.MOUNT_ID || "app";
+  const mount = document.getElementById(MOUNT_ID) || createMount(MOUNT_ID);
 
-const root = {};
-
-let userCode = localStorage.getItem("userCode");
-if (!userCode) {
-  userCode = "user-" + Math.random().toString(36).substring(2, 10);
-  localStorage.setItem("userCode", userCode);
-}
-STATE.user = { name: userCode };
-
-if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", init);
-} else {
-  init();
-}
-
-function init() {
-  root.header = document.querySelector("header");
-  root.menu = document.getElementById("side-menu");
-  root.main = document.getElementById("content");
-  root.footer = document.getElementById("footer");
-  root.overlay = document.getElementById("overlay");
-  root.wrapper = document.getElementById("wrapper");
-
-  document.body.dataset.env = STATE.env;
-
-  document.body.classList.remove("menu-open");
-  STATE.uiFlags.menuOpen = false;
-
-  if (STATE.env === "desktop") {
-    root.menu.style.transition = "none";
-    document.body.classList.add("menu-open");
-    STATE.uiFlags.menuOpen = true;
-    setTimeout(() => (root.menu.style.transition = ""), 100);
+  // small UI helpers
+  function createMount(id) {
+    const el = document.createElement("div");
+    el.id = id;
+    document.body.appendChild(el);
+    return el;
   }
 
-  setPageFromHash();
-  renderApp();
-  attachGlobalEvents();
-  initSwipe();
-  updateEnvButton();
+  function showLoading(text = "Loading…") {
+    mount.innerHTML = `<div style="padding:18px;color:#444;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;"><strong>${text}</strong></div>`;
+  }
+  function showError(err) {
+    mount.innerHTML = `<div style="padding:18px;color:#a00;background:#fff6f6;border-radius:8px;font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;">
+      <strong>Ошибка загрузки модуля</strong><div style="margin-top:8px;color:#333">${escapeHtml(String(err))}</div>
+      <div style="margin-top:8px;color:#666;font-size:13px">Если что — зовите Бро (и горячий кофе).</div>
+    </div>`;
+    console.error("Module load error:", err);
+  }
+  function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-  document.body.classList.remove("preload");
-  console.log(`✅ Smart Vision initialized (${STATE.env})`);
-}
-
-function renderApp() {
-  renderHeader();
-  renderMenuBlock();
-  renderMain();
-  renderFooter();
-  updateEnvButton();
-}
-
-function renderHeader() {
-  root.header.innerHTML = `
-    <button id="menu-toggle" aria-label="Открыть меню">☰</button>
-    <div id="logo-wrap"><img src="assets/logo400.jpg" alt="Smart Vision" id="logo"></div>
-  `;
-  document.getElementById("menu-toggle").onclick = toggleMenu;
-}
-
-function renderMenuBlock() {
-  root.menu.innerHTML = renderMenu(STATE.page, STATE.user);
-  const closeBtn = document.getElementById("menu-close");
-  if (closeBtn) closeBtn.onclick = closeMenu;
-
-  root.menu.addEventListener(
-    "click",
-    (e) => {
-      const a = e.target.closest("a[data-page]");
-      if (!a) return;
-      const next = a.dataset.page;
-      if (next && next !== STATE.page) {
-        STATE.page = next;
-        window.location.hash = next;
-        renderApp();
-        if (STATE.env === "mobile") closeMenu();
-        root.main.scrollIntoView({ behavior: "smooth", block: "start" });
-        e.preventDefault();
-      }
-    },
-    { once: true }
-  );
-}
-
-async function renderMain() {
-  const pageCfg = CONFIG.PAGES.find((p) => p.id === STATE.page);
-
-  // Универсальная логика: если у страницы есть модуль → грузим по пути
-  if (pageCfg && pageCfg.module) {
-    root.main.innerHTML = `<section class="main-block"><div id="module-root"></div></section>`;
-    const mount = document.getElementById("module-root");
-    await loadModule(pageCfg.module, mount);
-    updateEnvButton();
-    return;
+  // Helper: build absolute URL for module paths
+  function moduleUrl(modulePath) {
+    const trimmed = String(modulePath).replace(/^\//, "");
+    return `${BASE}/${trimmed}?v=${encodeURIComponent(VERSION)}`;
   }
 
-  // Статические страницы
-  const content = {
-    home: `
-      <section class="main-block">
-        <h2>Главная страница</h2>
-        <p>Добро пожаловать в Smart Vision — место, где ясность превращается в действие.</p>
-      </section>`,
-    about: `
-      <section class="main-block">
-        <h2>О нас</h2>
-        <p>Smart Vision — проект ясности, фокуса и интеллекта как формы присутствия.</p>
-      </section>`,
-    policy: `
-      <section class="main-block">
-        <h2>Политика конфиденциальности</h2>
-        <p>Smart Vision уважает вашу конфиденциальность и обрабатывает данные ответственно.</p>
-      </section>`,
-    terms: `
-      <section class="main-block">
-        <h2>Условия использования</h2>
-        <p>Используя Smart Vision, вы соглашаетесь с нашими принципами ясности и ответственности.</p>
-      </section>`,
-    contacts: `
-      <section class="main-block">
-        <h2>Контакты</h2>
-        <p>Связаться: <a href="mailto:info@smartvision.life">info@smartvision.life</a></p>
-      </section>`,
-    dashboard: `
-      <section class="main-block">
-        <h2>Личный кабинет</h2>
-        <p>Добро пожаловать в ваш Smart Vision Dashboard.</p>
-      </section>`,
-    notfound: `<section class="main-block"><h2>Страница не найдена</h2></section>`
+  // Expose small APP helper to global for modules to use (worklet loader, base)
+  window.APP = window.APP || {};
+  window.APP.BASE = BASE;
+  window.APP.VERSION = VERSION;
+  window.APP.addWorklet = async function(audioCtx, relPath){
+    // relPath like "context/recorder-worklet.js"
+    const url = moduleUrl(relPath);
+    return audioCtx.audioWorklet.addModule(url);
   };
 
-  root.main.innerHTML = content[STATE.page] || content.notfound;
-  updateEnvButton();
-}
+  // --- Module loading logic ---
+  // We expect pages to be described in window.CONFIG.PAGES (array or map). But be robust:
+  // If CONFIG.PAGES is array of { id, module } or map { id: modulePath } we'll handle both.
+  const PAGES = normalizePages(CONFIG.PAGES || []);
 
-async function loadModule(modulePath, mountEl) {
-  try {
-    const url = `../${modulePath}?v=${encodeURIComponent(CONFIG.VERSION)}`;
-    const mod = await import(url);
-
-    if (typeof mod.render === "function") {
-      await mod.render(mountEl);
-    } else if (typeof mod.renderTranslator === "function") {
-      await mod.renderTranslator(mountEl);
-    } else {
-      mountEl.innerHTML = "<p>Модуль не содержит render()</p>";
+  function normalizePages(pages) {
+    // possible shapes:
+    // 1) array: [{ id: "context", title: "...", module: "context/index.js" }, ...]
+    // 2) object: { context: "context/index.js", translate: "translate/index.js" }
+    if (Array.isArray(pages)) {
+      const map = {};
+      for (const p of pages) {
+        if (p && p.id && p.module) map[p.id] = p;
+      }
+      return map;
+    } else if (typeof pages === "object") {
+      const map = {};
+      for (const k of Object.keys(pages)) {
+        const v = pages[k];
+        if (typeof v === "string") map[k] = { id: k, module: v, title: k };
+        else if (v && v.module) map[k] = Object.assign({ id: k }, v);
+      }
+      return map;
     }
-  } catch (e) {
-    console.error("❌ Ошибка загрузки модуля:", e);
-    mountEl.innerHTML = "<p>Ошибка загрузки модуля</p>";
+    return {};
   }
-}
 
-function renderFooter() {
-  root.footer.innerHTML = `
-    <a href="#policy">Политика конфиденциальности</a><br>
-    <a href="#terms">Условия использования</a><br>
-    <small>© 2025 Smart Vision</small>
-    <div style="margin-top:10px;">
-      <button id="env-btn" class="env-btn">${formatState()}</button>
-    </div>
-  `;
-}
+  // find default page: first key in PAGES or 'home'
+  const DEFAULT_PAGE = Object.keys(PAGES)[0] || "home";
 
-function formatState() {
-  const { env, user, page, uiFlags } = STATE;
-  return `{ env:${env}, user:${user ? user.name : "guest"}, page:${page}, menu:${uiFlags.menuOpen} }`;
-}
+  // load module by its pageId
+  async function loadPage(pageId) {
+    const page = PAGES[pageId];
+    if (!page) {
+      showError(`Unknown page: ${pageId}. Available: ${Object.keys(PAGES).join(", ")}`);
+      return;
+    }
+    const modulePath = page.module;
+    if (!modulePath) {
+      showError(`Page ${pageId} has no module defined`);
+      return;
+    }
 
-function updateEnvButton() {
-  const btn = document.getElementById("env-btn");
-  if (btn) btn.textContent = formatState();
-}
+    showLoading(`Loading ${page.title || pageId}…`);
 
-function attachGlobalEvents() {
-  root.overlay.onclick = closeMenu;
-  window.addEventListener("hashchange", setPageFromHash);
-}
+    const url = moduleUrl(modulePath);
 
-function toggleMenu() {
-  STATE.uiFlags.menuOpen = !STATE.uiFlags.menuOpen;
-  document.body.classList.toggle("menu-open", STATE.uiFlags.menuOpen);
-  document.body.classList.toggle("menu-closed", !STATE.uiFlags.menuOpen);
-  updateEnvButton();
-}
-
-function closeMenu() {
-  STATE.uiFlags.menuOpen = false;
-  document.body.classList.remove("menu-open");
-  updateEnvButton();
-}
-
-function setPageFromHash() {
-  const hash = window.location.hash.replace("#", "") || "home";
-  if (hash !== STATE.page) {
-    STATE.page = hash;
-    renderApp();
+    try {
+      // dynamic import (ESM). servers must serve module with correct MIME type.
+      const mod = await import(url);
+      // Module can export:
+      // - render(mount) async function
+      // - default function(mount)
+      // - or an object with .render
+      if (mod && typeof mod.render === "function") {
+        await mod.render(mount);
+      } else if (typeof mod.default === "function") {
+        await mod.default(mount);
+      } else if (mod && typeof mod.init === "function") {
+        // legacy: init takes mount
+        await mod.init(mount);
+      } else {
+        // fallback: try to call exported 'main'
+        if (typeof mod.main === "function") {
+          await mod.main(mount);
+        } else {
+          // nothing callable — inject module as script tag? no — show error
+          showError(`Модуль ${modulePath} загружен, но не экспортирует render/default/init/main`);
+        }
+      }
+    } catch (err) {
+      // try to provide more info: maybe server served non-module (404 HTML)
+      showError(err && err.message ? err.message : String(err));
+    }
   }
-  if (STATE.env === "mobile") closeMenu();
-}
 
-let touchStartX = 0;
-let touchEndX = 0;
+  // Router: hash-based. Examples: #/context, #/translate
+  function getPageIdFromHash() {
+    const h = (location.hash || "").replace(/^#/, "");
+    // accept both "#/context" and "#context"
+    const p = h.replace(/^\//, "");
+    return p || DEFAULT_PAGE;
+  }
 
-function initSwipe() {
-  if (STATE.env !== "mobile") return;
-  window.addEventListener("touchstart", (e) => {
-    touchStartX = e.changedTouches[0].screenX;
-  });
-  window.addEventListener("touchend", (e) => {
-    touchEndX = e.changedTouches[0].screenX;
-    handleSwipe();
-  });
-}
+  // Sync UI with hash
+  async function handleHashChange() {
+    const pageId = getPageIdFromHash();
+    await loadPage(pageId);
+    // update active menu item if menu provides a hook (non-invasive)
+    if (window.updateMenuActive) {
+      try { window.updateMenuActive(pageId); } catch {}
+    }
+  }
 
-function handleSwipe() {
-  const dx = touchEndX - touchStartX;
-  if (dx < -70 && STATE.uiFlags.menuOpen) closeMenu();
-  if (dx > 70 && !STATE.uiFlags.menuOpen) toggleMenu();
-}
+  // init: attach hash listener and load initial page
+  window.addEventListener("hashchange", handleHashChange, false);
+
+  // initial load (on DOMContentLoaded if needed)
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      handleHashChange();
+      attachMenuLinks();
+    });
+  } else {
+    handleHashChange();
+    attachMenuLinks();
+  }
+
+  // Attach simple event delegation for menu links (if you render menu with <a data-page="...">)
+  function attachMenuLinks() {
+    document.body.addEventListener("click", (ev) => {
+      const a = ev.target.closest && ev.target.closest("[data-page]");
+      if (!a) return;
+      const pageId = a.getAttribute("data-page");
+      if (!pageId) return;
+      ev.preventDefault();
+      location.hash = `#/${pageId}`;
+    });
+  }
+
+  // expose loader for manual use
+  window.SV = window.SV || {};
+  window.SV.loadPage = loadPage;
+  window.SV.pages = PAGES;
+  window.SV.config = CONFIG;
+
+  // tiny helpful log
+  console.log("Loader ready. Pages:", Object.keys(PAGES).join(", ") || "(none declared). Use CONFIG.PAGES to declare.)");
+})();
