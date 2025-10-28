@@ -3,163 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SMART VISION</title>
+  <title>Smart Vision — Static</title>
 
-  <!-- 1) Базовый стиль (всегда) -->
-  <link rel="stylesheet" href="css/base.css" />
+  <!-- Базовые стили и layout -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/index.css" />
 
-  <!-- 2) Placeholder для env-стиля — будет добавлен динамически -->
-  <meta name="theme-color" content="#ffffff">
-
-  <script>
-  (function () {
-    // --- Настройки ---
-    const MOBILE_BREAKPOINT = 768; // px
-    const CSS_PATH = "css";        // папка с css (base.css, desktop.css, mobile.css)
-    const CONFIG_SCRIPT = "js/config.js"; // должен быть включён перед js/index.js
-    const APP_SCRIPT = "js/index.js";     // основной модуль SPA
-
-    // --- Helpers ---
-    function isMobileEnv() { return window.innerWidth <= MOBILE_BREAKPOINT; }
-    function envName() { return isMobileEnv() ? "mobile" : "desktop"; }
-    function cssHrefFor(env) { return `${CSS_PATH}/${env}.css`; }
-
-    // Установим data-env на <html> и глобальную переменную (не критично, но удобно)
-    function applyEnvAttr(env) {
-      document.documentElement.setAttribute("data-env", env);
-      window.SMART_ENV = env;
-    }
-
-    // Загружает CSS-файл с onload/onerror
-    function loadEnvCss(env, cb) {
-      const href = cssHrefFor(env);
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = href;
-      link.onload = () => cb(null, link);
-      link.onerror = (e) => cb(new Error("CSS load failed: " + href));
-      document.head.appendChild(link);
-      return link;
-    }
-
-    // Load a script (non-module) and call callback
-    function loadScript(src, opts = {}, cb) {
-      const s = document.createElement("script");
-      if (opts.module) s.type = "module";
-      s.src = src;
-      s.async = false; // keep order predictable
-      s.onload = () => cb && cb(null, s);
-      s.onerror = (e) => cb && cb(new Error("Script load failed: " + src));
-      document.head.appendChild(s);
-      return s;
-    }
-
-    // Boot sequence:
-    // 1. determine env (desktop/mobile)
-    // 2. load env css (after base.css already present)
-    // 3. load js/config.js (synchronous assignment to window.CONFIG inside script)
-    // 4. load js/index.js (module)
-    function bootApp() {
-      const env = envName();
-      applyEnvAttr(env);
-
-      // Load env CSS, then scripts
-      loadEnvCss(env, (err) => {
-        if (err) {
-          console.warn(err.message);
-          // Try to proceed anyway after a tiny delay
-          setTimeout(() => proceedLoadingScripts(), 300);
-          return;
-        }
-        console.log(`🎨 ${env}.css загружен и применён`);
-        // small delay to let render engine apply CSS (helps with Render timing)
-        setTimeout(() => proceedLoadingScripts(), 120);
-      });
-    }
-
-    // Load config then app module
-    function proceedLoadingScripts() {
-      // 1) Load config (non-module) so that it sets window.CONFIG synchronously
-      loadScript(CONFIG_SCRIPT, { module: false }, (err) => {
-        if (err) {
-          console.warn("Не удалось загрузить config.js — попробуем всё равно загрузить app (index.js).", err);
-          // still try to load app
-          loadScript(APP_SCRIPT, { module: true }, (ee) => {
-            if (ee) console.error("Failed to load app:", ee);
-          });
-          return;
-        }
-        console.log("⚙️ config.js загружен");
-
-        // 2) Now load app module
-        loadScript(APP_SCRIPT, { module: true }, (err2) => {
-          if (err2) {
-            console.error("Ошибка загрузки js/index.js:", err2);
-            // show minimal friendly fallback UI
-            // We avoid manipulating DOM now (index.js will render mount), but log is good.
-          } else {
-            console.log("🚀 js/index.js загружен");
-          }
-        });
-      });
-    }
-
-    // Switch env on resize (optional): if crossing breakpoint, reload CSS + re-run index.js.
-    // This is useful in dev; in prod you might remove it to avoid reloads.
-    let currentEnv = envName();
-    window.addEventListener("resize", () => {
-      const next = envName();
-      if (next !== currentEnv) {
-        currentEnv = next;
-        console.log(`🔁 env changed -> ${next} (auto-reload CSS)`);
-        // Simple strategy: set attr and append new css file (old one remains, but new overrides).
-        applyEnvAttr(next);
-        loadEnvCss(next, (err) => {
-          if (err) console.warn("Env CSS reload failed:", err);
-        });
-      }
-    });
-
-    // Start boot
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", bootApp);
-    } else {
-      bootApp();
-    }
-
-  })();
-  </script>
-
-  <style>
-    /* Minimal inlined styles to avoid flash of unstyled content */
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:#f6f7fb;color:#111}
-    #app-container{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:28px;box-sizing:border-box}
-    .card{max-width:980px;width:100%;background:#fff;border-radius:10px;padding:20px;box-shadow:0 6px 30px rgba(20,30,40,0.06)}
-  </style>
+  <!-- Загружаем конфиг первым, затем entry (module scripts выполняются в порядке) -->
+  <script type="module" src="js/config.js"></script>
+  <script type="module" src="js/index.js"></script>
 </head>
+<body class="preload" data-env="">
+  <div id="wrapper">
+    <nav id="side-menu" aria-label="Главное меню"></nav>
 
-<body>
-  <div id="app-container">
-    <div class="card" id="app">
-      <h1 style="margin:0 0 10px 0;">SMART VISION</h1>
-      <p style="margin:0 0 12px 0;color:#666">Инициализация... Если долго — открой DevTools → Network и убедись, что загружены <code>css/base.css</code>, <code>css/desktop.css</code> (или mobile.css), <code>js/config.js</code> и <code>js/index.js</code>.</p>
-      <div id="status" style="font-size:13px;color:#444">Бро наблюдает 👀</div>
+    <div class="content-zone">
+      <header id="site-header"></header>
+      <main id="content" role="main"></main>
+      <footer id="site-footer"></footer>
     </div>
   </div>
 
-  <noscript>
-    <div style="padding:18px;background:#fff6f6;color:#900;border-radius:8px;margin:18px;">
-      Пожалуйста, включите JavaScript — приложение требует JS для работы.
-    </div>
-  </noscript>
-
-  <!-- Optional: service worker registration if you have one -->
-  <!--
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').then(()=>console.log('SW registered'));
-    }
-  </script>
-  -->
+  <div id="overlay" tabindex="-1" aria-hidden="true"></div>
 </body>
 </html>

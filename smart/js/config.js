@@ -1,23 +1,21 @@
-// smart/js/config.js — site config (exports CONFIG and sets window.CONFIG)
+// Static site CONFIG (simple)
 export const CONFIG = {
-  BASE_URL: "",                 // use site root
-  VERSION: "2025-10-28-v1",
-  MOUNT_ID: "app",
-
-  // IMPORTANT: menu1.js expects PAGES as an ARRAY of { id, label, module }
-  // module paths are relative to site root; because your files are in js/,
-  // point them to js/...
+  BASE_URL: "/",
+  VERSION: "4.0.0",
+  PROJECT_NAME: "Smart Vision (static)",
+  DEFAULT_PAGE: "home",
   PAGES: [
-    { id: "menu",      label: "Menu",       module: "js/menu1.js" },
-    { id: "context",   label: "Context",    module: "js/context/context.js" },
-    { id: "translate", label: "Translator", module: "js/translator/translator.js" }
-  ],
-
-  UI: {
-    showDebugInfo: false
-  }
+    { id: "home", label: "Главная" },
+    { id: "about", label: "О нас" },
+    { id: "contacts", label: "Контакты" },
+    { id: "policy", label: "Политика конфиденциальности" },
+    { id: "terms", label: "Условия использования" },
+    { id: "dashboard", label: "Личный кабинет" },
+    // модули — относительные к папке /modules/
+    { id: "context", label: "🎧 Context Audio", module: "context/index.js" },
+    { id: "translator", label: "🗣️ Переводчик", module: "translator/index.js" }
+  ]
 };
 
-// Also set global (index.js reads window.CONFIG)
-window.CONFIG = CONFIG;
-export default CONFIG;
+// для удобства — ставим в window (необязательно)
+window.SV_CONFIG = CONFIG;
