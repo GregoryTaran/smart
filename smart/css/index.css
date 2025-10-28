@@ -1,21 +1,72 @@
-/* Desktop default (we target desktop first) */
+/* css/index.css
+   Layout + menu styles (обновлённые)
+   Комментарии в каждом блоке.
+*/
+
+/* --- Desktop (шире 768px) --- */
 @media (min-width: 769px) {
   body[data-env="desktop"]{display:flex;justify-content:center}
-  #side-menu{width:var(--menu-width);background:#fff;border-right:1px solid #eaeaea;min-height:100vh;position:relative}
+  /* Сайд-меню слева: белый фон, тень, фиксированная ширина */
+  #side-menu{
+    width:var(--menu-width);
+    background:#ffffff; /* обязат. белый */
+    border-right:1px solid #eaeaea;
+    min-height:100vh;
+    position:relative;
+    z-index:60;
+    box-shadow: 6px 0 18px rgba(0,0,0,0.06);
+  }
   .content-zone{width:calc(100% - var(--menu-width));padding:0}
   #menu-toggle{display:none}
-  #site-logo{max-width:260px}
+  #site-logo{max-width:300px; /* логотип на ПК 300px */ }
   #overlay{display:none}
 }
 
-/* Mobile layout */
+/* --- Mobile (768px и ниже) --- */
 @media (max-width: 768px) {
   #wrapper{flex-direction:column;width:100%;padding:0}
+  /* меню в мобильной дасте — выезжает сверху слева, но всегда белое и непрозрачное */
   #side-menu{
-    position:fixed;left:0;top:0;height:100vh;width:var(--menu-mobile-width);transform:translateX(-100%);transition:transform .36s ease;z-index:60;box-shadow:4px 0 20px rgba(0,0,0,0.12)
+    position:fixed;left:0;top:0;height:100vh;width:var(--menu-mobile-width);
+    transform:translateX(-100%);
+    transition:transform .36s ease;
+    z-index:70;                     /* ставим выше overlay */
+    background:#ffffff;             /* важно: белый и непрозрачный */
+    box-shadow: 6px 0 20px rgba(0,0,0,0.12);
+    border-right:1px solid rgba(0,0,0,0.06);
   }
   body.menu-open #side-menu{transform:translateX(0)}
-  header{position:relative;z-index:10}
+  header{position:relative;z-index:80}
   #menu-toggle{position:absolute;left:12px;font-size:22px;background:none;border:0;cursor:pointer}
   main{padding:20px 16px 80px}
+  #site-logo{max-width:220px; /* логотип на мобильной 220px */ }
+  /* overlay затемняет контент справа от меню (не меню) */
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,0.28);opacity:0;pointer-events:none;transition:opacity .25s;z-index:60}
+  body.menu-open #overlay{opacity:1;pointer-events:auto}
 }
+
+/* --- Стили самих пунктов меню --- */
+.menu-list{list-style:none;margin:0;padding:0}
+.menu-list li a{
+  display:block;
+  padding:12px 14px;
+  border-bottom:1px solid #f2f2f2;
+  color:var(--text);
+  background:transparent; /* по умолчанию прозрачный фон, будет видно белый фон меню */
+  transition: background .12s, color .12s;
+}
+.menu-list li a:hover{
+  background:#fafafa;
+}
+
+/* активный пункт выделяем светло-серым */
+.menu-list li a.active{
+  background:#e9ecef;      /* светло-серый — видно активность */
+  font-weight:600;
+  color:var(--text);
+}
+
+/* красиво выравниваем заголовок меню */
+.menu-header{display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #f1f1f1;background:#fff}
+.menu-title{font-size:13px;color:#333;font-weight:600}
+.menu-close{background:none;border:0;font-size:18px;cursor:pointer}
