@@ -177,6 +177,9 @@ function render(mount) {
 
   // Recorder + worklet setup (uses CONFIG.AUDIO_SAMPLE_RATE, etc.)
   let ws, audioCtx, worklet, stream, gainNode;
+// локальное состояние опций (инициализируется при старте записи)
+let CURRENT_CONTEXT_OPTIONS = {};
+
   let buffer = [], sessionId = null, sampleRate = CONFIG.AUDIO_SAMPLE_RATE || 44100, lastSendTs = 0;
   const CHUNK_SEND_INTERVAL = CONFIG.CHUNK_SEND_INTERVAL_MS || 2000;
   const CHUNK_MAX_BYTES = CONFIG.CHUNK_MAX_BYTES || (30 * 1024 * 1024);
@@ -293,8 +296,19 @@ function render(mount) {
 
   // Controls
   document.getElementById("start-rec").onclick = async function(){
-    // прочитаем UI-опции (getter создавали в helper)
-    try { CURRENT_CONTEXT_OPTIONS = (typeof window.getContextOptions === 'function') ? window.getContextOptions() : {}; } catch(e){ CURRENT_CONTEXT_OPTIONS = {}; }
+  // safe read UI options into local declared variable
+  try {
+    CURRENT_CONTEXT_OPTIONS = (typeof window.getContextOptions === 'function') ? window.getContextOptions() : {};
+  } catch (e) {
+    CURRENT_CONTEXT_OPTIONS = {};
+  }
+  log("Options at start: " + JSON.stringify(CURRENT_CONTEXT_OPTIONS));
+
+  await initRecorder();
+  if (CONFIG.USE_WEBSOCKET) openWS();
+  log("Recording...");
+  if (worklet) worklet.port.postMessage({ cmd: 'start' });
+}; } catch(e){ CURRENT_CONTEXT_OPTIONS = {}; }
     log("Options at start: " + JSON.stringify(CURRENT_CONTEXT_OPTIONS));
 
     await initRecorder();
