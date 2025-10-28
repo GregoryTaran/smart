@@ -1,0 +1,32 @@
+:root{
+  --bg:#ffffff;
+  --text:#222;
+  --muted:#666;
+  --accent:#007bff;
+  --max-width:1000px;
+  --menu-width:30%;
+  --menu-mobile-width:80%;
+  --gap:16px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;font-family:Inter, "Segoe UI", Roboto, Arial, sans-serif;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+img{max-width:100%;display:block;height:auto}
+button{font-family:inherit}
+
+/* Overlay used for mobile menu */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.15);opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+body.menu-open #overlay{opacity:1;pointer-events:auto}
+
+/* Basic layout pieces */
+#wrapper{max-width:var(--max-width);margin:0 auto;display:flex;min-height:100vh}
+.content-zone{flex:1;display:flex;flex-direction:column;min-height:100vh}
+header{height:64px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid #eee}
+main{flex:1;padding:28px}
+footer{border-top:1px solid #eee;padding:12px;text-align:center;font-size:14px;color:var(--muted)}
+.menu-header{display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #f1f1f1;background:#fafafa}
+.menu-list{list-style:none;margin:0;padding:0}
+.menu-list li a{display:block;padding:12px 14px;border-bottom:1px solid #f7f7f7;color:inherit}
+.menu-list li a.active{background:#f0f8ff;font-weight:600}
+.menu-close{background:none;border:0;font-size:18px;cursor:pointer}
