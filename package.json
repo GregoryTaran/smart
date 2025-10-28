@@ -1,5 +1,5 @@
 {
-  "name": "smart-vision-demo",
+  "name": "smart-vision-v2",
   "version": "1.0.0",
   "main": "server/server.js",
   "scripts": {
