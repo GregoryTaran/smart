@@ -13,53 +13,45 @@
     }
   }
 
+  // relative paths so running Live Server with smart/ as root works
   await Promise.all([
-    loadInto('/menu.html','site-menu'),
-    loadInto('/topbar.html','site-topbar'),
-    loadInto('/footer.html','site-footer')
+    loadInto('menu.html','site-menu'),
+    loadInto('topbar.html','site-topbar'),
+    loadInto('footer.html','site-footer')
   ]);
 
-  // highlight active link
+  // highlight active link (adds 'active' class)
   try {
     const cur = window.location.pathname.endsWith('/') ? '/index.html' : window.location.pathname;
     document.querySelectorAll('#site-menu a').forEach(a => {
-      if (a.getAttribute('href') === cur) a.classList.add('active');
+      const href = a.getAttribute('href');
+      // handle absolute and relative hrefs
+      if (href === cur || href === cur.replace(/^\/+/,'')) a.classList.add('active');
     });
   } catch(e){}
 
-  // menu toggle (delegated after topbar insertion)
-  function getMenuToggle(){
-    return document.getElementById('menu-toggle');
-  }
-  function closeMenu(){
-    document.body.classList.remove('menu-open');
-  }
-  function openMenu(){
-    document.body.classList.add('menu-open');
-  }
+  // menu toggle behavior
+  function openMenu(){ document.body.classList.add('menu-open'); }
+  function closeMenu(){ document.body.classList.remove('menu-open'); }
 
-  // attach toggle (if exists)
-  const toggle = getMenuToggle();
+  const toggle = document.getElementById('menu-toggle');
   if (toggle){
-    toggle.addEventListener('click', (ev)=>{
+    toggle.addEventListener('click', function(ev){
       ev.stopPropagation();
       if (document.body.classList.contains('menu-open')) closeMenu(); else openMenu();
     });
   }
 
-  // click on backdrop closes menu
-  document.addEventListener('click', (e)=>{
+  // close when clicking outside menu
+  document.addEventListener('click', function(e){
     if (!document.body.classList.contains('menu-open')) return;
-    // if click inside menu, do nothing
     const menu = document.getElementById('site-menu');
     if (menu && menu.contains(e.target)) return;
-    // otherwise close
     closeMenu();
   });
 
-  // close on ESC
-  document.addEventListener('keydown', (e)=>{
+  // close on Escape
+  document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') closeMenu();
   });
-
 })();
