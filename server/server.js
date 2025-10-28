@@ -1,7 +1,7 @@
 // server/server.js
 // Minimal router server — mounts server-*.js modules from same folder.
 // Uses process.cwd() for project root and default port 10000.
-// (Modified: explicit host bind, SPA fallback, module shutdown support)
+// (Patched: avoid path-to-regexp error by using app.use for SPA fallback)
 
 import express from "express";
 import cors from "cors";
@@ -90,10 +90,9 @@ app.get("/_modules", (req, res) => {
   res.json({ mounted: mountedModules, init: modulesWithInit.map(m => m.name), shutdown: modulesWithShutdown.map(m => m.name) });
 });
 
-// SPA fallback: for GET requests that look like browser navigations, serve index.html if exists.
-// Avoid overriding API/module routes (we keep simple rule: only serve index.html for requests that accept text/html
-// and whose path does not begin with known API prefixes).
-app.get("*", (req, res, next) => {
+// SPA fallback: use app.use to avoid path-to-regexp issues on some environments.
+// Serve index.html for browser navigations (Accept: text/html) when request path isn't API-like.
+app.use((req, res, next) => {
   try {
     const accept = req.headers.accept || "";
     const urlPath = req.path || "";
