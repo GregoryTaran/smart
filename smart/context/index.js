@@ -1,5 +1,5 @@
-// /<module>/index.js
-import './context.js'; // или './main.js' — просто выполняем основной код
+// /context/index.js
+import './context.js';
 
 const render = (typeof window !== 'undefined' && window.contextRender)
   ? window.contextRender
