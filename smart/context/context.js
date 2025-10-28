@@ -1,3 +1,57 @@
+// ================================
+// Context module: dynamic config loader (MINOR PATCH)
+// Place this at the VERY TOP of smart/context/context.js
+// ================================
+
+(async function loadContextConfigAndStart(){
+  // try to import the client config; fallback to safe defaults
+  let cfg = {};
+  try {
+    // cache-buster using app version if available
+    const v = (window.APP && window.APP.VERSION) ? window.APP.VERSION : Date.now();
+    cfg = (await import(`/context/config.js?v=${v}`)).default || {};
+  } catch (err) {
+    console.warn('Context: failed to load /context/config.js, using defaults', err);
+    cfg = {};
+  }
+
+  // Expose for debugging if needed
+  window.CONTEXT_CONFIG = cfg;
+
+  // Build useful URLs with safe fallbacks
+  const ORIGIN = location.origin;
+  const WS_PATH = cfg.WS_PATH || '/context/ws';
+  const HTTP_CHUNK_PATH = cfg.HTTP_CHUNK_PATH || '/context/chunk';
+  const MERGE_PATH = cfg.MERGE_ENDPOINT || '/context/merge';
+  const WHISPER_PATH = cfg.WHISPER_ENDPOINT || '/context/whisper';
+  const GPT_PATH = cfg.GPT_ENDPOINT || '/context/gpt';
+  const TTS_PATH = cfg.TTS_ENDPOINT || '/context/tts';
+  const USE_WS = (typeof cfg.USE_WEBSOCKET === 'boolean') ? cfg.USE_WEBSOCKET : true;
+
+  const urls = {
+    WS_URL: USE_WS ? ORIGIN.replace(/^http/, 'ws') + WS_PATH : null,
+    HTTP_CHUNK_URL: ORIGIN + HTTP_CHUNK_PATH,
+    MERGE_URL: ORIGIN + MERGE_PATH,
+    WHISPER_URL: ORIGIN + WHISPER_PATH,
+    GPT_URL: ORIGIN + GPT_PATH,
+    TTS_URL: ORIGIN + TTS_PATH
+  };
+
+  // If the existing code exposes a bootstrap function, call it with cfg+urls.
+  // We'll add the wrapper in the next tiny step (you'll either create window.contextMain or I'll provide exact replacement).
+  if (typeof window.contextMain === 'function') {
+    try { window.contextMain({ cfg, urls }); }
+    catch (e) { console.error('contextMain failed:', e); }
+  } else {
+    // If not present — just attach cfg/urls to window and let the rest of the file pick them up.
+    window.CONTEXT_CFG = cfg;
+    window.CONTEXT_URLS = urls;
+    console.warn('contextMain() not found — existing init must read window.CONTEXT_CFG / window.CONTEXT_URLS or you must add window.contextMain wrapper.');
+  }
+
+})();
+
+
 // context.js
 // Client-side module for Context page (mount — DOM element).
 // Adapted from your original module; uses /context/* endpoints and /context/ws WebSocket.
