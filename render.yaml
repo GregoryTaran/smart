@@ -1,4 +1,3 @@
-# render.yaml — Render service declaration (monorepo: server is root)
 services:
   - type: web
     name: smart-python
