@@ -1,0 +1,29 @@
+/* smart/testserver/testserverstyle.css - минимальные стили для testserver */
+#test-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#test-controls button {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  background: #f7f7f7;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#test-controls button:hover {
+  background: #eee;
+}
+
+#out {
+  background: #111;
+  color: #0f0;
+  padding: 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  max-height: 320px;
+  overflow: auto;
+}
+
