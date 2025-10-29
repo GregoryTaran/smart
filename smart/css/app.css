@@ -115,3 +115,23 @@ a{color:inherit;text-decoration:none}
   /* backdrop when menu open */
   body.menu-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:20}
 }
+/* -------- mobile close button inside menu -------- */
+.menu-close{
+  display:none;           /* hidden on desktop */
+  position:absolute;
+  top:12px;
+  right:12px;
+  background:transparent;
+  border:0;
+  font-size:26px;
+  line-height:1;
+  padding:6px;
+  cursor:pointer;
+  z-index:40;
+}
+
+/* place the button visible only when menu is overlay (mobile) */
+@media (max-width:900px){
+  .site-menu{ position:fixed; /* already set in your CSS */ }
+  .menu-close{ display:inline-block; color:#222; }
+}
