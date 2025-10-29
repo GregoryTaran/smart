@@ -1,6 +1,6 @@
 :root{
   --site-max: 1000px;
-  --menu-percent: 30%; /* left menu 30% of the site width */
+  --menu-percent: 25%; /* <-- изменено: левая колонка 25% */
   --menu-min: 220px;
   --menu-max: 400px;
   --topbar-h: 64px;
@@ -26,7 +26,7 @@ a{color:inherit;text-decoration:none}
 /* App shell inside the centered wrapper */
 .app-shell{display:flex;min-height:100vh;align-items:stretch}
 
-/* Left menu - 30% of wrapper */
+/* Left menu - now 25% of wrapper */
 .site-menu{
   flex: 0 0 clamp(var(--menu-min), var(--menu-percent), var(--menu-max));
   background: var(--surface);
