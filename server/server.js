@@ -45,16 +45,12 @@ function mountModule(modPath, fileName) {
     delete require.cache[require.resolve(modPath)];
     const mod = require(modPath);
 
-    // 1) If module exports function(app, opts) — call it and let it mount itself
-    if (typeof mod === 'function') {
-      try {
-        mod(app, { APP_ROOT, SMART_ROOT });
-        console.log(`Mounted module (fn) ${fileName}`);
-        return;
-      } catch (err) {
-        console.error(`Module function threw while mounting ${fileName}:`, err && err.message || err);
-        return;
-      }
+    // 1) If module is an express.Router (heuristic: has stack array)
+    if (mod && Array.isArray(mod.stack)) {
+      const mountAt = `/api/${path.basename(fileName, '.js')}`;
+      app.use(mountAt, mod);
+      console.log(`Mounted router at ${mountAt} -> ${fileName}`);
+      return;
     }
 
     // 2) If module exports { prefix, router }
@@ -64,12 +60,16 @@ function mountModule(modPath, fileName) {
       return;
     }
 
-    // 3) If module is an express.Router (heuristic: has stack array)
-    if (mod && Array.isArray(mod.stack)) {
-      const mountAt = `/api/${path.basename(fileName, '.js')}`;
-      app.use(mountAt, mod);
-      console.log(`Mounted router at ${mountAt} -> ${fileName}`);
-      return;
+    // 3) If module exports function(app, opts) — call it and let it mount itself
+    if (typeof mod === 'function') {
+      try {
+        mod(app, { APP_ROOT, SMART_ROOT });
+        console.log(`Mounted module (fn) ${fileName}`);
+        return;
+      } catch (err) {
+        console.error(`Module function threw while mounting ${fileName}:`, err && err.message || err);
+        return;
+      }
     }
 
     console.warn(`Skipped module (unknown export shape): ${fileName}`);
