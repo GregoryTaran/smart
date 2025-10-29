@@ -1,16 +1,19 @@
-// voicerecorderclient.js (updated)
-// WebSocket-based recorder client — sends roughly 2-second chunks, worklet+css assumed in same folder.
+// voicerecorderclient.js (improved for stress / worklet compatibility)
+// - Uses AudioWorklet processor name 'recorder-processor' (matches recorder-worklet.js).
+// - Handles Float32Array or {buffer, rms} messages from worklet.
+// - Sends ~2s chunks (time-based) and protects against runaway buffer growth.
+// - Adds heartbeat, reconnect/backoff, and safer buffer-drop policy.
 
 (() => {
   // CONFIG
-  let FLUSH_SAMPLES_THRESHOLD = 4096 * 4; // will be adjusted to ~2s after audio init
-  const FLUSH_INTERVAL_MS = 2000; // send every ~2 seconds
+  const FLUSH_INTERVAL_MS = 2000;           // ~2 seconds
   const CHANNELS = 1;
-  let WORKLET_PATH = '/recorder-worklet.js'; // will be replaced with script dir path
-  const WS_PATHS = ['/ws/voicerecorder', '/ws'];
   const RECONNECT_DELAY_MS = 1500;
   const CLIENT_STORAGE_KEY = 'smart_client_id_v1';
   const DEFAULT_SR = 48000;
+  const PROCESSOR_NAME = 'recorder-processor'; // must match recorder-worklet.js registration
+  const HEARTBEAT_MS = 20000;               // send ping JSON every 20s
+  const MAX_PENDING_SECONDS = 10;           // max backlog to hold (seconds) before dropping
 
   // utils
   function uuidv4(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;const v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});}
@@ -25,10 +28,9 @@
   }
   function wsUrlFor(path){ const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${proto}//${location.host}${path}`; }
 
-  // determine script dir (so worklet + css are assumed to be next to this file)
+  // determine script dir (so worklet + css are next to this file)
   function getScriptDir() {
     try {
-      // find the script element whose src contains 'voicerecorderclient.js'
       const scripts = document.getElementsByTagName('script');
       for (let i = scripts.length - 1; i >= 0; i--) {
         const s = scripts[i];
@@ -39,13 +41,12 @@
           return url.origin + path.substring(0, path.lastIndexOf('/') + 1);
         }
       }
-    } catch (e) {}
-    // fallback to current origin root
+    } catch (e){}
     return location.origin + '/';
   }
 
   const SCRIPT_DIR = getScriptDir();
-  WORKLET_PATH = SCRIPT_DIR + 'recorder-worklet.js';
+  const WORKLET_PATH = SCRIPT_DIR + 'recorder-worklet.js';
   const CSS_PATH = SCRIPT_DIR + 'voicerecorderstyle.css';
 
   // ensure CSS present (auto-inject if not)
@@ -64,7 +65,7 @@
     } catch (e) { console.warn('[vr] css injection failed', e); }
   }
 
-  // UI elements (use existing if present)
+  // UI elements
   const elLevel = () => document.getElementById('vr-level');
   const elState = () => document.getElementById('vr-state');
   const elTimer = () => document.getElementById('vr-timer');
@@ -84,7 +85,7 @@
   const CLIENT_ID = getClientId();
 
   // buffers
-  let pendingBuffers = [];
+  let pendingBuffers = []; // array of Float32Array
   let pendingSamples = 0;
   let seq = 0;
   let flushInterval = null;
@@ -94,6 +95,10 @@
   let wsConnected = false;
   let wsConnecting = false;
   let wsPathIndex = 0;
+  const WS_PATHS = ['/ws/voicerecorder', '/ws/voicerecorder/']; // try variants
+
+  // heartbeat
+  let heartbeatTimer = null;
 
   // smoothing for level UI
   let displayedLevel = 0;
@@ -133,9 +138,10 @@
       wsConnected = true; wsConnecting = false;
       setStateText('recording (ws)');
       console.log('[vr] ws connected');
-      // send meta immediately with clientId & sampleRate & channels
+      // send meta immediately
       ws.send(JSON.stringify({ type:'meta', clientId: CLIENT_ID, sampleRate: SAMPLE_RATE, channels: CHANNELS }));
       console.log('[vr] ws meta sent', { clientId: CLIENT_ID, sampleRate: SAMPLE_RATE, channels: CHANNELS });
+      startHeartbeat();
     };
 
     ws.onmessage = (ev) => {
@@ -147,10 +153,14 @@
             const audioEl = elAudio();
             if (audioEl) audioEl.src = `/api/voicerecorder/file/${encodeURIComponent(j.filename)}`;
             if (elTranscript() && j.transcript) elTranscript().textContent = j.transcript;
+          } else if (j.type === 'pong') {
+            // heartbeat ack
+          } else if (j.type === 'meta_ack') {
+            // ok
           }
         } catch (e){}
       } else {
-        // ignore binary acks for now
+        // binary responses (ignored for now)
       }
     };
 
@@ -158,6 +168,7 @@
       wsConnected = false; ws = null; wsConnecting = false;
       setStateText('ws disconnected');
       console.log('[vr] ws closed');
+      stopHeartbeat();
       wsPathIndex = (wsPathIndex + 1) % WS_PATHS.length;
       setTimeout(connectWS, RECONNECT_DELAY_MS);
     };
@@ -167,12 +178,23 @@
     };
   }
 
+  function startHeartbeat(){
+    stopHeartbeat();
+    heartbeatTimer = setInterval(()=>{
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({ type:'ping', ts: Date.now() })); } catch(e){ console.warn('[vr] heartbeat send err', e); }
+      }
+    }, HEARTBEAT_MS);
+  }
+  function stopHeartbeat(){ if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; } }
+
   // ---------------- Audio / Worklet ----------------
   async function initAudio(){
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     SAMPLE_RATE = audioCtx.sampleRate || SAMPLE_RATE;
     // set threshold to approx 2 seconds of samples
-    FLUSH_SAMPLES_THRESHOLD = Math.max(1024, Math.floor(SAMPLE_RATE * 2)); // ensure not zero/small
+    const FLUSH_SAMPLES_THRESHOLD = Math.max(1024, Math.floor(SAMPLE_RATE * 2));
+    const MAX_PENDING_SAMPLES = Math.floor(SAMPLE_RATE * MAX_PENDING_SECONDS);
 
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
@@ -187,8 +209,8 @@
     try {
       if (audioCtx.audioWorklet) {
         await audioCtx.audioWorklet.addModule(WORKLET_PATH);
-        const node = new AudioWorkletNode(audioCtx, 'recorder.processor', { numberOfInputs:1, numberOfOutputs:0, channelCount: CHANNELS });
-        node.port.onmessage = onWorkletMessage;
+        const node = new AudioWorkletNode(audioCtx, PROCESSOR_NAME, { numberOfInputs:1, numberOfOutputs:0, channelCount: CHANNELS });
+        node.port.onmessage = (e) => onWorkletMessage(e, MAX_PENDING_SAMPLES);
         recorderNode = node;
         source.connect(recorderNode);
         workletOk = true;
@@ -197,14 +219,14 @@
     } catch (e) { console.warn('[vr] audioWorklet failed', e); }
 
     if (!workletOk) {
-      // fallback
+      // fallback ScriptProcessor
       const bufferSize = 4096;
       const proc = audioCtx.createScriptProcessor(bufferSize, CHANNELS, CHANNELS);
       proc.onaudioprocess = (evt) => {
         const inBuf = evt.inputBuffer.getChannelData(0);
         const copy = new Float32Array(inBuf.length);
         copy.set(inBuf);
-        handleAudioChunk(copy);
+        onWorkletMessage({ data: copy }, MAX_PENDING_SAMPLES);
       };
       recorderNode = proc;
       source.connect(recorderNode);
@@ -213,46 +235,88 @@
     }
   }
 
-  function onWorkletMessage(e){
+  // Worklet messages may be either Float32Array or an object { buffer, rms }
+  function onWorkletMessage(e, MAX_PENDING_SAMPLES) {
     const obj = e.data;
     if (!obj) return;
-    if (obj.rms !== undefined) setLevel(Math.min(1, obj.rms * 1.4));
-    if (obj.buffer) {
-      const f32 = new Float32Array(obj.buffer);
-      handleAudioChunk(f32);
+    try {
+      if (obj instanceof Float32Array) {
+        handleAudioChunk(obj, MAX_PENDING_SAMPLES);
+      } else if (obj && obj.buffer) {
+        const f32 = (obj.buffer instanceof ArrayBuffer) ? new Float32Array(obj.buffer) : new Float32Array(obj.buffer);
+        if (obj.rms !== undefined) setLevel(Math.min(1, obj.rms * 1.4));
+        handleAudioChunk(f32, MAX_PENDING_SAMPLES);
+      } else if (obj instanceof ArrayBuffer) {
+        handleAudioChunk(new Float32Array(obj), MAX_PENDING_SAMPLES);
+      } else {
+        // unknown message: try to coerce
+        if (ArrayBuffer.isView(obj)) {
+          handleAudioChunk(new Float32Array(obj.buffer), MAX_PENDING_SAMPLES);
+        }
+      }
+    } catch (err) {
+      console.warn('[vr] worklet msg parse err', err);
     }
   }
 
   // ---------------- Buffer accumulate + send ----------------
-  function handleAudioChunk(float32arr){
-    pendingBuffers.push(float32arr);
-    pendingSamples += float32arr.length;
-    // local RMS
-    let s=0; for (let i=0;i<float32arr.length;i++) s+=float32arr[i]*float32arr[i];
-    const rms = Math.sqrt(s/float32arr.length) || 0;
+  function handleAudioChunk(float32arr, MAX_PENDING_SAMPLES) {
+    // protect: do not allow infinite growth
+    if (typeof MAX_PENDING_SAMPLES === 'number' && pendingSamples + float32arr.length > MAX_PENDING_SAMPLES) {
+      // drop oldest chunks until there is space (or drop this new chunk if queue too big)
+      let needed = (pendingSamples + float32arr.length) - MAX_PENDING_SAMPLES;
+      console.warn('[vr] backlog too big, trimming oldest samples', { pendingSamples, needed });
+      while (needed > 0 && pendingBuffers.length) {
+        const removed = pendingBuffers.shift();
+        pendingSamples -= removed.length;
+        needed -= removed.length;
+      }
+      // if still too large (queue empty but new chunk too big), drop new chunk
+      if (pendingSamples + float32arr.length > MAX_PENDING_SAMPLES) {
+        console.warn('[vr] dropping incoming audio chunk to avoid OOM');
+        return;
+      }
+    }
+
+    // push copy (defensive) — ensure we own our data
+    const copy = new Float32Array(float32arr.length);
+    copy.set(float32arr);
+    pendingBuffers.push(copy);
+    pendingSamples += copy.length;
+
+    // local RMS for level
+    let s=0; for (let i=0;i<copy.length;i++) s+=copy[i]*copy[i];
+    const rms = Math.sqrt(s/copy.length) || 0;
     setLevel(Math.min(1, rms * 1.4));
-    if (pendingSamples >= FLUSH_SAMPLES_THRESHOLD) flushBuffers();
+
+    // flush by time (timer handles) or by samples if necessary
   }
 
   function concatBuffers(arrays, total){
     const out = new Float32Array(total);
     let off = 0;
-    for (let i=0;i<arrays.length;i++){ out.set(arrays[i], off); off += arrays[i].length; }
+    for (let i = 0; i < arrays.length; i++) { out.set(arrays[i], off); off += arrays[i].length; }
     return out;
   }
 
   function flushBuffers(){
-    if (!wsConnected || !ws || pendingSamples === 0) return;
+    if (pendingSamples === 0) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // keep buffers, but if backlog becomes huge it's trimmed by handleAudioChunk
+      console.log('[vr] ws not open, deferring flush (pendingSamples=', pendingSamples,')');
+      return;
+    }
     seq++;
     const total = pendingSamples;
     const out = concatBuffers(pendingBuffers, total);
+    // clear queues *before* send to avoid races when sending fails: we will restore on error
     pendingBuffers = []; pendingSamples = 0;
     try {
       ws.send(out.buffer);
       console.log('[vr] sent ws chunk bytes=', out.byteLength, 'seq=', seq);
     } catch (e) {
       console.warn('[vr] ws send failed', e);
-      // restore for retry
+      // restore
       pendingBuffers.unshift(out);
       pendingSamples = out.length;
     }
@@ -303,7 +367,7 @@
     stopFlushTimer();
 
     const finishPayload = { type:'finish', clientId: CLIENT_ID, filename: `${Date.now()}-${CLIENT_ID}.raw` };
-    if (wsConnected && ws) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify(finishPayload));
         console.log('[vr] sent finish via ws', finishPayload);
@@ -359,7 +423,6 @@
     if (p) p.addEventListener('click', pauseRecording);
     if (t) t.addEventListener('click', stopRecording);
 
-    // if UI elements absent, fail gracefully: create minimal fallback controls in console
     if (!s || !p || !t || !elLevel() || !elAudio()) {
       console.warn('[vr] some UI elements missing - ensure vr-start, vr-pause, vr-stop, vr-level, vr-audio in HTML');
     }
@@ -372,6 +435,6 @@
     stop: stopRecording,
     isRecording: () => isRecording,
     clientId: CLIENT_ID,
-    debug: { connectWS, flushBuffers: flushBuffers, SCRIPT_DIR }
+    debug: { connectWS, flushBuffers, SCRIPT_DIR }
   };
 })();
