@@ -1,6 +1,4 @@
 // server/modules/voicerecorder.js
-// Minimal tolerant VoiceRecorder module — accepts chunks and logs them.
-// No external deps required. Simple, robust, won't crash on missing clientId.
 'use strict';
 
 const express = require('express');
@@ -59,7 +57,8 @@ module.exports = function(app, opts = {}) {
     }
   });
 
-  // Finish: move tmp to final file (accepts JSON { clientId, filename })
+  // Finish: move tmp -> final file (unchanged behavior) and optionally convert to WAV when requested.
+  // Minimal change: conversion runs only if client asks (req.body.convert === true or ?convert=1).
   router.post('/finish', express.json({ limit: '32kb' }), async (req, res) => {
     try {
       const clientIdRaw = req.body && req.body.clientId || req.query.clientId || req.headers['x-client-id'];
@@ -69,15 +68,96 @@ module.exports = function(app, opts = {}) {
       const tmpFile = path.join(TMP_DIR, `${clientId}.raw`);
       if (!fs.existsSync(tmpFile)) return res.status(404).json({ ok: false, error: 'temp file not found' });
 
+      // keep existing behavior: move tmp -> final raw
       const requested = req.body && req.body.filename ? String(req.body.filename) : `${Date.now()}-${clientId}.raw`;
-      const finalName = safe(requested);
-      const finalPath = path.join(BASE_DIR, finalName);
+      const finalRawName = safe(requested);
+      const finalRawPath = path.join(BASE_DIR, finalRawName);
 
-      await fsp.rename(tmpFile, finalPath);
+      await fsp.rename(tmpFile, finalRawPath);
+      console.log(`[voicerecorder] Finished upload — clientId=${clientId} -> ${finalRawName}`);
 
-      console.log(`[voicerecorder] Finished upload — clientId=${clientId} -> ${finalName}`);
+      // If client did not request conversion, respond immediately (keeps behavior minimal)
+      const wantConvert = (req.body && (req.body.convert === true || String(req.body.convert) === '1' || String(req.body.convert) === 'true')) ||
+                          (req.query && (req.query.convert === '1' || req.query.convert === 'true'));
+      if (!wantConvert) {
+        return res.json({
+          ok: true,
+          filename: finalRawName,
+          rawUrl: `/api/voicerecorder/file/${encodeURIComponent(finalRawName)}`,
+          wavConverted: false,
+          message: 'Raw saved; conversion not requested'
+        });
+      }
 
-      return res.json({ ok: true, filename: finalName, url: `/api/voicerecorder/file/${encodeURIComponent(finalName)}` });
+      // Conversion requested — try to run ffmpeg (non-blocking safety: we wait for ffmpeg to finish and return result)
+      const sampleRate = Number(req.body.sampleRate || req.query.sampleRate || 48000);
+      const channels = Number(req.body.channels || req.query.channels || 1);
+      const format = String(req.body.format || req.query.format || 'f32le'); // default: float32 little-endian
+      const finalWavName = finalRawName.replace(/\.raw$/i, '') + '.wav';
+      const finalWavPath = path.join(BASE_DIR, finalWavName);
+
+      const { execFile } = require('child_process');
+
+      // quick helper: check ffmpeg availability
+      const hasFFmpeg = await new Promise((resolve) => {
+        execFile('ffmpeg', ['-version'], (err) => resolve(!err));
+      });
+
+      if (!hasFFmpeg) {
+        console.warn('[voicerecorder] ffmpeg not found; skipping conversion');
+        return res.json({
+          ok: true,
+          filename: finalRawName,
+          rawUrl: `/api/voicerecorder/file/${encodeURIComponent(finalRawName)}`,
+          wavConverted: false,
+          message: 'ffmpeg not available on server; raw saved'
+        });
+      }
+
+      // Build ffmpeg args: input format, sample rate, channels -> output wav
+      const ffmpegArgs = [
+        '-f', format,
+        '-ar', String(sampleRate),
+        '-ac', String(channels),
+        '-i', finalRawPath,
+        finalWavPath
+      ];
+
+      console.log('[voicerecorder] Running ffmpeg convert:', ffmpegArgs.join(' '));
+      // Run conversion and wait; set reasonable timeout (120s)
+      execFile('ffmpeg', ffmpegArgs, { timeout: 120000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error('[voicerecorder] ffmpeg conversion failed', err && err.message ? err.message : err);
+          // conversion failed — still return info about raw
+          try {
+            return res.json({
+              ok: true,
+              filename: finalRawName,
+              rawUrl: `/api/voicerecorder/file/${encodeURIComponent(finalRawName)}`,
+              wavConverted: false,
+              error: 'ffmpeg conversion failed; check server logs'
+            });
+          } catch (e) {
+            console.error('[voicerecorder] response send error after ffmpeg fail', e && e.message);
+          }
+        } else {
+          console.log('[voicerecorder] ffmpeg conversion done ->', finalWavName);
+          try {
+            return res.json({
+              ok: true,
+              filename: finalRawName,
+              rawUrl: `/api/voicerecorder/file/${encodeURIComponent(finalRawName)}`,
+              wavConverted: true,
+              wavName: finalWavName,
+              wavUrl: `/api/voicerecorder/file/${encodeURIComponent(finalWavName)}`
+            });
+          } catch (e) {
+            console.error('[voicerecorder] response send error after ffmpeg success', e && e.message);
+          }
+        }
+      });
+
+      // response will be sent inside execFile callback
     } catch (err) {
       console.error('[voicerecorder] finish error', err && err.message ? err.message : err);
       return res.status(500).json({ ok: false, error: 'finish failed' });
