@@ -1,66 +1,59 @@
 // server/server.js
-// Thin server loader: serves smart/ static and dynamically mounts routers from server/modules/*.js
-// Usage: node server/server.js
+// Minimal server: отдаёт статические файлы из <project-root>/smart
+// и автоматически подключает модули из server/modules/*.js
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+
+const PORT = process.env.PORT || 10000;
+const APP_ROOT = process.cwd();             // <- use process.cwd() (requested)
+const SMART_ROOT = path.join(APP_ROOT, 'smart');
+const MODULES_DIR = path.join(APP_ROOT, 'server', 'modules');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-const SMART_ROOT = path.join(process.cwd(), 'smart');
-const MODULES_DIR = path.join(process.cwd(), 'server', 'modules');
+app.use(express.json());
 
-// basic logging
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()}  ${req.method} ${req.url}`);
-  next();
-});
-
-// global json body parser for simple endpoints (modules may override)
-app.use(express.json({ limit: '2mb' }));
-
-// serve static site
-if (!fs.existsSync(SMART_ROOT)) {
-  console.error(`[server] static root not found: ${SMART_ROOT}`);
-  process.exit(1);
-}
-app.use(express.static(SMART_ROOT, { index: 'index.html' }));
-
-// dynamically mount modules from server/modules/*.js
+// Mount modules: each module should export a function (app) => void or (router) => router
 if (fs.existsSync(MODULES_DIR)) {
-  const files = fs.readdirSync(MODULES_DIR).filter(f => f.endsWith('.js'));
-  for (const f of files) {
-    const modPath = path.join(MODULES_DIR, f);
+  fs.readdirSync(MODULES_DIR).forEach(file => {
+    if (!file.endsWith('.js')) return;
+    const modPath = path.join(MODULES_DIR, file);
     try {
-      // clear cache to allow replacing module files without server restart if desired
-      delete require.cache[require.resolve(modPath)];
-      const router = require(modPath);
-      if (!router || !router.stack) {
-        console.warn(`[server] module ${f} does not export an Express router — skipping`);
-        continue;
+      const mod = require(modPath);
+      if (typeof mod === 'function') {
+        // If module exports a function, call it with app; module chooses its own prefix
+        mod(app, { APP_ROOT, SMART_ROOT });
+        console.log('Mounted module:', file);
+      } else if (mod && mod.router && mod.prefix) {
+        app.use(mod.prefix, mod.router);
+        console.log('Mounted router:', mod.prefix, '->', file);
+      } else {
+        console.warn('Module', file, 'does not export function or {prefix,router}');
       }
-      const mountPoint = '/api/' + path.basename(f, '.js');
-      app.use(mountPoint, router);
-      console.log(`[server] mounted ${mountPoint} -> ${modPath}`);
     } catch (err) {
-      console.error(`[server] failed to mount module ${f}:`, err && err.stack || err);
+      console.error('Failed to load module', file, err);
     }
-  }
+  });
 } else {
-  console.warn('[server] modules directory not found:', MODULES_DIR);
+  console.warn('No modules directory found at', MODULES_DIR);
 }
 
-// 404 fallback (static root covers normal pages)
-app.use((req, res) => res.status(404).send('Not found'));
+// Static front
+if (fs.existsSync(SMART_ROOT)) {
+  app.use(express.static(SMART_ROOT));
+  console.log('Serving static from', SMART_ROOT);
+} else {
+  console.warn('Static folder not found:', SMART_ROOT);
+}
 
-// error handler
-app.use((err, req, res, next) => {
-  console.error('[server] error:', err && (err.stack || err.message) || err);
-  if (!res.headersSent) res.status(500).send('Server error');
+// Basic API health check
+app.get('/api/ping', (req, res) => res.json({ ok: true, now: new Date().toISOString() }));
+
+// 404 fallback (explicit, predictable)
+app.use((req, res) => {
+  res.status(404).send('Not Found');
 });
 
 app.listen(PORT, () => {
-  console.log(`[server] listening on port ${PORT} — static root: ${SMART_ROOT}`);
+  console.log(`Server started on port ${PORT} (APP_ROOT=${APP_ROOT})`);
 });
-
-module.exports = app;
