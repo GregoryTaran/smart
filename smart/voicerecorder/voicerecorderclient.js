@@ -1,16 +1,12 @@
-// voicerecorderclient.js
-// WebSocket-based recorder client adapted to existing HTML (vr-start, vr-pause, vr-stop, vr-level, vr-audio, vr-transcript).
-// - uses AudioWorklet ('/recorder-worklet.js') if available, falls back to ScriptProcessor
-// - accumulates Float32 chunks, flushes via WebSocket as binary ArrayBuffer
-// - updates existing UI controls (no floating widget injected)
-// - Pause suspends/resumes AudioContext (keeps buffers)
+// voicerecorderclient.js (updated)
+// WebSocket-based recorder client — sends roughly 2-second chunks, worklet+css assumed in same folder.
 
 (() => {
   // CONFIG
-  const FLUSH_SAMPLES_THRESHOLD = 4096 * 4;
-  const FLUSH_INTERVAL_MS = 200;
+  let FLUSH_SAMPLES_THRESHOLD = 4096 * 4; // will be adjusted to ~2s after audio init
+  const FLUSH_INTERVAL_MS = 2000; // send every ~2 seconds
   const CHANNELS = 1;
-  const WORKLET_PATH = '/recorder-worklet.js';
+  let WORKLET_PATH = '/recorder-worklet.js'; // will be replaced with script dir path
   const WS_PATHS = ['/ws/voicerecorder', '/ws'];
   const RECONNECT_DELAY_MS = 1500;
   const CLIENT_STORAGE_KEY = 'smart_client_id_v1';
@@ -28,6 +24,45 @@
     } catch (e) { if (!window.SMART_CLIENT_ID) window.SMART_CLIENT_ID = uuidv4(); return window.SMART_CLIENT_ID; }
   }
   function wsUrlFor(path){ const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'; return `${proto}//${location.host}${path}`; }
+
+  // determine script dir (so worklet + css are assumed to be next to this file)
+  function getScriptDir() {
+    try {
+      // find the script element whose src contains 'voicerecorderclient.js'
+      const scripts = document.getElementsByTagName('script');
+      for (let i = scripts.length - 1; i >= 0; i--) {
+        const s = scripts[i];
+        if (!s.src) continue;
+        if (s.src.indexOf('voicerecorderclient.js') !== -1) {
+          const url = new URL(s.src, location.href);
+          const path = url.pathname;
+          return url.origin + path.substring(0, path.lastIndexOf('/') + 1);
+        }
+      }
+    } catch (e) {}
+    // fallback to current origin root
+    return location.origin + '/';
+  }
+
+  const SCRIPT_DIR = getScriptDir();
+  WORKLET_PATH = SCRIPT_DIR + 'recorder-worklet.js';
+  const CSS_PATH = SCRIPT_DIR + 'voicerecorderstyle.css';
+
+  // ensure CSS present (auto-inject if not)
+  function ensureCssLoaded() {
+    try {
+      const exists = Array.from(document.styleSheets).some(ss => {
+        try { return ss.href && ss.href.indexOf('voicerecorderstyle.css') !== -1; } catch(e){ return false; }
+      });
+      if (!exists) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = CSS_PATH;
+        document.head.appendChild(link);
+        console.log('[vr] injected css', CSS_PATH);
+      }
+    } catch (e) { console.warn('[vr] css injection failed', e); }
+  }
 
   // UI elements (use existing if present)
   const elLevel = () => document.getElementById('vr-level');
@@ -98,7 +133,9 @@
       wsConnected = true; wsConnecting = false;
       setStateText('recording (ws)');
       console.log('[vr] ws connected');
+      // send meta immediately with clientId & sampleRate & channels
       ws.send(JSON.stringify({ type:'meta', clientId: CLIENT_ID, sampleRate: SAMPLE_RATE, channels: CHANNELS }));
+      console.log('[vr] ws meta sent', { clientId: CLIENT_ID, sampleRate: SAMPLE_RATE, channels: CHANNELS });
     };
 
     ws.onmessage = (ev) => {
@@ -107,7 +144,6 @@
           const j = JSON.parse(ev.data);
           console.log('[vr] ws msg', j);
           if (j.type === 'finish' && j.filename) {
-            // server finished and created file
             const audioEl = elAudio();
             if (audioEl) audioEl.src = `/api/voicerecorder/file/${encodeURIComponent(j.filename)}`;
             if (elTranscript() && j.transcript) elTranscript().textContent = j.transcript;
@@ -135,6 +171,8 @@
   async function initAudio(){
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     SAMPLE_RATE = audioCtx.sampleRate || SAMPLE_RATE;
+    // set threshold to approx 2 seconds of samples
+    FLUSH_SAMPLES_THRESHOLD = Math.max(1024, Math.floor(SAMPLE_RATE * 2)); // ensure not zero/small
 
     try {
       micStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:false });
@@ -154,7 +192,7 @@
         recorderNode = node;
         source.connect(recorderNode);
         workletOk = true;
-        console.log('[vr] using AudioWorklet');
+        console.log('[vr] using AudioWorklet', WORKLET_PATH);
       }
     } catch (e) { console.warn('[vr] audioWorklet failed', e); }
 
@@ -227,6 +265,7 @@
   async function startRecording(){
     if (isRecording) return;
     setStateText('starting');
+    ensureCssLoaded();
     connectWS();
     try {
       await initAudio();
@@ -333,6 +372,6 @@
     stop: stopRecording,
     isRecording: () => isRecording,
     clientId: CLIENT_ID,
-    debug: { connectWS, flushBuffers: flushBuffers }
+    debug: { connectWS, flushBuffers: flushBuffers, SCRIPT_DIR }
   };
 })();
