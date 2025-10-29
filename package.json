@@ -1,11 +1,17 @@
 {
-  "name": "smart-site-v4",
+  "name": "smart-server",
   "version": "1.0.0",
-  "main": "server/server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server.js",
+    "dev": "NODE_ENV=development nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "ws": "^8.13.0",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
   }
 }
