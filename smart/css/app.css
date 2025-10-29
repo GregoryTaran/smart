@@ -95,13 +95,13 @@ a{color:inherit;text-decoration:none}
 .menu-close{
   display:none;           /* hidden on desktop */
   position:absolute;
-  top:6px;
-  right:6px;
+  top:2px;
+  right:2px;
   background:transparent;
   border:0;
   font-size:26px;
   line-height:1;
-  padding:6px;
+  padding:4px;
   cursor:pointer;
   z-index:40;
 }
