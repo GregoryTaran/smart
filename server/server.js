@@ -40,7 +40,7 @@ if (!fs.existsSync(SMART_ROOT)) {
 }
 app.use(express.static(SMART_ROOT, {
   // disable directory listing; serve files only
-  index: false,
+  index: 'index.html',
   // maxAge: 0 // keep default or set cache headers here if needed
 }));
 
