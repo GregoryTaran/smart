@@ -1,8 +1,7 @@
-// voicerecorderclient.js (improved for stress / worklet compatibility)
-// - Uses AudioWorklet processor name 'recorder-processor' (matches recorder-worklet.js).
-// - Handles Float32Array or {buffer, rms} messages from worklet.
-// - Sends ~2s chunks (time-based) and protects against runaway buffer growth.
-// - Adds heartbeat, reconnect/backoff, and safer buffer-drop policy.
+
+// VoiceRecorderClient.js (updated, stress-hardened, with auto-inject UI)
+// Place this file alongside recorder-worklet.js and voicerecorderstyle.css
+// Exposes window.SmartVoiceRecorder { start, pause, stop, clientId, debug }
 
 (() => {
   // CONFIG
@@ -35,7 +34,7 @@
       for (let i = scripts.length - 1; i >= 0; i--) {
         const s = scripts[i];
         if (!s.src) continue;
-        if (s.src.indexOf('voicerecorderclient.js') !== -1) {
+        if (s.src.indexOf('VoiceRecorderClient.js') !== -1 || s.src.indexOf('voicerecorderclient.js') !== -1) {
           const url = new URL(s.src, location.href);
           const path = url.pathname;
           return url.origin + path.substring(0, path.lastIndexOf('/') + 1);
@@ -65,7 +64,7 @@
     } catch (e) { console.warn('[vr] css injection failed', e); }
   }
 
-  // UI elements
+  // UI element getters
   const elLevel = () => document.getElementById('vr-level');
   const elState = () => document.getElementById('vr-state');
   const elTimer = () => document.getElementById('vr-timer');
@@ -95,7 +94,7 @@
   let wsConnected = false;
   let wsConnecting = false;
   let wsPathIndex = 0;
-  const WS_PATHS = ['/ws/voicerecorder', '/ws/voicerecorder/']; // try variants
+  const WS_PATHS = ['/ws/voicerecorder', '/ws/voicerecorder/'];
 
   // heartbeat
   let heartbeatTimer = null;
@@ -192,7 +191,6 @@
   async function initAudio(){
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     SAMPLE_RATE = audioCtx.sampleRate || SAMPLE_RATE;
-    // set threshold to approx 2 seconds of samples
     const FLUSH_SAMPLES_THRESHOLD = Math.max(1024, Math.floor(SAMPLE_RATE * 2));
     const MAX_PENDING_SAMPLES = Math.floor(SAMPLE_RATE * MAX_PENDING_SECONDS);
 
@@ -249,7 +247,6 @@
       } else if (obj instanceof ArrayBuffer) {
         handleAudioChunk(new Float32Array(obj), MAX_PENDING_SAMPLES);
       } else {
-        // unknown message: try to coerce
         if (ArrayBuffer.isView(obj)) {
           handleAudioChunk(new Float32Array(obj.buffer), MAX_PENDING_SAMPLES);
         }
@@ -261,9 +258,7 @@
 
   // ---------------- Buffer accumulate + send ----------------
   function handleAudioChunk(float32arr, MAX_PENDING_SAMPLES) {
-    // protect: do not allow infinite growth
     if (typeof MAX_PENDING_SAMPLES === 'number' && pendingSamples + float32arr.length > MAX_PENDING_SAMPLES) {
-      // drop oldest chunks until there is space (or drop this new chunk if queue too big)
       let needed = (pendingSamples + float32arr.length) - MAX_PENDING_SAMPLES;
       console.warn('[vr] backlog too big, trimming oldest samples', { pendingSamples, needed });
       while (needed > 0 && pendingBuffers.length) {
@@ -271,25 +266,20 @@
         pendingSamples -= removed.length;
         needed -= removed.length;
       }
-      // if still too large (queue empty but new chunk too big), drop new chunk
       if (pendingSamples + float32arr.length > MAX_PENDING_SAMPLES) {
         console.warn('[vr] dropping incoming audio chunk to avoid OOM');
         return;
       }
     }
 
-    // push copy (defensive) — ensure we own our data
     const copy = new Float32Array(float32arr.length);
     copy.set(float32arr);
     pendingBuffers.push(copy);
     pendingSamples += copy.length;
 
-    // local RMS for level
     let s=0; for (let i=0;i<copy.length;i++) s+=copy[i]*copy[i];
     const rms = Math.sqrt(s/copy.length) || 0;
     setLevel(Math.min(1, rms * 1.4));
-
-    // flush by time (timer handles) or by samples if necessary
   }
 
   function concatBuffers(arrays, total){
@@ -302,21 +292,18 @@
   function flushBuffers(){
     if (pendingSamples === 0) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // keep buffers, but if backlog becomes huge it's trimmed by handleAudioChunk
       console.log('[vr] ws not open, deferring flush (pendingSamples=', pendingSamples,')');
       return;
     }
     seq++;
     const total = pendingSamples;
     const out = concatBuffers(pendingBuffers, total);
-    // clear queues *before* send to avoid races when sending fails: we will restore on error
     pendingBuffers = []; pendingSamples = 0;
     try {
       ws.send(out.buffer);
       console.log('[vr] sent ws chunk bytes=', out.byteLength, 'seq=', seq);
     } catch (e) {
       console.warn('[vr] ws send failed', e);
-      // restore
       pendingBuffers.unshift(out);
       pendingSamples = out.length;
     }
@@ -379,7 +366,6 @@
       sendFinishHttp(finishPayload);
     }
 
-    // cleanup
     try {
       if (recorderNode) { try{recorderNode.disconnect();}catch(e){} recorderNode = null; }
       if (micStream) { micStream.getTracks().forEach(t=>t.stop()); micStream = null; }
@@ -416,17 +402,71 @@
   }, 333); }
   function stopTimer(){ if (timerInterval) clearInterval(timerInterval); timerInterval = null; setTimerText('00:00'); }
 
-  // ---------------- Wire buttons on DOMContentLoaded ----------------
+  // --- START: DOMContentLoaded replacement — inject UI if missing ---
   document.addEventListener('DOMContentLoaded', () => {
+    // try to keep user's existing elements if present
     const s = btnStart(); const p = btnPause(); const t = btnStop();
-    if (s) s.addEventListener('click', startRecording);
-    if (p) p.addEventListener('click', pauseRecording);
-    if (t) t.addEventListener('click', stopRecording);
+    const levelEl = elLevel(); const audioEl = elAudio(); const stateEl = elState();
 
-    if (!s || !p || !t || !elLevel() || !elAudio()) {
-      console.warn('[vr] some UI elements missing - ensure vr-start, vr-pause, vr-stop, vr-level, vr-audio in HTML');
+    // If core elements missing — inject a compact, styled control block that matches voicerecorderstyle.css
+    if (!s || !p || !t || !levelEl || !audioEl) {
+      console.warn('[vr] some UI elements missing - injecting minimal recorder UI');
+
+      // container where we try to append controls: prefer element with id="voicerecorder-root" if present, else body
+      let root = document.getElementById('voicerecorder-root') || document.body;
+
+      // create controls only if absent
+      if (!document.getElementById('vr-controls-injected')) {
+        const container = document.createElement('div');
+        container.id = 'vr-controls-injected';
+        container.style.margin = '12px 0';
+        container.innerHTML = `
+          <div id="controls" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+            <button id="vr-start">Start</button>
+            <button id="vr-pause">Pause</button>
+            <button id="vr-stop">Stop</button>
+            <div id="vr-state" style="margin-left:12px;font-size:14px;color:#444">idle</div>
+            <div id="vr-timer" style="margin-left:10px;font-family:monospace;color:#666">00:00</div>
+          </div>
+          <div id="rec-indicator" style="height:14px;">
+            <div id="rec-wave" style="position:relative;overflow:hidden;border-radius:6px;background:#eee;height:100%;">
+              <div id="vr-level" style="height:100%;width:0%;background:linear-gradient(90deg,#06b,#39f);transition:width 120ms linear;"></div>
+            </div>
+          </div>
+          <div id="playback" style="margin-top:10px">
+            <audio id="vr-audio" controls></audio>
+          </div>
+          <div id="transcript" style="margin-top:8px"><pre id="vr-transcript"></pre></div>
+        `;
+        root.insertBefore(container, root.firstChild);
+      }
+
+      // rebind functions to newly injected elements
+      if (btnStart() && !btnStart().hasListenerInjected) {
+        btnStart().addEventListener('click', startRecording);
+        btnStart().hasListenerInjected = true;
+      }
+      if (btnPause() && !btnPause().hasListenerInjected) {
+        btnPause().addEventListener('click', pauseRecording);
+        btnPause().hasListenerInjected = true;
+      }
+      if (btnStop() && !btnStop().hasListenerInjected) {
+        btnStop().addEventListener('click', stopRecording);
+        btnStop().hasListenerInjected = true;
+      }
+
+      setStateText('ready');
+    } else {
+      // existing elements present — attach listeners if not already attached
+      if (s && !s._vrBound) { s.addEventListener('click', startRecording); s._vrBound = true; }
+      if (p && !p._vrBound) { p.addEventListener('click', pauseRecording); p._vrBound = true; }
+      if (t && !t._vrBound) { t.addEventListener('click', stopRecording); t._vrBound = true; }
     }
+
+    const startBtn = btnStart();
+    if (startBtn) startBtn.tabIndex = 0;
   });
+  // --- END: DOMContentLoaded replacement ---
 
   // expose API & debug
   window.SmartVoiceRecorder = {
