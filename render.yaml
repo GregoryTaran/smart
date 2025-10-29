@@ -1,0 +1,10 @@
+# Optional: example render.yaml to declare a web service that uses the server/ subfolder as root.
+services:
+  - type: web
+    name: smartvision-server
+    env: python
+    region: oregon
+    branch: main
+    root: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
