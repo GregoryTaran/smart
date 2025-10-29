@@ -1,72 +1,62 @@
-# server/main.py
-# FastAPI app that serves:
-# - static frontend from ../Smart (if present)
-# - health endpoints (/health and /healthz)
-# - a simple WebSocket echo at /ws
-#
-# Place this file in `server/` (it assumes your `Smart/` frontend is a sibling folder:
-# repo-root/
-#   Smart/
-#   server/
-#
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
+import logging, os
 from pathlib import Path
-import uuid
-import logging
-import os
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("smart.main")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("server")
 
-BASE = Path(__file__).resolve().parent
-FRONT_DIR = BASE.parent / "Smart"  # ../Smart
+app = FastAPI(title="SMART Backend", version="0.1.0")
 
-app = FastAPI(title="Smart Vision — API + Static")
-
-# Allow cross-origin requests during development.
+# CORS (relaxed for dev; tighten in prod)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in production to your domains
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- API routes (import flat modules) ---
+try:
+    from api_testserver import router as testserver_router
+    app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
+except Exception as e:
+    log.warning(f"API module not loaded: {e}")
+
+# --- Health ---
 @app.get("/health")
-async def health():
+def health():
     return {"status": "ok"}
 
 @app.get("/healthz")
-async def healthz():
+def healthz():
     return {"status": "ok"}
 
-@app.get("/api/info")
-async def info():
-    return {"service": "smart", "env": dict(os.environ.get("PYTHON_VERSION", ""))}
+# --- Static mount (serve sibling Smart/ or smart/ as '/')
+CANDIDATES = [
+    Path(__file__).resolve().parents[1] / "Smart",
+    Path(__file__).resolve().parents[1] / "smart",
+]
+STATIC_ROOT = next((p.resolve() for p in CANDIDATES if p.exists()), None)
 
-# Simple WebSocket echo endpoint (example)
-@app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
-    await ws.accept()
-    client_id = str(uuid.uuid4())[:8]
-    log.info("WS connected: %s", client_id)
-    try:
-        while True:
-            # this example expects text messages; adapt if you send binary audio chunks
-            msg = await ws.receive_text()
-            log.info("WS %s recv: %s", client_id, msg[:120])
-            await ws.send_text(f"echo ({client_id}): {msg}")
-    except WebSocketDisconnect:
-        log.info("WS disconnected: %s", client_id)
-    except Exception as e:
-        log.exception("WS error: %s", e)
-
-# If frontend folder exists, serve it.
-if FRONT_DIR.exists():
-    log.info("Mounting frontend from %s", FRONT_DIR)
-    # Mount at root so index.html will be served at "/"
-    app.mount("/", StaticFiles(directory=str(FRONT_DIR), html=True), name="static")
+if STATIC_ROOT and STATIC_ROOT.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
+    log.info(f"Mounted static from: {STATIC_ROOT}")
 else:
-    log.warning("Frontend directory not found at %s — static files not mounted", FRONT_DIR)
+    log.warning("Static directory not found: expected ../Smart or ../smart")
+
+@app.get("/.static-check", response_class=JSONResponse)
+def static_check():
+    return {"mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()), "static_root": str(STATIC_ROOT) if STATIC_ROOT else None}
+
+# --- Meta info ---
+@app.get("/api/info")
+def info():
+    return JSONResponse({
+        "service": "smart-backend",
+        "python_version": os.environ.get("PYTHON_VERSION", ""),
+        "env": os.environ.get("ENV", "dev"),
+    })
