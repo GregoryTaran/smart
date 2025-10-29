@@ -1,61 +1,64 @@
 // server/server.js
-// Главный сервер-роутер для Smart Vision
-// - Статика: process.cwd()/smart
-// - Порт: process.env.PORT || 10000
-// - API: /api/<project>  (подключаем server/*.js роутеры вручную или автоматически)
-// - Минимализм: никаких ненужных middleware, предсказуемое поведение
-
+// Thin server loader: serves smart/ static and dynamically mounts routers from server/modules/*.js
+// Usage: node server/server.js
 const express = require('express');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
-const SMART_ROOT = path.join(process.cwd(), 'smart');
 const PORT = process.env.PORT || 10000;
+const SMART_ROOT = path.join(process.cwd(), 'smart');
+const MODULES_DIR = path.join(process.cwd(), 'server', 'modules');
 
-// --- basic logging (short)
+// basic logging
 app.use((req, res, next) => {
-  // короткий лог — метод + url
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`${new Date().toISOString()}  ${req.method} ${req.url}`);
   next();
 });
 
-// --- mount project-specific API routers here
-// Явно подключаем testserver router на /api/testserver
-try {
-  const testserverRouter = require('./testserver'); // server/testserver.js
-  app.use('/api/testserver', testserverRouter);
-  console.log('[server] mounted router: /api/testserver -> server/testserver.js');
-} catch (err) {
-  console.warn('[server] testserver router not mounted (missing or error):', err && err.message);
-}
+// global json body parser for simple endpoints (modules may override)
+app.use(express.json({ limit: '2mb' }));
 
-// --- serve static files from SMART_ROOT
-// This will serve requests like:
-//  GET /testserver.html  -> smart/testserver.html
-//  GET /testserver/testserverclient.js -> smart/testserver/testserverclient.js
+// serve static site
 if (!fs.existsSync(SMART_ROOT)) {
   console.error(`[server] static root not found: ${SMART_ROOT}`);
   process.exit(1);
 }
-app.use(express.static(SMART_ROOT, {
-  // disable directory listing; serve files only
-  index: 'index.html',
-  // maxAge: 0 // keep default or set cache headers here if needed
-}));
+app.use(express.static(SMART_ROOT, { index: 'index.html' }));
 
-// --- fallback: 404 for anything not found (we avoid SPA fallback to keep behavior strict)
-app.use((req, res) => {
-  res.status(404).send('Not found');
-});
+// dynamically mount modules from server/modules/*.js
+if (fs.existsSync(MODULES_DIR)) {
+  const files = fs.readdirSync(MODULES_DIR).filter(f => f.endsWith('.js'));
+  for (const f of files) {
+    const modPath = path.join(MODULES_DIR, f);
+    try {
+      // clear cache to allow replacing module files without server restart if desired
+      delete require.cache[require.resolve(modPath)];
+      const router = require(modPath);
+      if (!router || !router.stack) {
+        console.warn(`[server] module ${f} does not export an Express router — skipping`);
+        continue;
+      }
+      const mountPoint = '/api/' + path.basename(f, '.js');
+      app.use(mountPoint, router);
+      console.log(`[server] mounted ${mountPoint} -> ${modPath}`);
+    } catch (err) {
+      console.error(`[server] failed to mount module ${f}:`, err && err.stack || err);
+    }
+  }
+} else {
+  console.warn('[server] modules directory not found:', MODULES_DIR);
+}
 
-// --- error handler
+// 404 fallback (static root covers normal pages)
+app.use((req, res) => res.status(404).send('Not found'));
+
+// error handler
 app.use((err, req, res, next) => {
-  console.error('[server] error:', err && (err.stack || err.message || err));
+  console.error('[server] error:', err && (err.stack || err.message) || err);
   if (!res.headersSent) res.status(500).send('Server error');
 });
 
-// --- start
 app.listen(PORT, () => {
   console.log(`[server] listening on port ${PORT} — static root: ${SMART_ROOT}`);
 });
