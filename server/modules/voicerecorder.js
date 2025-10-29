@@ -1,129 +1,105 @@
 // server/modules/voicerecorder.js
-// Chunk-friendly VoiceRecorder module
-// - POST /api/voicerecorder/upload      (single full-file upload, multer)
-// - POST /api/voicerecorder/upload-chunk (accepts multipart chunk or raw binary; requires clientId)
-// - POST /api/voicerecorder/finish      (finalize chunked upload -> move tmp -> final file)
-// - GET  /api/voicerecorder/list
-// - GET  /api/voicerecorder/file/:name
-// - DELETE /api/voicerecorder/file/:name
-//
-// Install: npm i multer
+'use strict';
+
 const express = require('express');
 const path = require('path');
-const fs = require('fs').promises;
-const fsSync = require('fs');
+const fs = require('fs');
+const fsp = require('fs').promises;
+
+const router = express.Router();
 
 module.exports = function(app, opts = {}) {
-  const router = express.Router();
-
   const APP_ROOT = opts.APP_ROOT || process.cwd();
   const BASE_DIR = process.env.VOICERECORDER_BASE_DIR || path.join(APP_ROOT, 'voicerecorder_data');
   const TMP_DIR = path.join(BASE_DIR, 'tmp');
 
-  // ensure dirs
-  if (!fsSync.existsSync(BASE_DIR)) fsSync.mkdirSync(BASE_DIR, { recursive: true });
-  if (!fsSync.existsSync(TMP_DIR)) fsSync.mkdirSync(TMP_DIR, { recursive: true });
+  if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
+  if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
-  // utility
-  const safe = s => (s || '').toString().replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 200);
+  // try to require multer but don't fail if missing
+  let multer = null;
+  try {
+    multer = require('multer');
+  } catch (err) {
+    console.warn('multer not installed — multipart uploads disabled. Install multer to enable them.');
+  }
 
-  // multer for normal uploads or multipart chunk uploads
-  const multer = require('multer');
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, TMP_DIR),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-multer-${safe(file.originalname)}`)
-  });
-  const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } }); // 200MB limit
+  const safe = s => (s||'').toString().replace(/[^a-zA-Z0-9_\-\.]/g, '_').slice(0, 200);
 
-  // --- single-file upload (keeps compatibility) ---
-  router.post('/upload', upload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) return res.status(400).json({ ok: false, error: 'No file' });
-      // Move from tmp to final place
-      const finalName = `${Date.now()}-${safe(req.file.originalname)}`;
-      const finalPath = path.join(BASE_DIR, finalName);
-      await fs.rename(req.file.path, finalPath);
-      res.json({ ok: true, filename: finalName, url: `/api/voicerecorder/file/${encodeURIComponent(finalName)}` });
-    } catch (err) {
-      console.error('upload error', err);
-      res.status(500).json({ ok: false, error: 'Upload failed' });
-    }
-  });
+  // helper: append chunk (raw buffer)
+  async function appendChunk(clientId, buffer) {
+    const tmpFile = path.join(TMP_DIR, `${clientId}.raw`);
+    await fsp.appendFile(tmpFile, buffer);
+    await fsp.utimes(tmpFile, new Date(), new Date()).catch(()=>{});
+    return tmpFile;
+  }
 
-  // --- chunk upload --- 
-  // Handler to choose multer (for multipart/form-data) or raw binary
-  router.post('/upload-chunk', (req, res, next) => {
-    const contentType = (req.headers['content-type'] || '').toLowerCase();
-    if (contentType.startsWith('multipart/form-data')) {
-      // multer will parse field 'chunk' OR file field 'file'
-      return upload.single('chunk')(req, res, err => {
-        if (err) return next(err);
-        req._multipartParsed = true;
-        next();
-      });
-    }
-    // else parse raw body buffer for this route
-    // use express.raw middleware dynamically
-    express.raw({ type: '*/*', limit: '50mb' })(req, res, err => {
-      if (err) return next(err);
-      next();
+  // multipart upload endpoint if multer available
+  if (multer) {
+    const storage = multer.diskStorage({
+      destination: (req, file, cb) => cb(null, TMP_DIR),
+      filename: (req, file, cb) => cb(null, `${Date.now()}-multer-${safe(file.originalname)}`)
     });
-  }, async (req, res) => {
-    try {
-      // Determine clientId (from header, query, or multipart field)
-      let clientId = (req.headers['x-client-id'] || req.query.clientId || req.headers['session-id'] || req.query.sessionId || req.body && req.body.clientId) || null;
-      // If multer parsed multipart, allow clientId from form fields
-      if (req._multipartParsed && req.body && req.body.clientId) clientId = clientId || req.body.clientId;
+    const upload = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
 
-      if (!clientId) return res.status(400).json({ ok: false, error: 'clientId required (header x-client-id or ?clientId=)' });
-
-      clientId = safe(clientId);
-      const tmpFile = path.join(TMP_DIR, `${clientId}.raw`); // raw appended file
-
-      let chunkBuffer;
-      if (req._multipartParsed && req.file) {
-        // multer saved chunk to tmp file; read it and append, then remove multer temp
-        chunkBuffer = await fs.readFile(req.file.path);
-        await fs.unlink(req.file.path).catch(()=>{});
-      } else if (Buffer.isBuffer(req.body)) {
-        chunkBuffer = req.body; // express.raw produced Buffer
-      } else if (typeof req.body === 'string' && req.body.length) {
-        // fallback: body-parser might have turned into string
-        chunkBuffer = Buffer.from(req.body, 'binary');
-      } else {
-        return res.status(400).json({ ok: false, error: 'No chunk body found' });
+    router.post('/upload', upload.single('file'), async (req, res) => {
+      try {
+        if (!req.file) return res.status(400).json({ ok: false, error: 'No file' });
+        const finalName = `${Date.now()}-${safe(req.file.originalname)}`;
+        const dest = path.join(BASE_DIR, finalName);
+        await fsp.rename(req.file.path, dest);
+        res.json({ ok: true, filename: finalName, url: `/api/voicerecorder/file/${encodeURIComponent(finalName)}` });
+      } catch (err) {
+        console.error('upload error', err);
+        res.status(500).json({ ok: false, error: 'Upload failed' });
       }
+    });
 
-      // Append chunk to tmp file (atomic append)
-      await fs.appendFile(tmpFile, chunkBuffer);
-      // Optionally: store last-updated timestamp
-      await fs.utimes(tmpFile, new Date(), new Date()).catch(()=>{});
-      res.json({ ok: true, tmp: path.basename(tmpFile) });
+    // support multipart chunk field 'chunk'
+    router.post('/upload-chunk', upload.single('chunk'), async (req, res) => {
+      try {
+        const clientId = safe(req.body.clientId || req.query.clientId || req.headers['x-client-id']);
+        if (!clientId) return res.status(400).json({ ok: false, error: 'clientId required' });
+        if (!req.file) return res.status(400).json({ ok: false, error: 'No chunk file' });
+        const chunk = await fsp.readFile(req.file.path);
+        await fsp.unlink(req.file.path).catch(()=>{});
+        await appendChunk(clientId, chunk);
+        res.json({ ok: true });
+      } catch (err) {
+        console.error('upload-chunk error', err);
+        res.status(500).json({ ok: false, error: 'upload-chunk failed' });
+      }
+    });
+  } // end if multer
+
+  // raw chunk endpoint (works without multer)
+  router.post('/upload-chunk', express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+    try {
+      const clientId = safe(req.query.clientId || req.headers['x-client-id'] || (req.body && req.body.clientId));
+      if (!clientId) return res.status(400).json({ ok: false, error: 'clientId required' });
+      const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+      await appendChunk(clientId, buffer);
+      res.json({ ok: true });
     } catch (err) {
-      console.error('upload-chunk error', err);
+      console.error('raw upload-chunk error', err);
       res.status(500).json({ ok: false, error: 'upload-chunk failed' });
     }
   });
 
-  // --- finish: move tmp to final file (optionally accept metadata) ---
-  // expects JSON: { clientId, filename } or query params
-  router.post('/finish', express.json({ limit: '1mb' }), async (req, res) => {
+  // finish
+  router.post('/finish', express.json({ limit: '10kb' }), async (req, res) => {
     try {
       const clientId = safe(req.body.clientId || req.query.clientId || req.headers['x-client-id']);
       if (!clientId) return res.status(400).json({ ok: false, error: 'clientId required' });
 
       const tmpFile = path.join(TMP_DIR, `${clientId}.raw`);
-      if (!fsSync.existsSync(tmpFile)) return res.status(404).json({ ok: false, error: 'temp file not found' });
+      if (!fs.existsSync(tmpFile)) return res.status(404).json({ ok: false, error: 'temp file not found' });
 
-      // Allow client to request filename; otherwise generate timestamp name
       const requested = req.body.filename || req.query.filename || `${Date.now()}-${clientId}.raw`;
       const finalName = safe(requested);
       const finalPath = path.join(BASE_DIR, finalName);
 
-      // Move (rename) tmp -> final
-      await fs.rename(tmpFile, finalPath);
-
-      // respond with file info and URL (served by /file/:name)
+      await fsp.rename(tmpFile, finalPath);
       res.json({ ok: true, filename: finalName, url: `/api/voicerecorder/file/${encodeURIComponent(finalName)}` });
     } catch (err) {
       console.error('finish error', err);
@@ -131,15 +107,15 @@ module.exports = function(app, opts = {}) {
     }
   });
 
-  // --- list ---
+  // list / file / delete
   router.get('/list', async (req, res) => {
     try {
-      const names = await fs.readdir(BASE_DIR);
-      const items = await Promise.all(names.filter(n => n !== 'tmp').map(async name => {
-        const st = await fs.stat(path.join(BASE_DIR, name));
+      const names = (await fsp.readdir(BASE_DIR)).filter(n => n !== 'tmp');
+      const items = await Promise.all(names.map(async name => {
+        const st = await fsp.stat(path.join(BASE_DIR, name));
         return { name, size: st.size, mtime: st.mtime.toISOString() };
       }));
-      items.sort((a,b) => new Date(b.mtime) - new Date(a.mtime));
+      items.sort((a,b)=> new Date(b.mtime) - new Date(a.mtime));
       res.json({ ok: true, items });
     } catch (err) {
       console.error('list error', err);
@@ -147,12 +123,11 @@ module.exports = function(app, opts = {}) {
     }
   });
 
-  // --- serve file ---
   router.get('/file/:name', (req, res) => {
     try {
       const name = path.basename(req.params.name);
       const full = path.join(BASE_DIR, name);
-      if (!fsSync.existsSync(full)) return res.status(404).send('Not found');
+      if (!fs.existsSync(full)) return res.status(404).send('Not found');
       res.sendFile(full);
     } catch (err) {
       console.error('serve file error', err);
@@ -160,13 +135,12 @@ module.exports = function(app, opts = {}) {
     }
   });
 
-  // --- delete ---
   router.delete('/file/:name', async (req, res) => {
     try {
       const name = path.basename(req.params.name);
       const full = path.join(BASE_DIR, name);
-      if (!fsSync.existsSync(full)) return res.status(404).json({ ok: false, error: 'Not found' });
-      await fs.unlink(full);
+      if (!fs.existsSync(full)) return res.status(404).json({ ok: false, error: 'Not found' });
+      await fsp.unlink(full);
       res.json({ ok: true, deleted: name });
     } catch (err) {
       console.error('Delete error', err);
@@ -174,5 +148,10 @@ module.exports = function(app, opts = {}) {
     }
   });
 
+  // mount at /api/voicerecorder
   app.use('/api/voicerecorder', router);
 };
+
+// also export router+prefix so server loader can mount it in other styles
+module.exports.router = router;
+module.exports.prefix = '/api/voicerecorder';
