@@ -1,55 +1,93 @@
-/* smart/testserver/testserverstyle.css
-   Scoped to .testserver-page — не лезет в глобальные стили
+/* testserver/testserverstyle.css
+   Strictly scoped to .app--testserver (BEM-like naming)
+   => Не использовать глобальные селекторы здесь (button, pre и т.д.)
 */
 
-/* Контейнер контролов (только внутри testserver-page) */
-.testserver-page #test-controls {
+/* Root scope */
+.app--testserver .testserver {
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Title / lead */
+.app--testserver .testserver__title {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+.app--testserver .testserver__lead {
+  margin: 0 0 12px;
+  color: #444;
+}
+
+/* Controls container (buttons only inside this container) */
+.app--testserver .testserver__controls {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+  margin-bottom: 12px;
 }
 
-/* Кнопки — только в области test-controls */
-.testserver-page #test-controls button {
+/* Buttons - scoped */
+.app--testserver .testserver__btn {
+  font: inherit;                 /* не менять глобальный шрифт */
   padding: 8px 12px;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: #ffffff;
-  color: #111;
   border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+  color: #111;
   cursor: pointer;
-  font: inherit;
-  line-height: 1;
+  transition: transform 120ms ease, box-shadow 120ms ease;
   box-shadow: 0 6px 14px rgba(16,24,32,0.06);
+  line-height: 1;
+}
+.app--testserver .testserver__btn:hover { transform: translateY(-2px); }
+
+/* Variants */
+.app--testserver .testserver__btn--primary {
+  background: var(--accent, #197f6f);
+  color: #fff;
+  border-color: rgba(0,0,0,0.06);
+  box-shadow: 0 8px 20px rgba(25,127,111,0.12);
+}
+.app--testserver .testserver__btn--neutral {
+  background: #f7f7f7;
+  color: #111;
+  border-color: rgba(0,0,0,0.04);
+  box-shadow: none;
 }
 
-/* Hover (локально) */
-.testserver-page #test-controls button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(16,24,32,0.08);
-}
-
-/* Блок вывода — моноширинный и ограниченный по высоте */
-.testserver-page #out {
+/* Output area - monospace, limited height, scrollable */
+.app--testserver .testserver__output {
+  display: block;
   background: #0b0b0b;
   color: #0f0;
   padding: 12px;
   border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
   font-size: 13px;
   max-height: 380px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border: 1px solid rgba(255,255,255,0.03);
+  margin-top: 8px;
 }
 
-/* Мобильная адаптация */
+/* Small helpers, only inside this page */
+.app--testserver .testserver__output-title { margin-top: 12px; margin-bottom: 4px; }
+.app--testserver .small { font-size: 12px; color: #667; }
+
+/* Responsive tweaks */
 @media (max-width: 640px) {
-  .testserver-page #test-controls { gap: 6px; }
-  .testserver-page #test-controls button { padding: 8px 10px; font-size: 14px; }
+  .app--testserver .testserver__controls { gap: 6px; }
+  .app--testserver .testserver__btn { padding: 8px 10px; font-size: 14px; }
+  .app--testserver .testserver__output { font-size: 12px; }
 }
 
-/* Локальные вспомогательные классы */
-.testserver-page .small { font-size: 12px; color: #667; }
+/* Defensive: avoid touching form elements outside scope */
+.app--testserver input,
+.app--testserver textarea,
+.app--testserver select { font: inherit; }
+
+/* End of scoped file */
