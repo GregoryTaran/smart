@@ -3,20 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>1Test Server — SMART</title>
+  <title>Test Server — SMART</title>
 
-  <!-- Глобальный стиль (относительный, как в about.html) -->
+  <!-- глобальные общие стили (как в about.html) -->
   <link rel="stylesheet" href="./css/app.css">
 
-  <!-- Локальный стиль страницы -->
+  <!-- локальные стили для этой страницы -->
   <link rel="stylesheet" href="./testserver/testserverstyle.css">
 
   <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#197f6f">
 </head>
 <body>
   <div class="site-wrapper">
     <div class="app-shell">
-      <aside id="site-menu" class="site-menu"></aside>
+      <aside id="site-menu" class="site-menu" aria-hidden="false"></aside>
 
       <div class="right-col">
         <div id="site-topbar" class="site-topbar"></div>
@@ -48,37 +49,35 @@
     </div>
   </div>
 
-  <!-- Подключение фрагмент-лоадера (относительный путь) -->
+  <!-- Подгрузчик фрагментов (если есть) -->
   <script src="./js/fragment-load.js"></script>
 
-  <!-- Клиентский скрипт тестовой страницы -->
+  <!-- Клиентский скрипт страницы -->
   <script src="./testserver/testserverclient.js"></script>
 
-  <!-- Service worker регистрация -->
+  <!-- Регистрация service worker (если используется) -->
   <script src="./js/register-sw.js"></script>
 
-  <!-- Если fragment-load не выполняется — простая попытка подгрузить фрагменты -->
+  <!-- Небольшой debug-observer: включи если стили вдруг снова не применяются,
+       открой консоль и вставь этот кусок — он покажет, кто меняет <head> -->
+  <!--
   <script>
-    (function(){
-      function el(id){ return document.getElementById(id); }
-      if (!window.__fragmentLoaderExecuted) {
-        const fragMap = [
-          { id: 'site-menu', url: './menu.html' },
-          { id: 'site-topbar', url: './topbar.html' },
-          { id: 'site-footer', url: './footer.html' }
-        ];
-        fragMap.forEach(async (f) => {
-          try {
-            const r = await fetch(f.url, { cache: 'no-store' });
-            if (r.ok) {
-              const html = await r.text();
-              const node = el(f.id);
-              if (node) node.innerHTML = html;
-            }
-          } catch (e) { /* ignore */ }
+    (function watchHead(){
+      const head = document.head;
+      const mo = new MutationObserver(muts=>{
+        muts.forEach(m=>{
+          if(m.type === 'childList'){
+            m.addedNodes.forEach(n=> console.log('HEAD added:', n.nodeName, n.href || n.src || (n.textContent||'').slice(0,80)));
+            m.removedNodes.forEach(n=> console.log('HEAD removed:', n.nodeName, n.href || n.src || (n.textContent||'').slice(0,80)));
+          } else if(m.type === 'attributes'){
+            console.log('HEAD attr change:', m.target.nodeName, m.attributeName, m.target.getAttribute(m.attributeName));
+          }
         });
-      }
+      });
+      mo.observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['href','rel','media','disabled'] });
+      console.log('Head observer installed');
     })();
   </script>
+  -->
 </body>
 </html>
