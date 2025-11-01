@@ -22,13 +22,14 @@
       <div class="right-col">
         <div id="site-topbar" class="site-topbar"></div>
 
-        <!-- IMPORTANT: unique root class for scoping local styles -->
+        <!-- ВАЖНО: unique root class для scoping локальных стилей -->
         <main class="site-main app--testserver" role="main" aria-labelledby="page-title">
-          <div class="content-inner page-card">
+          <div class="content-inner">
             <h1 id="page-title">Test Server</h1>
             <p>Тестовый модуль для проверки связи фронтенда и бэкенда — инкапсуляция стилей через <code>.app--testserver</code>.</p>
 
-            <section class="testserver card">
+            <!-- Используем уникальный класс testserver__card (вместо общего "card") -->
+            <section class="testserver testserver__card">
               <h2 class="testserver__title">Проверка API</h2>
               <p class="testserver__lead">Нажми кнопку — страница пошлёт запрос на сервер и покажет ответ ниже.</p>
 
@@ -50,34 +51,8 @@
     </div>
   </div>
 
-  <!-- fragment loader (если есть) -->
   <script src="./js/fragment-load.js"></script>
-
-  <!-- клиентская логика (оставляем как есть) -->
   <script src="./testserver/testserverclient.js"></script>
-
-  <!-- регистрация SW (если используется) -->
   <script src="./js/register-sw.js"></script>
-
-  <!-- (опционально) debug observer: раскомментируй при необходимости -->
-  <!--
-  <script>
-    (function watchHead(){
-      const head = document.head;
-      const mo = new MutationObserver(muts=>{
-        muts.forEach(m=>{
-          if(m.type === 'childList'){
-            m.addedNodes.forEach(n=> console.log('HEAD added:', n.nodeName, n.href || n.src || (n.textContent||'').slice(0,80)));
-            m.removedNodes.forEach(n=> console.log('HEAD removed:', n.nodeName, n.href || n.src || (n.textContent||'').slice(0,80)));
-          } else if(m.type === 'attributes'){
-            console.log('HEAD attr change:', m.target.nodeName, m.attributeName, m.target.getAttribute(m.attributeName));
-          }
-        });
-      });
-      mo.observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['href','rel','media','disabled'] });
-      console.log('Head observer installed');
-    })();
-  </script>
-  -->
 </body>
 </html>

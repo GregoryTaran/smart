@@ -1,36 +1,45 @@
 /* testserver/testserverstyle.css
-   Strictly scoped to .app--testserver (BEM-like naming)
-   => Не использовать глобальные селекторы здесь (button, pre и т.д.)
+   STRICT SCOPING: все правила внутри .app--testserver
+   Используем BEM-подобные имена testserver__*
 */
 
-/* Root scope */
-.app--testserver .testserver {
-  padding: 16px;
+/* корневой контейнер страницы */
+.app--testserver {}
+
+/* карточка страницы (локальная, не глобальная) */
+.app--testserver .testserver__card {
+  padding: 18px;
   box-sizing: border-box;
+  background: transparent; /* не трогаем глобальную оболочку */
+  border-radius: 8px;
+  margin: 0 0 20px 0;
 }
 
 /* Title / lead */
 .app--testserver .testserver__title {
   margin: 0 0 8px;
   font-size: 1.25rem;
+  text-align: center;
 }
 .app--testserver .testserver__lead {
   margin: 0 0 12px;
   color: #444;
+  text-align: center;
 }
 
-/* Controls container (buttons only inside this container) */
+/* Controls container (только внутри этой страницы) */
 .app--testserver .testserver__controls {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: center; /* центрируем кнопки внутри main */
+  margin: 12px 0;
   align-items: center;
-  margin-bottom: 12px;
 }
 
-/* Buttons - scoped */
+/* Buttons - scoped only to this page */
 .app--testserver .testserver__btn {
-  font: inherit;                 /* не менять глобальный шрифт */
+  font: inherit;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(0,0,0,0.08);
@@ -57,9 +66,13 @@
   box-shadow: none;
 }
 
-/* Output area - monospace, limited height, scrollable */
+/* Output area */
+.app--testserver .testserver__output-title { text-align:center; margin-top: 12px; }
 .app--testserver .testserver__output {
   display: block;
+  margin: 12px auto 0 auto;
+  width: calc(100% - 40px);
+  max-width: 900px;
   background: #0b0b0b;
   color: #0f0;
   padding: 12px;
@@ -67,27 +80,27 @@
   border: 1px solid rgba(255,255,255,0.03);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
   font-size: 13px;
-  max-height: 380px;
+  max-height: 320px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  margin-top: 8px;
 }
 
-/* Small helpers, only inside this page */
-.app--testserver .testserver__output-title { margin-top: 12px; margin-bottom: 4px; }
+/* helpers inside page */
 .app--testserver .small { font-size: 12px; color: #667; }
 
-/* Responsive tweaks */
+/* Responsive */
 @media (max-width: 640px) {
-  .app--testserver .testserver__controls { gap: 6px; }
+  .app--testserver .testserver__controls { gap: 8px; justify-content: center; }
   .app--testserver .testserver__btn { padding: 8px 10px; font-size: 14px; }
-  .app--testserver .testserver__output { font-size: 12px; }
+  .app--testserver .testserver__output { font-size: 12px; width: calc(100% - 24px); }
 }
 
-/* Defensive: avoid touching form elements outside scope */
-.app--testserver input,
-.app--testserver textarea,
-.app--testserver select { font: inherit; }
+/* Defensive: ensure we don't change global header/footer */
+.app--testserver ~ .site-topbar,
+.app--testserver ~ .site-footer {}
 
-/* End of scoped file */
+/* Also explicitly avoid touching any .site-* elements */
+.app--testserver .site-menu,
+.app--testserver .site-topbar,
+.app--testserver .site-footer { all: unset; }
