@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>1234Test Server — SMART</title>
+  <title>Test Server — SMART</title>
 
-  <!-- глобальные общие стили (как в about.html) -->
+  <!-- глобальные общие стили -->
   <link rel="stylesheet" href="./css/app.css">
 
-  <!-- локальные стили для этой страницы -->
+  <!-- локальные стили для этой страницы (строго scoped) -->
   <link rel="stylesheet" href="./testserver/testserverstyle.css">
 
   <link rel="manifest" href="./manifest.json">
@@ -22,7 +22,8 @@
       <div class="right-col">
         <div id="site-topbar" class="site-topbar"></div>
 
-        <main class="site-main" role="main" aria-labelledby="page-title">
+        <!-- ВАЖНО: добавлен уникальный класс testserver-page -->
+        <main class="site-main testserver-page" role="main" aria-labelledby="page-title">
           <div class="content-inner page-card">
             <h1 id="page-title">Test Server</h1>
             <p>Тестовый модуль для проверки связи фронтенда и бэкенда.</p>
@@ -49,17 +50,11 @@
     </div>
   </div>
 
-  <!-- Подгрузчик фрагментов (если есть) -->
   <script src="./js/fragment-load.js"></script>
-
-  <!-- Клиентский скрипт страницы -->
   <script src="./testserver/testserverclient.js"></script>
-
-  <!-- Регистрация service worker (если используется) -->
   <script src="./js/register-sw.js"></script>
 
-  <!-- Небольшой debug-observer: включи если стили вдруг снова не применяются,
-       открой консоль и вставь этот кусок — он покажет, кто меняет <head> -->
+  <!-- Debug observer (раскомментируй временно, если надо следить за <head>) -->
   <!--
   <script>
     (function watchHead(){
