@@ -4,8 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Test Server — SMART</title>
-  <!-- Подключаем ваш существующий CSS (как в проекте) -->
-  <link rel="stylesheet" href="./testserver/testserverstyle.css">
+
+  <!-- 1) Глобальные общие стили (всегда первыми) -->
+  <link rel="stylesheet" href="/css/app.css">
+
+  <!-- 2) Локальные стили для этой страницы (переопределяют общие) -->
+  <link rel="stylesheet" href="/testserver/testserverstyle.css">
+
+  <!-- meta, manifest и т.п. при необходимости -->
+  <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <div class="site-wrapper">
@@ -42,13 +49,13 @@
     </div>
   </div>
 
-  <!-- Если у тебя есть фрагмент-лоадер, оставь, иначе не страшно -->
-  <script src="./js/fragment-load.js"></script>
+  <!-- Фрагмент-лоадер (если в проекте есть) -->
+  <script src="/js/fragment-load.js"></script>
 
-  <!-- Подключаем наш клиент -->
-  <script src="./testserver/testserverclient.js"></script>
+  <!-- Клиентский скрипт тестовой страницы -->
+  <script src="/testserver/testserverclient.js"></script>
 
-  <!-- service worker / регистрация (если используется) -->
-  <script src="./js/register-sw.js"></script>
+  <!-- service-worker / регистрация, если у тебя есть -->
+  <script src="/js/register-sw.js"></script>
 </body>
 </html>
