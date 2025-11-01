@@ -4,54 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Test Server — SMART</title>
-  <link rel="stylesheet" href="./css/app.css">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#197f6f">
+  <!-- Подключаем ваш существующий CSS (как в проекте) -->
+  <link rel="stylesheet" href="./testserver/testserverstyle.css">
 </head>
 <body>
   <div class="site-wrapper">
     <div class="app-shell">
-      <!-- меню подгружается фрагментом (используется ваш menu.html). -->
       <aside id="site-menu" class="site-menu"></aside>
 
       <div class="right-col">
-        <!-- topbar подгружается фрагментом (используется ваш header/topbar). -->
         <div id="site-topbar"></div>
 
         <main class="site-main">
           <div class="content-inner page-card">
             <h1>Test Server</h1>
-
             <p>Тестовый модуль для проверки связи фронтенда и бэкенда.</p>
 
             <section class="card">
               <h2>Проверка API</h2>
-              <p>Нажми кнопку — страница пошлёт запрос на серверный модуль и покажет ответ.</p>
+              <p>Нажми кнопку — страница пошлёт запрос на сервер и покажет ответ.</p>
 
-              <div id="test-controls">
+              <div id="test-controls" style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button id="btn-ping">Ping сервер</button>
                 <button id="btn-info">Info</button>
+                <button id="btn-time">Время сервера</button>
               </div>
 
+              <h3>Ответ сервера</h3>
               <pre id="out" style="white-space:pre-wrap; margin-top:12px;">Ожидание запроса...</pre>
             </section>
 
           </div>
         </main>
 
-        <!-- footer подгружается фрагментом (используется ваш footer). -->
         <div id="site-footer"></div>
       </div>
     </div>
   </div>
 
-  <!-- Подгружаем фрагменты menu/topbar/footer (как в page5). -->
+  <!-- Если у тебя есть фрагмент-лоадер, оставь, иначе не страшно -->
   <script src="./js/fragment-load.js"></script>
 
-  <!-- Клиентский скрипт проекта (положить в smart/testserver/testserverclient.js) -->
+  <!-- Подключаем наш клиент -->
   <script src="./testserver/testserverclient.js"></script>
 
-  <!-- сервис-воркер регистрация (как в проекте) -->
+  <!-- service worker / регистрация (если используется) -->
   <script src="./js/register-sw.js"></script>
 </body>
 </html>
