@@ -1,29 +1,49 @@
-/* smart/testserver/testserverstyle.css - минимальные стили для testserver */
-#test-controls {
+/* smart/testserver/testserverstyle.css
+   Scoped styles — применяются только внутри .site-main, чтобы не ломать глобальную вёрстку
+*/
+
+/* Область — строго только main страницы */
+.site-main #test-controls {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-#test-controls button {
+/* Кнопки только внутри блока test-controls (никаких глобальных button) */
+.site-main #test-controls button {
   padding: 8px 12px;
   border: 1px solid #ccc;
   background: #f7f7f7;
   border-radius: 6px;
   cursor: pointer;
+  font: inherit;              /* чтобы не менять семейство/размер шрифта страницы */
+  line-height: 1;             /* избегаем влияния на высоту строки */
+  box-shadow: none;           /* не перекрывать глобальные тени */
 }
 
-#test-controls button:hover {
+/* Hover только для наших кнопок */
+.site-main #test-controls button:hover {
   background: #eee;
 }
 
-#out {
-  background: #111;
+/* Блок вывода — только в зоне .site-main (чтобы не конфликтовать с глобальными pre/monospace) */
+.site-main #out {
+  background: #0b0b0b;
   color: #0f0;
   padding: 12px;
   border-radius: 6px;
-  font-family: monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  font-size: 13px;
   max-height: 320px;
   overflow: auto;
+  word-break: break-word;
+  border: 1px solid rgba(255,255,255,0.04);
 }
 
+/* Небольшая утилита: если нужен компактный вид кнопок на мобильных */
+@media (max-width: 640px) {
+  .site-main #test-controls { gap: 6px; }
+  .site-main #test-controls button { padding: 8px 10px; font-size: 14px; }
+}
