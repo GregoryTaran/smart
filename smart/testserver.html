@@ -5,23 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Test Server — SMART</title>
 
-  <!-- 1) Глобальные общие стили -->
-  <link rel="stylesheet" href="/css/app.css">
+  <!-- Глобальный стиль (относительный, как в about.html) -->
+  <link rel="stylesheet" href="./css/app.css">
 
-  <!-- 2) Локальные стили страницы (переопределяют общие) -->
-  <link rel="stylesheet" href="/testserver/testserverstyle.css">
+  <!-- Локальный стиль страницы -->
+  <link rel="stylesheet" href="./testserver/testserverstyle.css">
 
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="./manifest.json">
 </head>
 <body>
   <div class="site-wrapper">
     <div class="app-shell">
-      <!-- Левое меню (подгрузится фрагментом) -->
-      <aside id="site-menu" class="site-menu" aria-hidden="false"></aside>
+      <aside id="site-menu" class="site-menu"></aside>
 
-      <!-- Правая колонка — контент -->
       <div class="right-col">
-        <!-- топбар -->
         <div id="site-topbar" class="site-topbar"></div>
 
         <main class="site-main" role="main" aria-labelledby="page-title">
@@ -46,31 +43,29 @@
           </div>
         </main>
 
-        <!-- footer -->
         <div id="site-footer" class="site-footer"></div>
       </div>
     </div>
   </div>
 
-  <!-- Попытка подгрузить фрагменты меню/topbar/footer (если есть) -->
-  <script src="/js/fragment-load.js"></script>
+  <!-- Подключение фрагмент-лоадера (относительный путь) -->
+  <script src="./js/fragment-load.js"></script>
 
-  <!-- Клиентский скрипт для тестовой страницы (запросы /api/testserver/*) -->
-  <script src="/testserver/testserverclient.js"></script>
+  <!-- Клиентский скрипт тестовой страницы -->
+  <script src="./testserver/testserverclient.js"></script>
 
-  <!-- Регистрация service worker (если используется в проекте) -->
-  <script src="/js/register-sw.js"></script>
+  <!-- Service worker регистрация -->
+  <script src="./js/register-sw.js"></script>
 
-  <!-- Небольшой fallback (если fragment-load.js отсутствует) - попытаемся подгрузить простые фрагменты -->
+  <!-- Если fragment-load не выполняется — простая попытка подгрузить фрагменты -->
   <script>
     (function(){
-      // если fragment-load.js не выполнился, подгрузим фрагменты простым fetch (без ошибок)
       function el(id){ return document.getElementById(id); }
       if (!window.__fragmentLoaderExecuted) {
         const fragMap = [
-          { id: 'site-menu', url: '/menu.html' },
-          { id: 'site-topbar', url: '/topbar.html' },
-          { id: 'site-footer', url: '/footer.html' }
+          { id: 'site-menu', url: './menu.html' },
+          { id: 'site-topbar', url: './topbar.html' },
+          { id: 'site-footer', url: './footer.html' }
         ];
         fragMap.forEach(async (f) => {
           try {
@@ -80,7 +75,7 @@
               const node = el(f.id);
               if (node) node.innerHTML = html;
             }
-          } catch (e) { /* silently ignore */ }
+          } catch (e) { /* ignore */ }
         });
       }
     })();
