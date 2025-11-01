@@ -1,12 +1,9 @@
 // smart/testserver/testserverclient.js
-// Минимальный клиент для testserver
-// Работает с API по /api/testserver/*
-// Автопинг при загрузке, кнопки Ping и Info
-
 (function () {
   const out = document.getElementById('out');
   const btnPing = document.getElementById('btn-ping');
   const btnInfo = document.getElementById('btn-info');
+  const btnTime = document.getElementById('btn-time');
 
   function write(v) {
     if (!out) return;
@@ -14,12 +11,16 @@
     else out.textContent = JSON.stringify(v, null, 2);
   }
 
-  async function call(path, opts) {
+  async function call(path, opts = {}) {
     write('Ожидание ответа...');
     try {
       const res = await fetch(path, opts);
+      if (!res.ok) {
+        const text = await res.text().catch(()=>`HTTP ${res.status}`);
+        throw new Error(text || `HTTP ${res.status}`);
+      }
       const ct = res.headers.get('content-type') || '';
-      if (ct.indexOf('application/json') !== -1) {
+      if (ct.includes('application/json')) {
         const json = await res.json();
         write(json);
         return json;
@@ -35,25 +36,24 @@
   }
 
   async function ping() {
-    return call('/api/testserver/ping', { method: 'GET' });
+    return call('/api/testserver/ping', { method: 'GET', cache: 'no-store' });
   }
 
   async function info() {
-    return call('/api/testserver/info', { method: 'GET' });
+    return call('/api/testserver/info', { method: 'GET', cache: 'no-store' });
   }
 
-  // Подключаем обработчики
+  // Запрос времени сервера
+  async function time() {
+    return call('/api/testserver/time', { method: 'GET', cache: 'no-store' });
+  }
+
   if (btnPing) btnPing.addEventListener('click', ping);
   if (btnInfo) btnInfo.addEventListener('click', info);
+  if (btnTime) btnTime.addEventListener('click', time);
 
-  // Автопинг при старте (не навязчиво)
+  // Небольшой авто-пинг при загрузке, чтобы показать связь
   (async function auto() {
-    try {
-      await ping();
-    } catch (e) {
-      // ничего не делаем, уже отобразилось в out
-    }
+    try { await ping(); } catch (e) { /* отображено в out */ }
   })();
 })();
-
-
