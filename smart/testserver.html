@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Test Server — SMART</title>
 
-  <!-- глобальные общие стили -->
+  <!-- глобальный стиль -->
   <link rel="stylesheet" href="./css/app.css">
 
-  <!-- локальные стили для этой страницы (строго scoped) -->
+  <!-- локальный scoped стиль -->
   <link rel="stylesheet" href="./testserver/testserverstyle.css">
 
   <link rel="manifest" href="./manifest.json">
@@ -22,24 +22,24 @@
       <div class="right-col">
         <div id="site-topbar" class="site-topbar"></div>
 
-        <!-- ВАЖНО: добавлен уникальный класс testserver-page -->
-        <main class="site-main testserver-page" role="main" aria-labelledby="page-title">
+        <!-- IMPORTANT: unique root class for scoping local styles -->
+        <main class="site-main app--testserver" role="main" aria-labelledby="page-title">
           <div class="content-inner page-card">
             <h1 id="page-title">Test Server</h1>
-            <p>Тестовый модуль для проверки связи фронтенда и бэкенда.</p>
+            <p>Тестовый модуль для проверки связи фронтенда и бэкенда — инкапсуляция стилей через <code>.app--testserver</code>.</p>
 
-            <section class="card">
-              <h2>Проверка API</h2>
-              <p>Нажми кнопку — страница пошлёт запрос на сервер и покажет ответ ниже.</p>
+            <section class="testserver card">
+              <h2 class="testserver__title">Проверка API</h2>
+              <p class="testserver__lead">Нажми кнопку — страница пошлёт запрос на сервер и покажет ответ ниже.</p>
 
-              <div id="test-controls" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button id="btn-ping" type="button">Ping сервер</button>
-                <button id="btn-info" type="button">Info</button>
-                <button id="btn-time" type="button">Время сервера</button>
+              <div id="test-controls" class="testserver__controls">
+                <button id="btn-ping" class="testserver__btn testserver__btn--neutral" type="button">Ping сервер</button>
+                <button id="btn-info" class="testserver__btn testserver__btn--neutral" type="button">Info</button>
+                <button id="btn-time" class="testserver__btn testserver__btn--primary" type="button">Время сервера</button>
               </div>
 
-              <h3>Ответ сервера</h3>
-              <pre id="out" aria-live="polite" style="white-space:pre-wrap; margin-top:12px;">Ожидание запроса...</pre>
+              <h3 class="testserver__output-title">Ответ сервера</h3>
+              <pre id="out" class="testserver__output" aria-live="polite">Ожидание запроса...</pre>
             </section>
 
           </div>
@@ -50,11 +50,16 @@
     </div>
   </div>
 
+  <!-- fragment loader (если есть) -->
   <script src="./js/fragment-load.js"></script>
+
+  <!-- клиентская логика (оставляем как есть) -->
   <script src="./testserver/testserverclient.js"></script>
+
+  <!-- регистрация SW (если используется) -->
   <script src="./js/register-sw.js"></script>
 
-  <!-- Debug observer (раскомментируй временно, если надо следить за <head>) -->
+  <!-- (опционально) debug observer: раскомментируй при необходимости -->
   <!--
   <script>
     (function watchHead(){
