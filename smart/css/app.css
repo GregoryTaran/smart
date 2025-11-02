@@ -1,134 +1,125 @@
+/* smart/css/app.css
+   Core layout and header/footer styles.
+   Keep this file global and lightweight.
+*/
+
+/* Basic variables */
 :root{
-  --site-max: 1000px;
-  --menu-percent: 25%; /* or change to 30% if you want; current: 25% */
-  --menu-min: 220px;
-  --menu-max: 400px;
-  --topbar-h: 64px;
-  --logo-desktop: 250px;
-  --logo-mobile: 200px;
-  --muted: #667;
-  --bg: #f3f6f6;
-  --surface: #fff;
+  --site-max: 1100px;
   --accent: #197f6f;
-  --content-max: 1000px;
-  --overlay-width: 80vw;
-  --transition: 220ms ease;
+  --surface: #ffffff;
+  --muted: #667;
+  --gap: 16px;
 }
 
-/* Reset */
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:#111}
-a{color:inherit;text-decoration:none}
+/* Reset box-sizing */
+*, *::before, *::after { box-sizing: border-box; }
 
-/* Center the whole site to max width */
-.site-wrapper{max-width:var(--site-max);margin:0 auto;}
+/* Page shell */
+.site-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  background: #fafafa;
+}
 
-/* App shell inside the centered wrapper */
-.app-shell{display:flex;min-height:100vh;align-items:stretch}
+/* Left menu — keep as-is and stable */
+.site-menu {
+  width: clamp(200px, 18%, 300px);
+  background: #fff;
+  border-right: 1px solid #eee;
+  padding: 18px 12px;
+}
 
-/* Left menu - percent of wrapper (clamped min/max) */
-.site-menu{
-  flex: 0 0 clamp(var(--menu-min), var(--menu-percent), var(--menu-max));
+/* Right column: header, main, footer stacked vertically */
+.right-col {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: transparent;
+}
+
+/* Header: three-column grid — center column keeps logo centered */
+.site-topbar {
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 60;
   background: var(--surface);
-  border-right:1px solid #e8ecec;
-  padding:20px;
-  height:100vh;
-  position:sticky;
-  top:0;
-  overflow:auto;
-  z-index:30;
+  border-bottom: 1px solid #eee;
+  display: block;
+}
+.site-topbar .topbar-inner {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px; /* left / center / right */
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--site-max);
+  margin: 0 auto;
+  padding: 0 16px;
 }
 
-/* Right column is white and contains topbar, main, footer */
-.right-col{
-  flex:1 1 auto;
-  display:flex;
-  flex-direction:column;
-  min-height:100vh;
-  background:var(--surface);
+/* center */
+.site-topbar .topbar-center { justify-self: center; text-align: center; }
+.site-topbar .topbar-left { justify-self: start; }
+.site-topbar .topbar-right { justify-self: end; }
+
+/* logo */
+#site-logo {
+  height: 40px;
+  width: auto;
+  display: inline-block;
+  max-width: 100%;
+  object-fit: contain;
 }
 
-/* Topbar */
-.site-topbar{
-  height:var(--topbar-h);
-  display:flex;
-  align-items:center;
-  border-bottom:1px solid #ececec;
-  padding:0 20px;
-  background:transparent;
+/* menu toggle hide/show on desktop/mobile */
+.menu-toggle { font-size: 18px; background: none; border: none; cursor: pointer; display: none; }
+
+/* main area */
+.site-main {
+  flex: 1 1 auto;
+  padding: 28px;
+  box-sizing: border-box;
+  width: 100%;
 }
-.topbar-inner{display:flex;align-items:center;justify-content:space-between;width:100%}
-.menu-toggle{background:none;border:none;padding:8px 10px;font-size:22px;cursor:pointer;display:none}
-.top-logo{flex:1;display:flex;justify-content:center;align-items:center;}
-#site-logo{width:var(--logo-desktop);height:auto;max-width:90%;}
-
-/* Main content - center text on desktop */
-.site-main{flex:1;padding:28px;display:flex;justify-content:center;align-items:flex-start;background:transparent}
-.content-inner{width:100%;max-width:var(--content-max);margin:0 auto;}
-.page-card{background:transparent;padding:0;border-radius:0;box-shadow:none}
-.page-card h1{margin:0 0 12px}
-.page-card p{line-height:1.6;color:#1a1a1a;}
-
-/* center text for desktop */
-@media (min-width: 901px) {
-  .content-inner { text-align: center; }
+.content-inner {
+  max-width: var(--site-max);
+  margin: 0 auto;
 }
 
-/* Footer */
-.site-footer{flex:0 0 auto;border-top:1px solid #ececec;padding:16px 20px;text-align:center;color:var(--muted);background:transparent}
-
-/* Navigation */
-.site-nav{display:flex;flex-direction:column;gap:12px;position:relative} /* position relative for close button */
-.site-nav .brand{font-weight:700;color:var(--muted);font-size:18px;margin-bottom:6px}
-.site-nav ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
-.site-nav a{display:block;padding:10px 12px;border-radius:8px;border:1px solid transparent}
-.site-nav a:hover{background:#fbfffd}
-
-/* Active menu item: subtle grey */
-.site-nav a.active{
-  background:#efefef;
-  color:#111;
-  border-color:rgba(0,0,0,0.03);
+/* footer */
+.site-footer {
+  border-top: 1px solid #eee;
+  padding: 12px 16px;
+  background: #fff;
 }
 
-/* -------- mobile close button inside menu -------- */
-.menu-close{
-  display:none;           /* hidden on desktop */
-  position:absolute;
-  top:2px;
-  right:2px;
-  background:transparent;
-  border:0;
-  font-size:26px;
-  line-height:1;
-  padding:4px;
-  cursor:pointer;
-  z-index:40;
+/* footer inner layout */
+.footer-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  max-width: var(--site-max);
+  margin: 0 auto;
+  gap: 8px;
+  padding: 0 8px;
 }
+.footer-inner .footer-center { text-align: center; }
+.footer-inner .footer-left { text-align: left; }
+.footer-inner .footer-right { text-align: right; }
 
-/* Mobile: overlay menu + burger visible */
-@media (max-width:900px){
-  .site-wrapper{max-width:100%;padding:0 0;}
-  .app-shell{flex-direction:column}
-  .site-menu{
-    position:fixed;
-    left:0;
-    top:0;
-    height:100vh;
-    width:var(--overlay-width);
-    max-width:420px;
-    transform:translateX(-120%);
-    transition: transform var(--transition);
-    box-shadow: 3px 0 18px rgba(15,15,15,0.12);
-  }
-  body.menu-open .site-menu{transform:translateX(0);}
-  .menu-toggle{display:inline-block}
-  /* logo smaller on mobile */
-  #site-logo{width:var(--logo-mobile)}
-  /* content text left on mobile for readability */
-  .content-inner{padding:0 12px;text-align:left}
-  /* backdrop when menu open */
-  body.menu-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:20}
-  /* show close button on mobile */
-  .menu-close{display:inline-block;}
+/* Demo card */
+.demo-card { background: #fff; padding: 14px; border-radius: 8px; box-shadow: 0 6px 20px rgba(16,24,32,0.04); }
+
+/* Responsive: <= 900px */
+@media (max-width: 900px) {
+  .site-menu { width: 0; min-width: 0; transform: translateX(-100%); /* can be toggled by menu logic */ }
+  .menu-toggle { display: inline-block; }
+  .site-topbar { height: 56px; }
+  #site-logo { height: 34px; }
+  .site-main { padding: 18px; }
+  .footer-inner { grid-template-columns: 1fr; text-align:center; }
 }

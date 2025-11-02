@@ -1,16 +1,19 @@
-<header class="site-topbar">
-  <div class="topbar-inner">
-    <button id="menu-toggle" class="menu-toggle" aria-label="Open menu" type="button">
-      <span class="burger">&#9776;</span>
-    </button>
-
-    <!-- logo: кликабельная ссылка на index -->
-    <div class="top-logo">
-      <a href="./index.html" aria-label="Go to homepage">
-        <img src="./assets/logo400.jpg" alt="Smart Vision logo" id="site-logo">
-      </a>
-    </div>
-
-    <div class="top-space" aria-hidden="true"></div>
+<!-- smart/topbar.html -->
+<div class="topbar-inner">
+  <div class="topbar-left">
+    <button class="menu-toggle" aria-label="Menu">☰</button>
   </div>
-</header>
+
+  <div class="topbar-center">
+    <a href="/" class="top-logo-link" aria-label="Home">
+      <img id="site-logo" src="/assets/logo400.jpg" alt="Smart Vision">
+    </a>
+  </div>
+
+  <div class="topbar-right">
+    <nav class="top-actions" aria-label="Top actions">
+      <!-- Example action -->
+      <a class="action-link" href="/profile">Account</a>
+    </nav>
+  </div>
+</div>
