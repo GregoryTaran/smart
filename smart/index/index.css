@@ -1,0 +1,10 @@
+/* Локальные стили главной страницы (только зона #main) */
+.hero{
+  padding: 24px; background: #fff; border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.hero h1{ margin: 0 0 8px; }
+.welcome{
+  margin-top: 16px; padding: 16px; background: #fff; border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
