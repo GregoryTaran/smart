@@ -1,109 +1,90 @@
 // smart/js/fragment-load.js
-// Загрузка фрагментов (menu/topbar/footer) и мобильная логика меню.
-// Относительные пути используются намеренно (menu.html, topbar.html, footer.html)
-// чтобы Live Server работал корректно, когда корнем сервера является папка `smart/`.
+// Robust fragment loader — idempotent, uses absolute URLs, safe insert into container.
+// Put this <script> at the end of body (before register-sw if you use SW).
 
-(async function () {
+(function(){
   'use strict';
 
-  async function loadInto(url, id) {
+  // List fragments to load: target element ID -> URL
+  // Use absolute paths (starting with /) to avoid relative-path surprises
+  const FRAGMENTS = [
+    { id: 'site-menu', url: '/menu.html' },
+    { id: 'site-topbar', url: '/topbar.html' },
+    { id: 'site-footer', url: '/footer.html' }
+  ];
+
+  // Config
+  const FETCH_OPTS = {
+    credentials: 'include', // include cookies (useful for auth-aware fragments) - set to 'omit' if not needed
+    cache: 'no-cache'       // during development; in production you can remove or tune headers server-side
+  };
+  const MAX_RETRIES = 1;      // number of retry attempts on failure (0 = no retry)
+  const RETRY_DELAY_MS = 800; // simple delay before retry
+
+  // Helper: fetch with optional retry
+  async function fetchWithRetry(url, retries = MAX_RETRIES) {
     try {
-      const res = await fetch(url, { cache: 'no-cache' });
-      if (!res.ok) throw new Error('Fetch failed ' + res.status + ' ' + url);
-      const txt = await res.text();
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = txt;
-      return true;
+      const res = await fetch(url, FETCH_OPTS);
+      return res;
     } catch (err) {
-      console.warn('[fragment-load] failed to load', url, err);
-      return false;
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        return fetchWithRetry(url, retries - 1);
+      }
+      throw err;
     }
   }
 
-  // Load fragments in parallel
-  await Promise.all([
-    loadInto('menu.html', 'site-menu'),
-    loadInto('topbar.html', 'site-topbar'),
-    loadInto('footer.html', 'site-footer')
-  ]);
-
-  // ======= Helpers =======
-  const body = document.body;
-
-  function openMenu() { body.classList.add('menu-open'); }
-  function closeMenu() { body.classList.remove('menu-open'); }
-
-  // Normalize current path for comparison (leading slash)
-  function currentPath() {
-    let p = window.location.pathname;
-    if (!p || p === '') p = '/index.html';
-    return p;
+  // Insert HTML safely into container (replace innerHTML)
+  // Note: fragments should not contain <script> tags that need execution.
+  function insertFragment(container, html, url) {
+    // simple sanitation: we don't execute scripts from fragments automatically.
+    // If you need scripts in fragments, prefer external script files loaded separately.
+    container.innerHTML = html;
+    container.dataset.fragmentLoaded = url;
+    container.dispatchEvent(new CustomEvent('fragment:loaded', { detail: { url } }));
+    console.log('fragment-load: inserted', url, 'into', '#' + container.id);
   }
 
-  // Find and mark active menu link(s)
-  try {
-    const cur = currentPath();
-    const links = document.querySelectorAll('#site-menu a');
-    links.forEach(a => {
-      const href = a.getAttribute('href') || '';
-      // Compare absolute and trimmed forms
-      const normalizedHref = href.startsWith('/') ? href : ('/' + href.replace(/^\.\//, ''));
-      if (normalizedHref === cur) {
-        a.classList.add('active');
-      } else {
-        a.classList.remove('active');
+  // Primary loader
+  async function loadFragmentEntry(entry) {
+    const { id, url } = entry;
+    const container = document.getElementById(id);
+    if (!container) {
+      // nothing to insert into; skip quietly
+      console.warn('fragment-load: container not found', id);
+      return;
+    }
+    // skip if same url already loaded
+    if (container.dataset.fragmentLoaded === url) return;
+
+    try {
+      const res = await fetchWithRetry(url);
+      if (!res.ok) {
+        console.warn('fragment-load: fetch failed', url, res.status);
+        return;
       }
-    });
-  } catch (e) {
-    // silent
+      const text = await res.text();
+      // verify that returned HTML is not a generic index page (simple heuristic)
+      if (text.trim().length < 10) {
+        console.warn('fragment-load: empty fragment', url);
+        return;
+      }
+      insertFragment(container, text, url);
+    } catch (err) {
+      console.error('fragment-load: error loading', url, err);
+    }
   }
 
-  // ======= Attach UI behavior =======
-  // Menu toggle (burger) in topbar
-  const toggle = document.getElementById('menu-toggle');
-  if (toggle) {
-    toggle.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      if (body.classList.contains('menu-open')) closeMenu(); else openMenu();
-    });
+  // Run loader when DOM ready (early)
+  function start() {
+    FRAGMENTS.forEach(e => loadFragmentEntry(e));
   }
 
-  // Close button (✕) inside menu (mobile)
-  const closeBtn = document.getElementById('menu-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      closeMenu();
-    });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
   }
 
-  // When clicking outside the menu while it's open -> close
-  document.addEventListener('click', function (e) {
-    if (!body.classList.contains('menu-open')) return;
-    const menu = document.getElementById('site-menu');
-    if (menu && menu.contains(e.target)) return; // click inside menu -> keep open
-    closeMenu();
-  });
-
-  // Close on ESC
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' || e.key === 'Esc') closeMenu();
-  });
-
-  // Close menu when clicking a link (mobile UX)
-  try {
-    document.querySelectorAll('#site-menu a').forEach(a => {
-      a.addEventListener('click', function (ev) {
-        // If the menu is open (mobile), close it. Wait a tick so navigation can start cleanly.
-        if (body.classList.contains('menu-open')) {
-          setTimeout(() => closeMenu(), 60);
-        }
-      });
-    });
-  } catch (e) {
-    // ignore
-  }
-
-  // Debug/info
-  // console.log('[fragment-load] fragments loaded, menu controls attached');
 })();

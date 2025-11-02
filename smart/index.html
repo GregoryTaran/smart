@@ -1,30 +1,60 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Index — SMART</title>
-<link rel="stylesheet" href="./css/app.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart — Index (Fragment-load test)</title>
+
+  <!-- Глобальные стили: подключаем первыми -->
+  <link rel="stylesheet" href="./css/app.css">
+
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#197f6f">
 </head>
 <body>
   <div class="site-wrapper">
-    <div class="app-shell">
-      <aside id="site-menu" class="site-menu"></aside>
-      <div class="right-col">
-        <div id="site-topbar"></div>
-        <main class="site-main">
-          <div class="content-inner page-card">
-            <h1>Index</h1>
-            <p>Smart Vision — это проект, где простота встречается с глубиной. Мы создаём платформу, которая помогает превращать идеи в осязаемые сервисы: от записи голоса и перевода до инструментов для управления контентом и взаимодействия. Наш подход прост: каждая часть системы — отдельный модуль, который можно протестировать и заменить без влияния на остальную систему. Это ускоряет эксперименты и повышает надёжность. Мы верим в честность коммуникации и прозрачность разработки: понятная структура файлов, явные зависимости и минимальная магия в сборке. Такой фундамент делает продукт безопасным для команды и понятным для новых участников. Визия — это не только документ, но и дорожная карта действий. Мы работаем шаг за шагом: сначала стабильная статика, затем — модульные улучшения, потом — интеграция реального времени. Это позволяет быстро возвращаться к рабочей версии и внедрять инновации там, где они действительно полезны.</p>
-          </div>
-        </main>
-        <div id="site-footer"></div>
-      </div>
+    <!-- Левая панель (menu) — контейнер для фрагмента -->
+    <aside id="site-menu" class="site-menu" aria-label="Site menu">
+      <!-- fragment-load вставит сюда /menu.html -->
+    </aside>
+
+    <!-- Правая колонка: header / main / footer -->
+    <div class="right-col">
+      <!-- Контейнер для топбара — fragment-load вставит /topbar.html -->
+      <header id="site-topbar" class="site-topbar" role="banner" aria-label="Top bar">
+        <!-- fragment-load вставит HTML сюда -->
+      </header>
+
+      <!-- Основной контент -->
+      <main class="site-main" role="main" aria-labelledby="page-title">
+        <div class="content-inner">
+          <h1 id="page-title">Smart — тест fragment-load</h1>
+          <p>Эта страница тестирует загрузку фрагментов: topbar, menu и footer загружаются отдельно через JavaScript.</p>
+
+          <section class="demo-card">
+            <h2>Проверка</h2>
+            <ol>
+              <li>DevTools → Network — при загрузке должны появиться запросы к <code>/menu.html</code>, <code>/topbar.html</code> и <code>/footer.html</code>.</li>
+              <li>Containers: <code>#site-menu</code>, <code>#site-topbar</code>, <code>#site-footer</code> — должны заполниться HTML-фрагментами.</li>
+              <li>Логотип должен центрироваться и не «уезжать» при смене ширины (desktop/mobile).</li>
+            </ol>
+            <p>Если что-то пусто — открой консоль и посмотри ошибки загрузки фрагментов, либо проверь пути и кеш.</p>
+          </section>
+        </div>
+      </main>
+
+      <!-- Контейнер для футера -->
+      <footer id="site-footer" class="site-footer" role="contentinfo" aria-label="Footer">
+        <!-- fragment-load вставит сюда /footer.html -->
+      </footer>
     </div>
   </div>
+
+  <!-- Fragment loader: загружает menu/topbar/footer в соответствующие контейнеры.
+       Должен лежать по пути ./js/fragment-load.js (см. версию, которую я присылал). -->
   <script src="./js/fragment-load.js"></script>
+
+  <!-- Register SW (если используете). Поместите register-sw.js после fragment-load, чтобы SW не мешал fetch'ам при разработке -->
   <script src="./js/register-sw.js"></script>
 </body>
 </html>
