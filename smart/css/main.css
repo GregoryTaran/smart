@@ -15,9 +15,9 @@ button { font: inherit; }
 /* === Токены === */
 :root{
   --bp-desktop: 900px;        /* единственный брейкпоинт */
-  --sidebar-w: 25vw;          /* 25% ширины на ПК */
-  --sidebar-w-min: 240px;     /* минимум */
-  --sidebar-w-max: 360px;     /* максимум */
+  --sidebar-w: 20vw;          /* 20% ширины на ПК */
+  --sidebar-w-min: 200px;     /* минимум */
+  --sidebar-w-max: 300px;     /* максимум */
   --container-max: 1300px;    /* общая ширина сайта на ПК */
   --main-bg: #F5F5F5;         /* фон main и активного пункта меню */
 }
