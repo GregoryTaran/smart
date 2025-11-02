@@ -1,12 +1,12 @@
 services:
   - type: web
-    name: smart-python
+    name: smartvision-backend
     env: python
-    branch: main
-    region: oregon
-    root: server
-    buildCommand: pip install -r requirements.txt
+    rootDir: server             # бекенд лежит в /server
+    pythonVersion: 3.11.5
+    buildCommand: |
+      pip install --upgrade pip
+      pip wheel --wheel-dir .render_wheels -r requirements.txt
+      pip install --no-index --find-links .render_wheels -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.5"
+    autoDeploy: true
