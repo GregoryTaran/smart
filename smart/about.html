@@ -2,29 +2,31 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>About — SMART</title>
-<link rel="stylesheet" href="./css/app.css">
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#197f6f">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="./" />
+<title>О проекте</title>
+<link rel="icon" href="assets/logo400.jpg" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="css/main.css" />
+<link rel="stylesheet" href="about/about.css" />
 </head>
 <body>
-  <div class="site-wrapper">
-    <div class="app-shell">
-      <aside id="site-menu" class="site-menu"></aside>
-      <div class="right-col">
-        <div id="site-topbar"></div>
-        <main class="site-main">
-          <div class="content-inner page-card">
-            <h1>About</h1>
-            <p>О нас: мы создаём простые и честные инструменты для конструирования идей в реальные продукты.</p>
-          </div>
-        </main>
-        <div id="site-footer"></div>
-      </div>
-    </div>
-  </div>
-  <script src="./js/fragment-load.js"></script>
-  <script src="./js/register-sw.js"></script>
+<div id="page">
+<aside id="sidebar" aria-label="Основное меню"></aside>
+<div id="app">
+<header id="topbar" role="banner"></header>
+<main id="main" role="main">
+<section class="about">
+<h1>О проекте</h1>
+<p>SMART VISION — коллекция микросервисов и страниц проекта.</p>
+</section>
+</main>
+<footer id="footer" role="contentinfo"></footer>
+</div>
+</div>
+<div id="overlay" hidden></div>
+<script defer src="js/fragment-load.js"></script>
+<script defer src="about/about.js"></script>
+<script defer src="js/register-sw.js"></script>
 </body>
 </html>

@@ -1,0 +1,4 @@
+.rec{padding:24px;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+.controls button{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff}
+.tip{margin-top:8px;color:#666;font-size:14px}
