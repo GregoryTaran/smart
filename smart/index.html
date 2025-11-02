@@ -3,30 +3,31 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- base делает относительные ссылки стабильными локально (file://) и на сервере/в подпапке -->
+
+    <!-- base: ссылки работают корректно и локально, и на сервере -->
     <base href="./" />
 
     <title>Главная страница</title>
 
+    <!-- фавикон -->
+    <link rel="icon" href="assets/logo400.jpg" />
+
     <!-- PWA -->
     <link rel="manifest" href="manifest.json" />
 
-    <!-- Глобальные стили и стили этой страницы -->
+    <!-- Стили -->
     <link rel="stylesheet" href="css/main.css" />
     <link rel="stylesheet" href="index/index.css" />
   </head>
+
   <body>
-    <!-- Вся страница: слева #sidebar (меню), справа #app (header+main+footer) -->
+    <!-- Вся страница: слева меню, справа враппер -->
     <div id="page">
-      <!-- Левое меню (наполняется из menu.html) -->
       <aside id="sidebar" aria-label="Основное меню"></aside>
 
-      <!-- Правая часть (формальный враппер) -->
       <div id="app">
-        <!-- Хедер (подгружается из topbar.html) -->
         <header id="topbar" role="banner"></header>
 
-        <!-- Основная зона под микромодули, которые НЕ трогают header/menu/footer -->
         <main id="main" role="main">
           <section class="hero">
             <h1>SMART VISION</h1>
@@ -36,21 +37,20 @@
           <section class="welcome">
             <h2>Добро пожаловать!</h2>
             <p>
-              Здесь можно вставлять микромодули (HTML+JS). Для стилей используем префикс
-              <code>mod-*</code>, чтобы не конфликтовать с глобальными.
+              Это стартовая страница проекта SMART VISION. Здесь можно подключать
+              микромодули (HTML+JS) с префиксами классов <code>mod-*</code>.
             </p>
           </section>
         </main>
 
-        <!-- Футер (подгружается из footer.html) -->
         <footer id="footer" role="contentinfo"></footer>
       </div>
     </div>
 
-    <!-- Оверлей для мобильного меню -->
+    <!-- Мобильный оверлей -->
     <div id="overlay" hidden></div>
 
-    <!-- Скрипты: фрагменты, логика страницы, PWA -->
+    <!-- Скрипты -->
     <script defer src="js/fragment-load.js"></script>
     <script defer src="index/index.js"></script>
     <script defer src="js/register-sw.js"></script>
