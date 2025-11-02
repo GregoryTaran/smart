@@ -1,106 +1,33 @@
-/* testserver/testserverstyle.css
-   STRICT SCOPING: все правила внутри .app--testserver
-   Используем BEM-подобные имена testserver__*
-*/
-
-/* корневой контейнер страницы */
-.app--testserver {}
-
-/* карточка страницы (локальная, не глобальная) */
-.app--testserver .testserver__card {
-  padding: 18px;
-  box-sizing: border-box;
-  background: transparent; /* не трогаем глобальную оболочку */
-  border-radius: 8px;
-  margin: 0 0 20px 0;
+/* строго внутри main */
+.app--testserver .controls {
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
 }
 
-/* Title / lead */
-.app--testserver .testserver__title {
-  margin: 0 0 8px;
-  font-size: 1.25rem;
-  text-align: center;
-}
-.app--testserver .testserver__lead {
-  margin: 0 0 12px;
-  color: #444;
-  text-align: center;
+.app--testserver .btn {
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:#fff;
+  color:#111;
+  cursor:pointer;
 }
 
-/* Controls container (только внутри этой страницы) */
-.app--testserver .testserver__controls {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: center; /* центрируем кнопки внутри main */
-  margin: 12px 0;
-  align-items: center;
-}
-
-/* Buttons - scoped only to this page */
-.app--testserver .testserver__btn {
-  font: inherit;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: #fff;
-  color: #111;
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
-  box-shadow: 0 6px 14px rgba(16,24,32,0.06);
-  line-height: 1;
-}
-.app--testserver .testserver__btn:hover { transform: translateY(-2px); }
-
-/* Variants */
-.app--testserver .testserver__btn--primary {
+/* вариант primary */
+.app--testserver .btn--primary {
   background: var(--accent, #197f6f);
-  color: #fff;
-  border-color: rgba(0,0,0,0.06);
-  box-shadow: 0 8px 20px rgba(25,127,111,0.12);
-}
-.app--testserver .testserver__btn--neutral {
-  background: #f7f7f7;
-  color: #111;
-  border-color: rgba(0,0,0,0.04);
-  box-shadow: none;
+  color:#fff;
 }
 
-/* Output area */
-.app--testserver .testserver__output-title { text-align:center; margin-top: 12px; }
-.app--testserver .testserver__output {
-  display: block;
-  margin: 12px auto 0 auto;
-  width: calc(100% - 40px);
-  max-width: 900px;
-  background: #0b0b0b;
-  color: #0f0;
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.03);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
-  font-size: 13px;
-  max-height: 320px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
+/* output, только визуальные правила */
+.app--testserver .output {
+  max-width:900px;
+  margin:12px auto 0;
+  padding:12px;
+  background:#0b0b0b;
+  color:#0f0;
+  border-radius:8px;
+  overflow:auto;
 }
-
-/* helpers inside page */
-.app--testserver .small { font-size: 12px; color: #667; }
-
-/* Responsive */
-@media (max-width: 640px) {
-  .app--testserver .testserver__controls { gap: 8px; justify-content: center; }
-  .app--testserver .testserver__btn { padding: 8px 10px; font-size: 14px; }
-  .app--testserver .testserver__output { font-size: 12px; width: calc(100% - 24px); }
-}
-
-/* Defensive: ensure we don't change global header/footer */
-.app--testserver ~ .site-topbar,
-.app--testserver ~ .site-footer {}
-
-/* Also explicitly avoid touching any .site-* elements */
-.app--testserver .site-menu,
-.app--testserver .site-topbar,
-.app--testserver .site-footer { all: unset; }
