@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Test Server — SMART</title>
+
+  <!-- глобальный стиль -->
+  <link rel="stylesheet" href="./css/app.css">
+
+  <!-- локальный scoped стиль -->
+  <link rel="stylesheet" href="./testserver/testserverstyle.css">
+
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#197f6f">
+</head>
+<body>
+  <div class="site-wrapper">
+    <div class="app-shell">
+      <aside id="site-menu" class="site-menu" aria-hidden="false"></aside>
+
+      <div class="right-col">
+        <div id="site-topbar" class="site-topbar"></div>
+
+        <!-- ВАЖНО: unique root class для scoping локальных стилей -->
+        <main class="site-main app--testserver" role="main" aria-labelledby="page-title">
+          <div class="content-inner">
+            <h1 id="page-title">Test Server</h1>
+            <p>Тестовый модуль для проверки связи фронтенда и бэкенда — инкапсуляция стилей через <code>.app--testserver</code>.</p>
+
+            <!-- Используем уникальный класс testserver__card (вместо общего "card") -->
+            <section class="testserver testserver__card">
+              <h2 class="testserver__title">Проверка API</h2>
+              <p class="testserver__lead">Нажми кнопку — страница пошлёт запрос на сервер и покажет ответ ниже.</p>
+
+              <div id="test-controls" class="testserver__controls">
+                <button id="btn-ping" class="testserver__btn testserver__btn--neutral" type="button">Ping сервер</button>
+                <button id="btn-info" class="testserver__btn testserver__btn--neutral" type="button">Info</button>
+                <button id="btn-time" class="testserver__btn testserver__btn--primary" type="button">Время сервера</button>
+              </div>
+
+              <h3 class="testserver__output-title">Ответ сервера</h3>
+              <pre id="out" class="testserver__output" aria-live="polite">Ожидание запроса...</pre>
+            </section>
+
+          </div>
+        </main>
+
+        <div id="site-footer" class="site-footer"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/fragment-load.js"></script>
+  <script src="./testserver/testserverclient.js"></script>
+  <script src="./js/register-sw.js"></script>
+</body>
+</html>

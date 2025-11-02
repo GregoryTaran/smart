@@ -1,57 +1,38 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>VoiceRecorder — SMART</title>
-  <link rel="stylesheet" href="./css/app.css"> <!-- общий стиль сайта -->
-  <link rel="stylesheet" href="./voicerecorder/voicerecorderstyle.css"> <!-- наш стиль -->
-  <meta name="theme-color" content="#197f6f">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="./" />
+<title>Диктофон</title>
+<link rel="icon" href="assets/logo400.jpg" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="css/main.css" />
+<link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
 </head>
 <body>
-  <div class="site-wrapper">
-    <div class="app-shell">
-      <aside id="site-menu" class="site-menu"></aside> <!-- меню подтягивается как у других страниц -->
-      <div class="right-col">
-        <div id="site-topbar"></div>
-        <main class="site-main">
-          <div class="content-inner page-card">
-            <h1>VoiceRecorder</h1>
-
-            <div id="voicerecorder-app">
-              <div id="controls">
-                <button id="startBtn" type="button">Start</button>
-                <button id="pauseBtn" type="button">Pause</button>
-                <button id="stopBtn"  type="button">Stop</button>
-              </div>
-
-              <div id="rec-indicator">
-                <!-- горизонтальный индикатор / волны -->
-                <canvas id="rec-wave" width="600" height="60" aria-hidden="true"></canvas>
-              </div>
-
-              <div id="playback" style="margin-top:12px;">
-                <audio id="final-audio" controls></audio>
-              </div>
-
-              <div id="transcript" style="margin-top:12px;">
-                <h3>Transcript</h3>
-                <pre id="transcript-text"></pre>
-              </div>
-            </div>
-          </div>
-        </main>
-        <div id="site-footer"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- фрагмент-лоадер и сервис-воркер (как на других страницах). -->
-  <script src="./js/fragment-load.js"></script>
-  <script src="./js/register-sw.js"></script>
-
-  <!-- подключаем наши скрипты из папки voicerecorder/ -->
-  <script src="./voicerecorder/clientid.js"></script>
-  <script src="./voicerecorder/voicerecorderclient.js"></script>
+<div id="page">
+<aside id="sidebar" aria-label="Основное меню"></aside>
+<div id="app">
+<header id="topbar" role="banner"></header>
+<main id="main" role="main">
+<section class="rec">
+<h1>Диктофон</h1>
+<p>Мини-демо записи/проигрывания — заглушка.</p>
+<div class="controls">
+<button id="btnRec">● Запись</button>
+<button id="btnStop" disabled>■ Стоп</button>
+<audio id="player" controls></audio>
+</div>
+<div class="tip">Работает в браузерах с поддержкой MediaRecorder.</div>
+</section>
+</main>
+<footer id="footer" role="contentinfo"></footer>
+</div>
+</div>
+<div id="overlay" hidden></div>
+<script defer src="js/fragment-load.js"></script>
+<script defer src="voicerecorder/voicerecorder.js"></script>
+<script defer src="js/register-sw.js"></script>
 </body>
 </html>
