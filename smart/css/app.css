@@ -1,37 +1,83 @@
 /* smart/css/app.css
-   Core layout and header/footer styles.
-   Keep this file global and lightweight.
+   Improved core layout and visual polish for Smart Vision
+   - stable header (3-col grid), responsive
+   - left menu preserved and styled
+   - right-col (header / main / footer) is flex column; main is scrollable
+   - non-invasive: avoid global resets, keep styles predictable
 */
 
-/* Basic variables */
+/* -------- Vars & base -------- */
 :root{
   --site-max: 1100px;
   --accent: #197f6f;
+  --accent-600: #186b59;
+  --muted: #6b7280;
   --surface: #ffffff;
-  --muted: #667;
-  --gap: 16px;
+  --bg: #fafafa;
+  --shadow-1: 0 8px 24px rgba(16,24,32,0.06);
+  --card-border: rgba(16,24,32,0.04);
+  --radius: 10px;
+  --gutter: 16px;
+  --topbar-h: 64px;
+  --topbar-h-mobile: 56px;
+  --transition-fast: 150ms ease;
 }
 
-/* Reset box-sizing */
+/* Font stack */
+body {
+  margin: 0;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  color: #111827;
+  background: var(--bg);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height: 1.5;
+}
+
+/* Box sizing safe */
 *, *::before, *::after { box-sizing: border-box; }
 
-/* Page shell */
+/* -------- Page shell -------- */
 .site-wrapper {
   min-height: 100vh;
   display: flex;
   align-items: stretch;
-  background: #fafafa;
+  width: 100%;
 }
 
-/* Left menu — keep as-is and stable */
+/* Left menu - stable width, visually light */
 .site-menu {
-  width: clamp(200px, 18%, 300px);
-  background: #fff;
+  width: clamp(210px, 18%, 300px);
+  background: var(--surface);
   border-right: 1px solid #eee;
-  padding: 18px 12px;
+  padding: 20px 14px;
+  overflow: auto;
 }
 
-/* Right column: header, main, footer stacked vertically */
+/* Menu list */
+.site-menu nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+}
+.site-menu nav li {
+  margin: 10px 0;
+}
+.site-menu a {
+  color: #0b4860;
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.site-menu a:hover {
+  background: rgba(25,127,111,0.06);
+  color: var(--accent-600);
+}
+
+/* Keep the right column as a vertical stack: topbar / main / footer */
 .right-col {
   flex: 1 1 auto;
   display: flex;
@@ -40,9 +86,9 @@
   background: transparent;
 }
 
-/* Header: three-column grid — center column keeps logo centered */
+/* -------- Topbar (header) -------- */
 .site-topbar {
-  height: 64px;
+  height: var(--topbar-h);
   position: sticky;
   top: 0;
   z-index: 60;
@@ -50,6 +96,8 @@
   border-bottom: 1px solid #eee;
   display: block;
 }
+
+/* inner container ensures horizontal centering and three columns */
 .site-topbar .topbar-inner {
   display: grid;
   grid-template-columns: 48px 1fr 48px; /* left / center / right */
@@ -59,45 +107,113 @@
   max-width: var(--site-max);
   margin: 0 auto;
   padding: 0 16px;
+  box-sizing: border-box;
 }
 
-/* center */
-.site-topbar .topbar-center { justify-self: center; text-align: center; }
+/* alignment helpers */
 .site-topbar .topbar-left { justify-self: start; }
+.site-topbar .topbar-center { justify-self: center; text-align: center; }
 .site-topbar .topbar-right { justify-self: end; }
 
 /* logo */
-#site-logo {
+.top-logo-link, .top-logo-link img, #site-logo {
+  display: inline-block;
   height: 40px;
   width: auto;
-  display: inline-block;
   max-width: 100%;
   object-fit: contain;
 }
 
-/* menu toggle hide/show on desktop/mobile */
-.menu-toggle { font-size: 18px; background: none; border: none; cursor: pointer; display: none; }
+/* menu-toggle (hamburger) */
+.menu-toggle {
+  display: none; /* shown in mobile breakpoints */
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
 
-/* main area */
+/* small action links in topbar */
+.top-actions { display: inline-flex; gap: 8px; align-items:center; }
+.action-link { color: #0b4860; text-decoration: none; font-weight:500; }
+.action-link:hover { color: var(--accent-600); }
+
+/* -------- Main area -------- */
+/* main grows and is scrollable inside right-col */
 .site-main {
   flex: 1 1 auto;
-  padding: 28px;
-  box-sizing: border-box;
+  min-height: 0;    /* IMPORTANT for flex children to allow inner scroll */
+  overflow: auto;   /* scroll inside main, not the whole page */
   width: 100%;
+  box-sizing: border-box;
+  background: transparent;
 }
+
+/* inner content wrapper to center and contain widths */
 .content-inner {
   max-width: var(--site-max);
   margin: 0 auto;
+  padding: 28px 20px;
 }
 
-/* footer */
+/* simple typographic scale for headings */
+.content-inner h1 { margin: 0 0 12px; font-size: 2rem; font-weight:700; color: #0b3250; }
+.content-inner h2 { margin: 8px 0 10px; font-size: 1.25rem; color: #0e2a3e; }
+.content-inner p { margin: 0 0 12px; color: #334155; }
+
+/* demo card / white panel */
+.demo-card, .card, .page-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--card-border);
+}
+
+/* small utility */
+.small { font-size: 13px; color: var(--muted); }
+
+/* -------- Buttons (light, local-friendly) -------- */
+button, .btn {
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+button:hover, .btn:hover { transform: translateY(-2px); }
+.btn--primary {
+  background: var(--accent);
+  color: white;
+  border-color: rgba(0,0,0,0.06);
+  box-shadow: 0 8px 20px rgba(25,127,111,0.12);
+}
+
+/* -------- Output / code blocks -------- */
+pre, code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+}
+.output {
+  background: #0b0b0b;
+  color: #0f0;
+  padding: 12px;
+  border-radius: 8px;
+  max-width: 900px;
+  margin: 12px auto 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* -------- Footer -------- */
 .site-footer {
   border-top: 1px solid #eee;
-  padding: 12px 16px;
-  background: #fff;
+  padding: 16px 12px;
+  background: var(--surface);
 }
-
-/* footer inner layout */
 .footer-inner {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -108,18 +224,25 @@
   padding: 0 8px;
 }
 .footer-inner .footer-center { text-align: center; }
-.footer-inner .footer-left { text-align: left; }
+.footer-inner .footer-left { text-align: left; color: var(--muted); }
 .footer-inner .footer-right { text-align: right; }
 
-/* Demo card */
-.demo-card { background: #fff; padding: 14px; border-radius: 8px; box-shadow: 0 6px 20px rgba(16,24,32,0.04); }
+/* -------- Utilities and helpers -------- */
+.center { text-align:center; }
+.container { max-width: var(--site-max); margin: 0 auto; padding: 0 16px; }
 
-/* Responsive: <= 900px */
+/* -------- Responsive (<=900px) -------- */
 @media (max-width: 900px) {
-  .site-menu { width: 0; min-width: 0; transform: translateX(-100%); /* can be toggled by menu logic */ }
+  .site-menu { display: none; } /* menu toggle logic should show it */
   .menu-toggle { display: inline-block; }
-  .site-topbar { height: 56px; }
-  #site-logo { height: 34px; }
-  .site-main { padding: 18px; }
+
+  .site-topbar { height: var(--topbar-h-mobile); }
+  .site-topbar .topbar-inner { padding: 0 12px; grid-template-columns: 48px 1fr 48px; }
+  #site-logo, .top-logo-link img { height: 34px; }
+
+  .content-inner { padding: 18px 12px; }
   .footer-inner { grid-template-columns: 1fr; text-align:center; }
 }
+
+/* -------- Defensive: avoid touching deep global tags -------- */
+/* We avoid global resets here; keep changes constrained to layout components above. */
