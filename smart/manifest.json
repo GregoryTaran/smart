@@ -1,12 +1,12 @@
 {
-  "name": "Smart Vision",
-  "short_name": "Smart",
-  "start_url": ".",
+  "name": "SMART VISION",
+  "short_name": "SMART VISION",
+  "start_url": "index.html",
   "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
     { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
-  ],
-  "background_color": "#ffffff",
-  "theme_color": "#000000"
+  ]
 }

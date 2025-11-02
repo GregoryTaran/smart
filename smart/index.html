@@ -1,60 +1,58 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Smart — Index (Fragment-load test)</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- base делает относительные ссылки стабильными локально (file://) и на сервере/в подпапке -->
+    <base href="./" />
 
-  <!-- Глобальные стили: подключаем первыми -->
-  <link rel="stylesheet" href="./css/app.css">
+    <title>Главная страница</title>
 
-  <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#197f6f">
-</head>
-<body>
-  <div class="site-wrapper">
-    <!-- Левая панель (menu) — контейнер для фрагмента -->
-    <aside id="site-menu" class="site-menu" aria-label="Site menu">
-      <!-- fragment-load вставит сюда /menu.html -->
-    </aside>
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json" />
 
-    <!-- Правая колонка: header / main / footer -->
-    <div class="right-col">
-      <!-- Контейнер для топбара — fragment-load вставит /topbar.html -->
-      <header id="site-topbar" class="site-topbar" role="banner" aria-label="Top bar">
-        <!-- fragment-load вставит HTML сюда -->
-      </header>
+    <!-- Глобальные стили и стили этой страницы -->
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="index/index.css" />
+  </head>
+  <body>
+    <!-- Вся страница: слева #sidebar (меню), справа #app (header+main+footer) -->
+    <div id="page">
+      <!-- Левое меню (наполняется из menu.html) -->
+      <aside id="sidebar" aria-label="Основное меню"></aside>
 
-      <!-- Основной контент -->
-      <main class="site-main" role="main" aria-labelledby="page-title">
-        <div class="content-inner">
-          <h1 id="page-title">Smart — тест fragment-load</h1>
-          <p>Эта страница тестирует загрузку фрагментов: topbar, menu и footer загружаются отдельно через JavaScript.</p>
+      <!-- Правая часть (формальный враппер) -->
+      <div id="app">
+        <!-- Хедер (подгружается из topbar.html) -->
+        <header id="topbar" role="banner"></header>
 
-          <section class="demo-card">
-            <h2>Проверка</h2>
-            <ol>
-              <li>DevTools → Network — при загрузке должны появиться запросы к <code>/menu.html</code>, <code>/topbar.html</code> и <code>/footer.html</code>.</li>
-              <li>Containers: <code>#site-menu</code>, <code>#site-topbar</code>, <code>#site-footer</code> — должны заполниться HTML-фрагментами.</li>
-              <li>Логотип должен центрироваться и не «уезжать» при смене ширины (desktop/mobile).</li>
-            </ol>
-            <p>Если что-то пусто — открой консоль и посмотри ошибки загрузки фрагментов, либо проверь пути и кеш.</p>
+        <!-- Основная зона под микромодули, которые НЕ трогают header/menu/footer -->
+        <main id="main" role="main">
+          <section class="hero">
+            <h1>SMART VISION</h1>
+            <p>Место, где визия превращается в реализацию.</p>
           </section>
-        </div>
-      </main>
 
-      <!-- Контейнер для футера -->
-      <footer id="site-footer" class="site-footer" role="contentinfo" aria-label="Footer">
-        <!-- fragment-load вставит сюда /footer.html -->
-      </footer>
+          <section class="welcome">
+            <h2>Добро пожаловать!</h2>
+            <p>
+              Здесь можно вставлять микромодули (HTML+JS). Для стилей используем префикс
+              <code>mod-*</code>, чтобы не конфликтовать с глобальными.
+            </p>
+          </section>
+        </main>
+
+        <!-- Футер (подгружается из footer.html) -->
+        <footer id="footer" role="contentinfo"></footer>
+      </div>
     </div>
-  </div>
 
-  <!-- Fragment loader: загружает menu/topbar/footer в соответствующие контейнеры.
-       Должен лежать по пути ./js/fragment-load.js (см. версию, которую я присылал). -->
-  <script src="./js/fragment-load.js"></script>
-  <script src="./js/menu-toggle.js"></script>
-  <!-- Register SW (если используете). Поместите register-sw.js после fragment-load, чтобы SW не мешал fetch'ам при разработке -->
-  <script src="./js/register-sw.js"></script>
-</body>
+    <!-- Оверлей для мобильного меню -->
+    <div id="overlay" hidden></div>
+
+    <!-- Скрипты: фрагменты, логика страницы, PWA -->
+    <script defer src="js/fragment-load.js"></script>
+    <script defer src="index/index.js"></script>
+    <script defer src="js/register-sw.js"></script>
+  </body>
 </html>
