@@ -1,19 +1,14 @@
-<!-- smart/topbar.html -->
+<!-- Верхняя панель (не липкая). -->
 <div class="topbar-inner">
-  <div class="topbar-left">
-    <button class="menu-toggle" aria-label="Menu">☰</button>
-  </div>
+  <!-- Кнопка мобильного меню (на ПК скрыта визуально) -->
+  <button class="menu-toggle" data-action="open-menu"
+          aria-controls="sidebar" aria-expanded="false" aria-label="Открыть меню">☰</button>
 
-  <div class="topbar-center">
-    <a href="/" class="top-logo-link" aria-label="Home">
-      <img id="site-logo" src="/assets/logo400.jpg" alt="Smart Vision">
-    </a>
-  </div>
+  <!-- Логотип по центру, ссылка на индекс -->
+  <a class="logo" href="index.html">
+    <img src="assets/logo400.jpg" alt="SMART VISION" />
+  </a>
 
-  <div class="topbar-right">
-    <nav class="top-actions" aria-label="Top actions">
-      <!-- Example action -->
-      <a class="action-link" href="/profile">Account</a>
-    </nav>
-  </div>
+  <!-- Справа ссылка на логин -->
+  <a class="login-link" href="login.html">Логин</a>
 </div>

@@ -1,0 +1,100 @@
+/*
+  main.css — минимальный reset + токены + макет.
+  ВАЖНО: дружелюбно к микромодулям (ничего глобального, что ломает #main).
+*/
+
+/* === Reset (минимальный) === */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 16px; color: #111; background: #fff; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: #1ABC9C; text-decoration: none; }
+a:hover { filter: brightness(0.85); }
+button { font: inherit; }
+
+/* === Токены === */
+:root{
+  --bp-desktop: 900px;        /* единственный брейкпоинт */
+  --sidebar-w: 25vw;          /* 25% ширины на ПК */
+  --sidebar-w-min: 240px;     /* минимум */
+  --sidebar-w-max: 360px;     /* максимум */
+  --container-max: 1300px;    /* общая ширина сайта на ПК */
+  --main-bg: #F5F5F5;         /* фон main и активного пункта меню */
+}
+
+/* === Каркас === */
+#page{
+  display: grid;
+  grid-template-columns: 1fr; /* мобайл по умолчанию */
+  min-height: 100svh;
+}
+
+/* Базовые фоны секций */
+#sidebar, #topbar, #footer { background: #fff; }
+#main { background: var(--main-bg); }
+
+/* Отступы */
+#topbar, #footer { padding: 0 16px; }
+#main { padding: 16px; }
+
+/* Оверлей для мобильного меню */
+#overlay{ position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
+
+/* === Header === */
+.topbar-inner{
+  height: 80px; display: grid; align-items: center;
+  grid-template-columns: 48px 1fr 80px; gap: 8px;
+}
+.topbar-inner .menu-toggle{
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border: 1px solid #ddd; background: #fff; border-radius: 8px;
+}
+.topbar-inner .logo{ justify-self: center; }
+.topbar-inner .logo img{ width: 220px; }   /* мобайл */
+.topbar-inner .login-link{ justify-self: end; align-self: center; }
+
+/* === Меню === */
+.menu{ padding: 12px 0; }
+.menu ul{ list-style: none; margin: 0; padding: 0; }
+.menu li{ border-top: 1px solid #eee; }
+.menu li:last-child{ border-bottom: 1px solid #eee; }
+.menu a{ display: block; padding: 12px 16px; color: inherit; }
+.menu a.is-active{ background: var(--main-bg); }
+
+/* Мобайл: сайдбар как выезжающая панель */
+#sidebar{
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: 75vw; max-width: 420px; background: #fff;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+  transform: translateX(-100%);
+  transition: transform .2s ease-out;
+  overflow: auto; z-index: 20;
+}
+#overlay{ z-index: 10; }
+
+/* Состояние открытого меню (вешаем на body класс .menu-open) */
+body.menu-open #sidebar{ transform: translateX(0); }
+body.menu-open #overlay{ display: block; }
+
+/* === Десктоп (≥900px) === */
+@media (min-width: 900px){
+  /* Сетка: слева меню, справа контент; вся конструкция ограничена 1300px и центрируется */
+  #page{
+    grid-template-columns: var(--sidebar-w) 1fr;
+    max-width: var(--container-max);
+    margin: 0 auto;
+  }
+  /* Сайдбар: фикс ширина с min/max; высота 100vh; внутренний скролл; без теней и трансформаций */
+  #sidebar{
+    position: sticky; top: 0; height: 100vh;
+    width: clamp(var(--sidebar-w-min), var(--sidebar-w), var(--sidebar-w-max));
+    transform: none; box-shadow: none; border-right: 1px solid #eee;
+  }
+  /* Оверлей не нужен */
+  #overlay{ display: none !important; }
+
+  /* Лого шире на ПК, кнопку скрываем визуально */
+  .topbar-inner{ grid-template-columns: 48px 1fr 120px; }
+  .topbar-inner .logo img{ width: 300px; }
+  .topbar-inner .menu-toggle{ visibility: hidden; }
+}
