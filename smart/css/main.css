@@ -98,3 +98,12 @@ body.menu-open #overlay{ display: block; }
   .topbar-inner .logo img{ width: 300px; }
   .topbar-inner .menu-toggle{ visibility: hidden; }
 }
+/* === Footer === */
+.footer-inner {
+  text-align: center;
+  padding: 24px 16px;
+  line-height: 1.6;
+}
+.footer-inner a {
+  color: inherit;
+}
