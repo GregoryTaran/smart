@@ -1,21 +1,14 @@
 # render.yaml
 # Render.com service definition for SMART (backend)
-# This configuration purposely avoids Poetry during build and uses system ffmpeg.
-# Put this file in the repository root (or adapt fields to match your existing render.yaml).
+# This configuration avoids Poetry interference and installs system ffmpeg.
+# Place in repository root (replace existing render.yaml).
 
 services:
   - type: web
     name: smart-backend
     env: python
-    # branch to deploy
     branch: main
 
-    # Build command: ensure ffmpeg, clean pip cache, update pip tooling
-    # and install dependencies from server/requirements.txt preferring binary wheels.
-    #
-    # Notes:
-    # - We try to remove any auto-installed Poetry directories (if present) to avoid Poetry interfering.
-    # - Using --no-cache-dir and --prefer-binary reduces source builds and speeds deployment.
     build:
       command: |
         echo "[render build] start"
@@ -37,23 +30,14 @@ services:
 
         echo "[render build] done"
 
-    # Start command: run uvicorn server
     startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
 
-    # Optional: instance size / autoscaling
-    plan: free # change to your plan (starter, professional, etc.)
+    plan: free # change to your plan if needed
 
-    # Environment variables for the service (add OPENAI_API_KEY in Render UI or here)
-    # Note: sensitive variables (OPENAI_API_KEY) are better set in Render dashboard, not in repo.
+    # Environment variables: ADD OPENAI_API_KEY as a secret in Render Dashboard (do NOT put secret in repo)
     envVars:
       - key: ENV
         value: production
-      - key: VOICE_BASE_DIR
-        value: '' # optional override; leave empty to use cwd-based default
-      # do NOT add OPENAI_API_KEY here in repo; add in Render Dashboard as secret
 
-    # Health checks (optional)
     healthCheckPath: /health
     autoDeploy: true
-
-# End of render.yaml
