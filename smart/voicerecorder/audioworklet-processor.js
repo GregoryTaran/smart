@@ -9,18 +9,25 @@ class ChunkerProcessor extends AudioWorkletProcessor {
 
     // default chunk length seconds (can be overridden by main thread via message)
     this.chunkSeconds = 2;
-    this.sampleRate = sampleRate; // global in AudioWorkletProcessor
+    this.sampleRate = sampleRate; // provided by environment
 
-    // prepare initial buffer size
     this._ensureBuffer();
 
     this.port.onmessage = (ev) => {
       const d = ev.data;
-      if (d && d.type === 'set_chunk_seconds') {
+      if (!d) return;
+      if (d.type === 'set_chunk_seconds') {
         this.chunkSeconds = Number(d.value) || 2;
         this._ensureBuffer();
+      } else if (d.type === 'flush') {
+        // send any partially filled buffer immediately
+        if (this._writeIndex > 0) {
+          const partial = new Float32Array(this._writeIndex);
+          partial.set(this._buffer.subarray(0, this._writeIndex));
+          this.port.postMessage({ type: 'chunk', buffer: partial.buffer }, [partial.buffer]);
+          this._writeIndex = 0;
+        }
       }
-      // other commands may be processed here
     };
   }
 
@@ -39,7 +46,6 @@ class ChunkerProcessor extends AudioWorkletProcessor {
       return true;
     }
     const channelData = input[0];
-    // push channelData into internal buffer(s)
     let offset = 0;
     while (offset < channelData.length) {
       const remaining = this._buffer.length - this._writeIndex;
@@ -50,16 +56,13 @@ class ChunkerProcessor extends AudioWorkletProcessor {
 
       if (this._writeIndex >= this._buffer.length) {
         // buffer full — transfer to main thread
-        // copy to prevent reuse issues
         const sendBuf = new Float32Array(this._buffer);
-        // postMessage with transferable ArrayBuffer
         this.port.postMessage({ type: 'chunk', buffer: sendBuf.buffer }, [sendBuf.buffer]);
-        // reset write index
         this._writeIndex = 0;
       }
     }
 
-    // smaller message for VU meter (RMS)
+    // VU meter RMS message (lightweight)
     const rms = this._calcRMS(channelData);
     this.port.postMessage({ type: 'level', rms });
 
