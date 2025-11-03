@@ -1,9 +1,8 @@
 /* smart/voicerecorder/voicerecorder.css
    Scoped styles: все селекторы начинаются с #main[data-module="voicerecorder"]
-   Это предотвращает пересечение с main.css (ваш глобальный стиль).
-   Исходник: см. загруженный файл. :contentReference[oaicite:10]{index=10}
 */
 
+/* Container */
 #main[data-module="voicerecorder"] { padding: 20px; box-sizing: border-box; }
 
 /* Card */
@@ -22,7 +21,7 @@
   letter-spacing: .2px;
 }
 
-/* Controls (scoped) */
+/* Controls */
 #main[data-module="voicerecorder"] .vc-controls {
   display: flex;
   gap: 10px;
@@ -47,7 +46,7 @@
 #main[data-module="voicerecorder"] .vc-btn-pause { background: #f59e0b; color: white; border: none; }
 #main[data-module="voicerecorder"] .vc-btn-stop  { background: #ef4444; color: white; border: none; }
 
-/* Visualizer */
+/* Visualizer wrapper */
 #main[data-module="voicerecorder"] .vc-visualizer {
   display: flex;
   gap: 12px;
@@ -56,13 +55,40 @@
   flex-wrap: wrap;
 }
 
-#main[data-module="voicerecorder"] .vc-canvas {
+/* Waveform container (bars) */
+#main[data-module="voicerecorder"] .vc-waveform {
   width: 100%;
-  max-width: 720px;
-  height: 120px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  background: linear-gradient(90deg,#f7fafc 0,#ffffff 100%); /* subtle background */
   border-radius: 8px;
-  background: linear-gradient(90deg,#071029 0,#091427 100%);
-  display: block;
+  border: 1px solid #eef2f7;
+}
+
+/* Bar */
+#main[data-module="voicerecorder"] .vc-waveform .bar {
+  display: inline-block;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #111 0%, #444 100%);
+  transition: height 120ms linear, opacity 120ms linear;
+  align-self: center;
+  height: 14px;
+}
+
+/* Center accent */
+#main[data-module="voicerecorder"] .vc-waveform .bar.center {
+  width: 6px;
+  background: linear-gradient(180deg, #000 0%, #222 100%);
 }
 
 /* small level dot */
@@ -128,8 +154,17 @@
   font-size: 14px;
 }
 
-/* Responsive */
+/* Responsive adjustments */
 @media (max-width: 700px) {
   #main[data-module="voicerecorder"] .vc-visualizer { flex-direction: column; }
-  #main[data-module="voicerecorder"] .vc-canvas { width: 100%; height: 100px; }
+  #main[data-module="voicerecorder"] .vc-waveform { height: 40px; padding: 4px 6px; gap: 3px; }
+  #main[data-module="voicerecorder"] .vc-waveform .bar { width: 3px; height: 12px; }
+  #main[data-module="voicerecorder"] .vc-waveform .bar.center { width: 5px; }
+  #main[data-module="voicerecorder"] .vc-canvas { height: 100px; }
+}
+
+/* Hide share button temporarily (requested) */
+#main[data-module="voicerecorder"] .vc-share,
+#main[data-module="voicerecorder"] #vc-share {
+  display: none !important;
 }
