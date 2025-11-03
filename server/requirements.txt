@@ -8,6 +8,3 @@ pydub>=0.25.1
 
 # OpenAI client
 openai>=1.0.0
-
-# utilities
-starlette==0.30.0
