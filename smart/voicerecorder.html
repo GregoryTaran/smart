@@ -1,37 +1,63 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<base href="./" />
-<title>Диктофон</title>
-<link rel="icon" href="assets/logo400.jpg" />
-<link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="css/main.css" />
-<link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="./" />
+  <title>Диктофон</title>
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/main.css" />
+  <!-- voicerecorder CSS (scoped to #main[data-module="voicerecorder"]) -->
+  <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
 </head>
 <body>
 <div id="page">
-<aside id="sidebar" aria-label="Основное меню"></aside>
-<div id="app">
-<header id="topbar" role="banner"></header>
-<main id="main" role="main">
-<section class="rec">
-<h1>Диктофон</h1>
-<p>Мини-демо записи/проигрывания — заглушка.</p>
-<div class="controls">
-<button id="btnRec">● Запись</button>
-<button id="btnStop" disabled>■ Стоп</button>
-<audio id="player" controls></audio>
+  <aside id="sidebar" aria-label="Основное меню"></aside>
+  <div id="app">
+    <header id="topbar" role="banner"></header>
+
+    <!-- IMPORTANT: module is strictly namespaced by data-module attr -->
+    <main id="main" role="main" data-module="voicerecorder">
+      <section class="vc-recorder" aria-labelledby="vc-title">
+        <h1 id="vc-title" class="vc-title">ДИКТОФОН</h1>
+
+        <div class="vc-controls" role="region" aria-label="Управление записью">
+          <button id="vc-btn-start" class="vc-btn vc-btn-start" aria-pressed="false">СТАРТ</button>
+          <button id="vc-btn-pause" class="vc-btn vc-btn-pause" disabled>ПАУЗА</button>
+          <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
+        </div>
+
+        <div class="vc-visualizer" aria-hidden="false">
+          <canvas id="vc-vu" width="720" height="120" class="vc-canvas"></canvas>
+          <div id="vc-level" class="vc-level" aria-hidden="true"></div>
+        </div>
+
+        <div class="vc-result">
+          <div class="vc-player">
+            <audio id="vc-audio" controls></audio>
+            <a id="vc-download" class="vc-download" href="#" download>Скачать</a>
+            <button id="vc-share" class="vc-share" disabled>Share</button>
+          </div>
+
+          <div class="vc-transcript" aria-live="polite">
+            <h2 class="vc-sub">Текстовая версия</h2>
+            <div id="vc-transcript" class="vc-transcript-box" contenteditable="false"></div>
+          </div>
+        </div>
+
+        <div id="vc-status" class="vc-status" aria-live="status">Готов</div>
+      </section>
+    </main>
+
+    <footer id="footer" role="contentinfo"></footer>
+  </div>
 </div>
-<div class="tip">Работает в браузерах с поддержкой MediaRecorder.</div>
-</section>
-</main>
-<footer id="footer" role="contentinfo"></footer>
-</div>
-</div>
+
 <div id="overlay" hidden></div>
+
 <script defer src="js/fragment-load.js"></script>
+<!-- voicerecorder module script (scoped) -->
 <script defer src="voicerecorder/voicerecorder.js"></script>
 <script defer src="js/register-sw.js"></script>
 </body>

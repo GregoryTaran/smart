@@ -1,4 +1,135 @@
-.rec{padding:24px;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
-.controls{display:flex;gap:8px;align-items:center;margin-top:12px}
-.controls button{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff}
-.tip{margin-top:8px;color:#666;font-size:14px}
+/* smart/voicerecorder/voicerecorder.css
+   Scoped styles: все селекторы начинаются с #main[data-module="voicerecorder"]
+   Это предотвращает пересечение с main.css (ваш глобальный стиль).
+   Исходник: см. загруженный файл. :contentReference[oaicite:10]{index=10}
+*/
+
+#main[data-module="voicerecorder"] { padding: 20px; box-sizing: border-box; }
+
+/* Card */
+#main[data-module="voicerecorder"] .vc-recorder {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+  max-width: 100%;
+}
+
+/* Title */
+#main[data-module="voicerecorder"] .vc-title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  letter-spacing: .2px;
+}
+
+/* Controls (scoped) */
+#main[data-module="voicerecorder"] .vc-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#main[data-module="voicerecorder"] .vc-btn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e6e9ee;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#main[data-module="voicerecorder"] .vc-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* Colors */
+#main[data-module="voicerecorder"] .vc-btn-start { background: #16a34a; color: white; border: none; }
+#main[data-module="voicerecorder"] .vc-btn-pause { background: #f59e0b; color: white; border: none; }
+#main[data-module="voicerecorder"] .vc-btn-stop  { background: #ef4444; color: white; border: none; }
+
+/* Visualizer */
+#main[data-module="voicerecorder"] .vc-visualizer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+#main[data-module="voicerecorder"] .vc-canvas {
+  width: 100%;
+  max-width: 720px;
+  height: 120px;
+  border-radius: 8px;
+  background: linear-gradient(90deg,#071029 0,#091427 100%);
+  display: block;
+}
+
+/* small level dot */
+#main[data-module="voicerecorder"] .vc-level {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #bbb;
+  box-shadow: 0 0 8px rgba(0,0,0,0.2);
+}
+
+/* Result area */
+#main[data-module="voicerecorder"] .vc-result {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+#main[data-module="voicerecorder"] .vc-player {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+#main[data-module="voicerecorder"] .vc-download {
+  font-size: 14px;
+  color: #0b74c1;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e6eef8;
+  background: white;
+}
+
+#main[data-module="voicerecorder"] .vc-share {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: #06b6d4;
+  color: white;
+}
+
+/* Transcript */
+#main[data-module="voicerecorder"] .vc-transcript { flex: 1 1 360px; }
+#main[data-module="voicerecorder"] .vc-sub { margin: 0 0 8px; font-size: 16px; }
+#main[data-module="voicerecorder"] .vc-transcript-box {
+  min-height: 120px;
+  border: 1px solid #eef2f7;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fbfcfe;
+  white-space: pre-wrap;
+  overflow: auto;
+  color: #111827;
+}
+
+/* Status */
+#main[data-module="voicerecorder"] .vc-status {
+  margin-top: 12px;
+  color: #374151;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  #main[data-module="voicerecorder"] .vc-visualizer { flex-direction: column; }
+  #main[data-module="voicerecorder"] .vc-canvas { width: 100%; height: 100px; }
+}

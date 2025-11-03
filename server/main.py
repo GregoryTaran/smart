@@ -1,3 +1,4 @@
+# server/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -60,3 +61,30 @@ def info():
         "python_version": os.environ.get("PYTHON_VERSION", ""),
         "env": os.environ.get("ENV", "dev"),
     })
+
+# ---------------------------------------------------------------------
+# Additional mounts / routers for Voicerecorder microservice
+# - Mount /data to serve runtime files (mp3/txt) located under server/data/...
+# - Try to include ws_voicerecorder router if present (no hard failure if absent)
+# ---------------------------------------------------------------------
+
+# Mount data directory (for serving assembled mp3/txt results).
+# By convention we store voice files in server/data/voicerecorder/...
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
+try:
+    VOICE_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # serve at /data
+    app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
+    log.info(f"Mounted /data static from: {VOICE_DATA_DIR}")
+except Exception as e:
+    log.warning("Could not mount data dir as static: %s", e)
+
+# Try to include optional voicerecorder ws router (safe import)
+try:
+    # ws_voicerecorder.py should define 'router' (APIRouter)
+    from ws_voicerecorder import router as voicerecorder_router
+    app.include_router(voicerecorder_router, prefix="", tags=["voicerecorder"])
+    log.info("voicerecorder router mounted")
+except Exception as e:
+    log.info("voicerecorder router not mounted (module missing or import error): %s", e)
