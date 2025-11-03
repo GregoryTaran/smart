@@ -1,12 +1,59 @@
+# render.yaml
+# Render.com service definition for SMART (backend)
+# This configuration purposely avoids Poetry during build and uses system ffmpeg.
+# Put this file in the repository root (or adapt fields to match your existing render.yaml).
+
 services:
   - type: web
-    name: smartvision-backend
+    name: smart-backend
     env: python
-    rootDir: server             # бекенд лежит в /server
-    pythonVersion: 3.11.5
-    buildCommand: |
-      pip install --upgrade pip
-      pip wheel --wheel-dir .render_wheels -r requirements.txt
-      pip install --no-index --find-links .render_wheels -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    # branch to deploy
+    branch: main
+
+    # Build command: ensure ffmpeg, clean pip cache, update pip tooling
+    # and install dependencies from server/requirements.txt preferring binary wheels.
+    #
+    # Notes:
+    # - We try to remove any auto-installed Poetry directories (if present) to avoid Poetry interfering.
+    # - Using --no-cache-dir and --prefer-binary reduces source builds and speeds deployment.
+    build:
+      command: |
+        echo "[render build] start"
+        # defensive remove poetry installers left-over (ok if absent)
+        rm -rf /opt/render/project/poetry || true
+        rm -rf /root/.cache/pypoetry || true
+        rm -rf ~/.cache/pypoetry || true
+
+        # install system ffmpeg (needed for audio processing)
+        apt-get update -y || true
+        apt-get install -y ffmpeg || true
+
+        # clean pip cache and upgrade base tools to avoid old wheel/build issues
+        rm -rf /root/.cache/pip || true
+        python -m pip install --upgrade pip setuptools wheel
+
+        # install server requirements (prefer binary wheels to avoid compilation)
+        python -m pip install --no-cache-dir --prefer-binary -r server/requirements.txt
+
+        echo "[render build] done"
+
+    # Start command: run uvicorn server
+    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
+
+    # Optional: instance size / autoscaling
+    plan: free # change to your plan (starter, professional, etc.)
+
+    # Environment variables for the service (add OPENAI_API_KEY in Render UI or here)
+    # Note: sensitive variables (OPENAI_API_KEY) are better set in Render dashboard, not in repo.
+    envVars:
+      - key: ENV
+        value: production
+      - key: VOICE_BASE_DIR
+        value: '' # optional override; leave empty to use cwd-based default
+      # do NOT add OPENAI_API_KEY here in repo; add in Render Dashboard as secret
+
+    # Health checks (optional)
+    healthCheckPath: /health
     autoDeploy: true
+
+# End of render.yaml
