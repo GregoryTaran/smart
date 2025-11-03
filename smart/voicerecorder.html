@@ -8,7 +8,7 @@
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/main.css" />
-  <!-- voicerecorder CSS (scoped to #main[data-module="voicerecorder"]) -->
+  <!-- voicerecorder CSS (scoped) -->
   <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
 </head>
 <body>
@@ -28,8 +28,9 @@
           <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
         </div>
 
+        <!-- Visualizer: responsive waveform (bars) that fits mobile width -->
         <div class="vc-visualizer" aria-hidden="false">
-          <canvas id="vc-vu" width="720" height="120" class="vc-canvas"></canvas>
+          <div class="vc-waveform" aria-hidden="true"></div>
           <div id="vc-level" class="vc-level" aria-hidden="true"></div>
         </div>
 

@@ -1,9 +1,9 @@
-// voicerecorder.js - minimal, AudioWorklet-only recorder
+// voicerecorder.js - minimal, AudioWorklet-only recorder with responsive bar waveform indicator
 (() => {
   const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
   if (!ROOT) return;
 
-  // UI elements (expected in page)
+  // UI elements
   const BTN_START = ROOT.querySelector('#vc-btn-start');
   const BTN_PAUSE = ROOT.querySelector('#vc-btn-pause');
   const BTN_STOP  = ROOT.querySelector('#vc-btn-stop');
@@ -11,9 +11,9 @@
   const AUDIO_EL  = ROOT.querySelector('#vc-audio');
   const DOWNLOAD  = ROOT.querySelector('#vc-download');
   const TRANSCRIPT= ROOT.querySelector('#vc-transcript');
+  const WAVEFORM_CONTAINER = ROOT.querySelector('.vc-waveform');
 
   const CHUNK_SECONDS = 2;
-
   let audioCtx = null;
   let mediaStream = null;
   let sourceNode = null;
@@ -24,7 +24,7 @@
   let sessionId = null;
 
   let ws = null;
-  const pending = []; // queue of { meta, buffer } when WS is not open
+  const pending = [];
   const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/voicerecorder`;
 
   function log(s) { if (STATUS) STATUS.textContent = s; }
@@ -44,7 +44,6 @@
     ws.binaryType = 'arraybuffer';
     ws.onopen = () => {
       log('WS connected');
-      // flush queue
       while (pending.length) {
         const item = pending.shift();
         try {
@@ -80,33 +79,113 @@
     };
   }
 
+  /* -------------------- Waveform indicator -------------------- */
+  // Small, responsive bar waveform. Reacts to incoming RMS levels from worklet.
+  const Waveform = (function () {
+    const container = WAVEFORM_CONTAINER;
+    if (!container) return null;
+    let bars = [];
+    let raf = null;
+    let targetLevels = [];
+    let displayLevels = [];
+
+    function build() {
+      container.innerHTML = '';
+      const cw = Math.max(40, container.clientWidth);
+      const approxPitch = Math.max(6, Math.round(cw < 420 ? 6 : 8));
+      const count = Math.max(10, Math.floor(cw / approxPitch));
+      const center = Math.floor(count / 2);
+      bars = [];
+      targetLevels = new Array(count).fill(0);
+      displayLevels = new Array(count).fill(0);
+
+      for (let i = 0; i < count; i++) {
+        const span = document.createElement('span');
+        span.className = 'bar';
+        if (Math.abs(i - center) < 2) span.classList.add('center');
+        span.style.height = '14px';
+        container.appendChild(span);
+        bars.push(span);
+      }
+    }
+
+    // call with RMS (0..1 roughly) - propagate to bars (center heavy)
+    function pushLevel(rms) {
+      if (!bars.length) return;
+      // map rms (~0-0.5 typical) to 0..1
+      const v = Math.min(1, rms * 6); // tweak sensitivity
+      const center = Math.floor(bars.length / 2);
+      for (let i = 0; i < bars.length; i++) {
+        const distance = Math.abs(i - center);
+        const influence = Math.max(0, 1 - (distance / (bars.length * 0.5)));
+        // create envelope: center louder
+        const val = v * (0.3 + 0.7 * influence); 
+        // smooth target
+        targetLevels[i] = Math.max(targetLevels[i] * 0.85, val);
+      }
+    }
+
+    function animate() {
+      for (let i = 0; i < bars.length; i++) {
+        // lerp displayLevels -> targetLevels
+        displayLevels[i] = displayLevels[i] * 0.7 + targetLevels[i] * 0.3;
+        // also decay target a bit
+        targetLevels[i] *= 0.92;
+        // compute height
+        const ch = container.clientHeight || 40;
+        const minH = Math.floor(ch * 0.18);
+        const maxH = Math.floor(ch * 0.85);
+        const h = Math.round(minH + (maxH - minH) * Math.min(1, displayLevels[i]));
+        bars[i].style.height = h + 'px';
+      }
+      raf = requestAnimationFrame(animate);
+    }
+
+    function start() {
+      if (!bars.length) build();
+      if (!raf) { raf = requestAnimationFrame(animate); }
+    }
+    function stop() {
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+    }
+    function resize() {
+      stop(); build(); start();
+    }
+    return { build, start, stop, pushLevel, resize };
+  })();
+
+  /* rebuild waveform on resize */
+  if (Waveform) {
+    window.addEventListener('resize', () => { Waveform.resize(); }, { passive: true });
+    window.addEventListener('orientationchange', () => { setTimeout(()=>Waveform.resize(), 120); }, { passive: true });
+    Waveform.start();
+  }
+
+  /* -------------------- Recorder logic -------------------- */
   async function startRecording() {
     ensureSession();
     setupWebSocket();
 
     try {
-      // create AudioContext and measure sample rate
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const actualRate = audioCtx.sampleRate;
       const chunkSamples = Math.round(actualRate * CHUNK_SECONDS);
 
-      // get microphone
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       sourceNode = audioCtx.createMediaStreamSource(mediaStream);
 
-      // add worklet and configure
       await audioCtx.audioWorklet.addModule('/voicerecorder/audioworklet-processor.js');
       workletNode = new AudioWorkletNode(audioCtx, 'chunker-processor');
       workletNode.port.postMessage({ type: 'config', chunk_samples: chunkSamples, sample_rate: actualRate, channels: 1 });
 
-      // handle messages from worklet
       workletNode.port.onmessage = (e) => {
         const d = e.data;
         if (!d) return;
         if (d.type === 'level') {
-          // optional: show VU based on d.rms
+          // update waveform
+          if (Waveform && typeof Waveform.pushLevel === 'function') Waveform.pushLevel(d.rms);
         } else if (d.type === 'chunk' && d.buffer) {
-          const floatBuf = new Float32Array(d.buffer); // always chunkSamples length
+          const floatBuf = new Float32Array(d.buffer);
           const valid = Number(d.valid_samples) || floatBuf.length;
           const meta = {
             type: 'chunk_meta',
@@ -127,7 +206,7 @@
         }
       };
 
-      // connect worklet (silent output to keep node alive)
+      // connect worklet silently
       try {
         const silent = audioCtx.createGain(); silent.gain.value = 0;
         workletNode.connect(silent);
@@ -136,7 +215,7 @@
 
       sourceNode.connect(workletNode);
 
-      // send start msg with measured rate
+      // inform server start with measured rate
       const startMsg = { type: 'start', session_id: sessionId, sample_rate: actualRate, channels: 1, chunk_samples: chunkSamples };
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(startMsg));
       else if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify(startMsg)), { once: true });
@@ -156,27 +235,23 @@
   function pauseRecording() {
     if (!recording) return;
     paused = !paused;
-    // no complex behavior: pause toggles a flag the worklet ignores (worklet keeps filling),
-    // if you want to actually stop capturing, we'd disconnect nodes — keep simple here.
     log(paused ? 'Запись приостановлена' : 'Запись продолжается');
     if (BTN_PAUSE) BTN_PAUSE.textContent = paused ? 'RESUME' : 'PAUSE';
+    // Note: worklet keeps running; if you want to truly pause capture, disconnect nodes.
   }
 
   async function stopRecording() {
     if (!recording) return;
 
-    // ask worklet to flush partial buffer (if any)
     try {
       if (workletNode && workletNode.port && typeof workletNode.port.postMessage === 'function') {
         workletNode.port.postMessage({ type: 'flush' });
-        // small wait allow worklet->main to post chunk and for main to send it
         await new Promise((r) => setTimeout(r, 180));
       }
     } catch (e) {
       console.warn('flush failed', e);
     }
 
-    // send stop control
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'stop', session_id: sessionId }));
     } else {
@@ -184,7 +259,6 @@
       if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'stop', session_id: sessionId })), { once: true });
     }
 
-    // clean audio graph
     try { workletNode && workletNode.disconnect && workletNode.disconnect(); } catch (_) {}
     try { sourceNode && sourceNode.disconnect && sourceNode.disconnect(); } catch (_) {}
     try { audioCtx && audioCtx.close && audioCtx.close(); } catch (_) {}
@@ -198,12 +272,12 @@
     log('Остановка записи — ожидаем обработку...');
   }
 
-  // attach UI handlers if elements exist
+  // Attach UI handlers
   if (BTN_START) BTN_START.addEventListener('click', () => startRecording());
   if (BTN_PAUSE) BTN_PAUSE.addEventListener('click', () => pauseRecording());
   if (BTN_STOP) BTN_STOP.addEventListener('click', () => stopRecording());
 
-  // initialize state
+  // Init state
   if (BTN_PAUSE) BTN_PAUSE.disabled = true;
   if (BTN_STOP) BTN_STOP.disabled = true;
   log('Готов');
