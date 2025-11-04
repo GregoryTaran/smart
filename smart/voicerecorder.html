@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="css/main.css" />
   <!-- voicerecorder CSS (scoped) -->
   <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
+  <!-- our new mic indicator styles (unique vars --svmic-...) -->
+  <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css" />
 </head>
 <body>
 <div id="page">
@@ -28,17 +30,17 @@
           <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
         </div>
 
-        <!-- Visualizer: responsive waveform (bars) that fits mobile width -->
+        <!-- Visualizer: here was old waveform; replaced by our sv-mic-indicator -->
         <div class="vc-visualizer" aria-hidden="false">
-          <div class="vc-waveform" aria-hidden="true"></div>
-          <div id="vc-level" class="vc-level" aria-hidden="true"></div>
+          <!-- removed old .vc-waveform entirely -->
+          <div id="vc-level" class="vc-level sv-mic-indicator" aria-hidden="false"></div>
         </div>
 
         <div class="vc-result">
           <div class="vc-player">
             <audio id="vc-audio" controls></audio>
-            <!--  <a id="vc-download" class="vc-download" href="#" download>Скачать</a> -->
-            <!--  <button id="vc-share" class="vc-share" disabled>Share</button> -->
+            <a id="vc-download" class="vc-download" href="#" download>Скачать</a>
+            <button id="vc-share" class="vc-share" disabled>Share</button>
           </div>
 
           <div class="vc-transcript" aria-live="polite">
