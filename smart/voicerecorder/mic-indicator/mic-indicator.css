@@ -1,53 +1,65 @@
 /* mic-indicator.css
-   Unique CSS variables prefixed with --svmic- to avoid collisions.
-   Include this file in the page where you want the indicator.
+   Self-contained appearance for the mic indicator.
+   Control the outer size from the container that wraps this component:
+     - set min-width / max-width on the parent container (#vc-level or other)
+   Component reads a few CSS vars for fine tuning; you can override them.
 */
 
 .sv-mic-indicator {
-  --svmic-height: 14mm;             /* visual height for the indicator area */
-  --svmic-bar-color: #000000;       /* color of bars */
-  --svmic-baseline-color: #e6e8eb;  /* light gray baseline when idle */
-  --svmic-gap-px: 2px;              /* gap between bars */
-  --svmic-bar-width-mm: 0.85mm;     /* bar width in mm (converted to px in JS) */
-  --svmic-padding-px: 10px;         /* left/right padding inside container */
-  --svmic-shadow: 0 3px 8px rgba(0,0,0,0.06);
+  --svmic-height: 14mm;            /* visual height of the widget */
+  --svmic-padding-px: 8px;         /* horizontal padding inside wrap */
+  --svmic-bar-width-px: 6px;       /* default bar width in CSS px */
+  --svmic-gap-px: 2px;             /* gap between bars */
+  --svmic-baseline-color: #e6e8eb; /* thin grey baseline */
+  --svmic-bar-color: #151515;      /* bar color when active */
+  --svmic-min-visible: 0.03;       /* minimum level to show a bar */
   display: block;
   box-sizing: border-box;
+  width: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
+/* visual wrap (canvas sits inside) */
 .sv-mic-indicator__wrap {
   width: 100%;
   height: var(--svmic-height);
   padding-left: var(--svmic-padding-px);
   padding-right: var(--svmic-padding-px);
-  border-radius: 12px;
-  background: linear-gradient(180deg,#fff,#fbfdff);
-  border: 1px solid rgba(11,116,193,0.04);
-  box-shadow: var(--svmic-shadow);
+  display: block;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: transparent; /* keep transparent so container background applies */
   overflow: hidden;
+  position: relative;
+  align-items: center;
+  justify-content: center;
   display:flex;
-  align-items:center;
 }
 
+/* canvas fills wrap */
 .sv-mic-indicator__canvas {
   width: 100%;
   height: 100%;
-  display:block;
+  display: block;
   background: transparent;
   border-radius: 8px;
 }
 
-/* Optional small helper class for a minimal container you can add in markup */
+/* inline variant if you want to place in text flow */
 .sv-mic-indicator--inline {
-  display:inline-block;
-  vertical-align:middle;
+  display: inline-block;
+  vertical-align: middle;
 }
 
-/* Small accessibility helper (screen-reader text hidden visually) */
-.sv-mic-sr {
-  position: absolute !important;
-  height: 1px; width: 1px;
-  overflow: hidden;
-  clip: rect(1px,1px,1px,1px);
-  white-space: nowrap;
+/* defensive rule: hide stray helper dots if any libs add them */
+.sv-mic-indicator .dot,
+.sv-mic-indicator .circle {
+  display: none !important;
 }
+
+/* Example usage on outer container (do not include in component file if you prefer external control):
+#vc-level {
+  min-width: 120px;
+  max-width: 2600px;  / * typical ~500 bars cap via width + JS maxBars * /
+}
+*/
