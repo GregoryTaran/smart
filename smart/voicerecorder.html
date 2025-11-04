@@ -3,65 +3,65 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <base href="./" />
-  <title>Диктофон</title>
-  <link rel="icon" href="assets/logo400.jpg" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/main.css" />
-  <!-- voicerecorder CSS (scoped) -->
-  <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
-  <!-- our new mic indicator styles (unique vars --svmic-...) -->
-  <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css" />
+  <title>VoiceRecorder — Smart Vision</title>
+
+  <!-- Основные стили проекта (если есть) -->
+  <link rel="stylesheet" href="/css/main.css" />
+
+  <!-- Локальные стили для VoiceRecorder -->
+  <link rel="stylesheet" href="VoiceRecorder/voicerecorder.css" />
+
+  <!-- mic-indicator styles (в папке VoiceRecorder/mic-indicator/) -->
+  <link rel="stylesheet" href="VoiceRecorder/mic-indicator/mic-indicator.css" />
+  <style>
+    /* Небольшие локальные правки, чтобы блок выглядел аккуратно внутри страницы */
+    .voice-card { max-width: 1100px; margin: 18px auto; }
+    #vc-level.sv-mic-indicator { width:100%; box-sizing:border-box; }
+    /* Скрыть ссылку "Скачать" — ты просил */
+    #vc-download { display:none !important; }
+  </style>
 </head>
 <body>
-<div id="page">
-  <aside id="sidebar" aria-label="Основное меню"></aside>
-  <div id="app">
-    <header id="topbar" role="banner"></header>
 
-    <!-- IMPORTANT: module is strictly namespaced by data-module attr -->
-    <main id="main" role="main" data-module="voicerecorder">
-      <section class="vc-recorder" aria-labelledby="vc-title">
-        <h1 id="vc-title" class="vc-title">ДИКТОФОН</h1>
+  <div class="voice-card">
+    <section id="voice-recorder" aria-labelledby="rec-title" class="card p-4">
+      <h2 id="rec-title">Диктофон</h2>
 
-        <div class="vc-controls" role="region" aria-label="Управление записью">
-          <button id="vc-btn-start" class="vc-btn vc-btn-start" aria-pressed="false">СТАРТ</button>
-          <button id="vc-btn-pause" class="vc-btn vc-btn-pause" disabled>ПАУЗА</button>
-          <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
+      <!-- Controls -->
+      <div class="controls" style="display:flex;gap:10px;align-items:center;margin-top:12px">
+        <button id="vc-start" class="btn btn-start" style="background:#10b981;color:white;padding:10px 16px;border-radius:8px;border:0">СТАРТ</button>
+        <button id="vc-pause" class="btn btn-pause" disabled style="background:#f6c35d;color:#111;padding:10px 16px;border-radius:8px;border:0">ПАУЗА</button>
+        <button id="vc-stop"  class="btn btn-stop"  disabled style="background:#f97373;color:white;padding:10px 16px;border-radius:8px;border:0">СТОП</button>
+      </div>
+
+      <!-- Visualizer area (our mic indicator will be mounted here) -->
+      <div style="margin-top:16px">
+        <div id="vc-level" class="sv-mic-indicator" aria-hidden="false"></div>
+      </div>
+
+      <!-- Player + download -->
+      <div style="margin-top:18px;display:flex;align-items:center;gap:14px">
+        <audio id="vc-audio" controls style="flex:1;min-width:300px"></audio>
+        <a id="vc-download" href="#" download>Скачать</a>
+      </div>
+
+      <!-- Transcript -->
+      <div style="margin-top:18px;display:flex;gap:16px;align-items:flex-start">
+        <div style="flex:1">
+          <h3>Текстовая версия</h3>
         </div>
-
-        <!-- Visualizer: here was old waveform; replaced by our sv-mic-indicator -->
-        <div class="vc-visualizer" aria-hidden="false">
-          <!-- removed old .vc-waveform entirely -->
-          <div id="vc-level" class="vc-level sv-mic-indicator" aria-hidden="false"></div>
+        <div style="flex:2">
+          <div id="vc-transcript" style="min-height:90px;border-radius:8px;border:1px solid #eef2f6;padding:12px;background:#fbfdff"></div>
         </div>
+      </div>
 
-        <div class="vc-result">
-          <div class="vc-player">
-            <audio id="vc-audio" controls></audio>
-            <a id="vc-download" class="vc-download" href="#" download>Скачать</a>
-            <button id="vc-share" class="vc-share" disabled>Share</button>
-          </div>
-
-          <div class="vc-transcript" aria-live="polite">
-            <h2 class="vc-sub">Текстовая версия</h2>
-            <div id="vc-transcript" class="vc-transcript-box" contenteditable="false"></div>
-          </div>
-        </div>
-
-        <div id="vc-status" class="vc-status" aria-live="status">Готов</div>
-      </section>
-    </main>
-
-    <footer id="footer" role="contentinfo"></footer>
+      <!-- Status -->
+      <div id="vc-status" style="margin-top:12px;color:#6b7280">Готов</div>
+    </section>
   </div>
-</div>
 
-<div id="overlay" hidden></div>
-
-<script defer src="js/fragment-load.js"></script>
-<!-- voicerecorder module script (scoped) -->
-<script defer src="voicerecorder/voicerecorder.js"></script>
-<script defer src="js/register-sw.js"></script>
+  <!-- Script: main recorder module (placed in folder VoiceRecorder/) -->
+  <!-- Note: type="module" used because file imports mic-indicator ESM -->
+  <script type="module" src="VoiceRecorder/voicerecorder.js" defer></script>
 </body>
 </html>
