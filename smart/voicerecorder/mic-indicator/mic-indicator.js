@@ -1,311 +1,208 @@
 // mic-indicator.js
-// ESM class MicIndicator — lightweight, no external deps.
-// - Create with a container element (DOM node).
-// - Call connectMic() to request microphone (user gesture required), or
-//   call connectStream(mediaStream) to reuse an existing MediaStream.
-// - Methods: connectMic(), connectStream(stream), disconnect(), destroy(),
-//   setSensitivity(v), setStepMs(ms), setBarWidthMm(mm), setSimLevel(v).
-// - Defaults: stepMs = 100, sensitivity = 0.9, barWidthMm = 0.85, gapPx = 2.
+// ES module. Export default class MicIndicator.
+// Self-contained: draws baseline immediately; starts active rendering only after connectStream().
+// NO maxBars option — component fully relies on container width for number of bars.
 
 class MicIndicator {
   constructor(container, opts = {}) {
     if (!(container instanceof Element)) {
       throw new Error('MicIndicator: container must be a DOM Element');
     }
-    // options with sane defaults
-    this.stepMs = opts.stepMs ?? 100;
-    this.sensitivity = opts.sensitivity ?? 0.9;
-    this.barWidthMm = opts.barWidthMm ?? 0.85;
-    this.gapPx = opts.gapPx ?? 2;
-    this.minVisible = opts.minVisible ?? 0.03; // below this only baseline is shown
 
-    // internal
+    // Options and defaults
+    this.opts = {
+      stepMs: opts.stepMs ?? 100,
+      sensitivity: opts.sensitivity ?? 0.95,
+      minVisible: opts.minVisible ?? 0.03,
+      barWidthPx: opts.barWidthPx ?? null, // if null read from CSS var
+      gapPx: opts.gapPx ?? null,
+    };
+
     this.container = container;
+    this._destroyed = false;
+
+    // Internal state
     this._audioCtx = null;
     this._analyser = null;
     this._source = null;
     this._timeDomain = null;
+    this._bars = 0;
     this._buf = null;
     this._bufPos = 0;
-    this._barsVisible = 0;
-    this._mmPx = this._computeMmToPx();
-    this._dpr = window.devicePixelRatio || 1;
     this._rafId = null;
-    this._stepTimer = null;
-    this._destroyed = false;
-    this._env = 0;
+    this._timerId = null;
+    this._dpr = window.devicePixelRatio || 1;
 
-    // event handlers map
-    this._events = Object.create(null);
+    // event callbacks
+    this._events = {};
 
-    // build DOM
-    this._mountDOM();
+    // Build DOM
+    this._mount();
 
-    // initial resize/setup
-    this._resize();
-    // keep resize listener debounced
-    this._resizeObserver = new ResizeObserver(() => this._debouncedResize());
-    this._resizeObserver.observe(this.container);
-    this._debounceResizeTimer = null;
+    // Initial sizing and baseline render
+    this._boundResize = this._onResize.bind(this);
+    window.addEventListener('resize', this._boundResize, { passive: true });
+    this._onResize();
   }
 
-  // ------------- public API -------------
-  // request microphone (calls getUserMedia)
-  async connectMic(constraints = { audio: true }) {
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    return this.connectStream(stream);
-  }
-
-  // use an existing MediaStream (no extra permissions)
-  async connectStream(stream) {
-    if (this._destroyed) return;
-    if (!(stream && stream.getAudioTracks && stream.getAudioTracks().length)) {
+  // -----------------------
+  // public API
+  // -----------------------
+  async connectStream(mediaStream) {
+    if (this._destroyed) return false;
+    if (!mediaStream || !mediaStream.getAudioTracks || mediaStream.getAudioTracks().length === 0) {
       throw new Error('MicIndicator.connectStream: invalid MediaStream');
     }
 
+    // create AudioContext lazily
     if (!this._audioCtx) {
       this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
 
-    // create source & analyser
-    try {
-      if (this._source) {
-        try { this._source.disconnect(); } catch(e) {}
-      }
-      this._source = this._audioCtx.createMediaStreamSource(stream);
-    } catch (err) {
-      this._emit('error', err);
-      console.warn('MicIndicator: createMediaStreamSource failed', err);
-      return;
+    // disconnect any previous source
+    if (this._source) {
+      try { this._source.disconnect(); } catch (e) {}
+      this._source = null;
     }
 
+    // create media stream source and analyser
+    this._source = this._audioCtx.createMediaStreamSource(mediaStream);
     this._analyser = this._audioCtx.createAnalyser();
     this._analyser.fftSize = 1024;
     this._analyser.smoothingTimeConstant = 0.2;
     this._timeDomain = new Uint8Array(this._analyser.fftSize);
-
     try {
       this._source.connect(this._analyser);
-    } catch(e) {
-      console.warn('MicIndicator: source.connect(analyser) failed', e);
+    } catch (e) {
+      console.warn('MicIndicator: connect failed', e);
     }
 
-    // resume audio context if suspended (user gesture may be required; caller should call from user action)
-    if (this._audioCtx.state === 'suspended') {
-      try { await this._audioCtx.resume(); } catch(e) { /* ignore */ }
-    }
-
-    // start step timer and render loop
-    this._startStepTimer();
+    // Start periodic step and continuous render
+    this._startTimer();
     this._startRender();
 
     this._emit('connect');
     return true;
   }
 
-  // stop visualizing but do not destroy DOM; keeps baseline visible
   disconnect() {
-    this._stopStepTimer();
+    // stop timers and disconnect audio nodes
+    this._stopTimer();
     this._stopRender();
     if (this._source) {
-      try { this._source.disconnect(); } catch(e) {}
+      try { this._source.disconnect(); } catch (e) {}
       this._source = null;
     }
     if (this._analyser) {
-      try { this._analyser.disconnect(); } catch(e) {}
+      try { this._analyser.disconnect(); } catch (e) {}
       this._analyser = null;
     }
-    // do NOT close audioContext by default (so other modules can reuse), but allow destroy() to close
     this._emit('disconnect');
   }
 
-  // full cleanup: stop timers, remove DOM, close audio context
+  setSimLevel(value) {
+    // external test helper: push simulated normalized level [0..1]
+    const v = Math.max(0, Math.min(1, Number(value) || 0));
+    if (!this._buf) return;
+    this._buf[this._bufPos] = v;
+    this._bufPos = (this._bufPos + 1) % this._buf.length;
+  }
+
   destroy() {
     this.disconnect();
-    if (this._audioCtx && typeof this._audioCtx.close === 'function') {
-      try { this._audioCtx.close(); } catch(e) {}
-    }
-    this._audioCtx = null;
+    window.removeEventListener('resize', this._boundResize);
+    if (this._root && this._root.parentNode) this._root.parentNode.removeChild(this._root);
     this._destroyed = true;
-    // remove DOM nodes we created
-    if (this._resizeObserver) {
-      try { this._resizeObserver.disconnect(); } catch(e) {}
-      this._resizeObserver = null;
-    }
-    if (this._rootEl && this._rootEl.parentNode === this.container) {
-      this.container.removeChild(this._rootEl);
-    }
     this._emit('destroy');
-    this._events = Object.create(null);
+    this._events = {};
   }
 
-  // manual controls
-  setSensitivity(v) { this.sensitivity = Number(v) || this.sensitivity; }
-  setStepMs(ms) {
-    this.stepMs = Math.max(10, Number(ms) || this.stepMs);
-    if (this._stepTimer) {
-      this._stopStepTimer();
-      this._startStepTimer();
-    }
-  }
-  setBarWidthMm(mm) {
-    this.barWidthMm = Number(mm) || this.barWidthMm;
-    this._mmPx = this._computeMmToPx();
-    this._resize(); // recompute bars
+  on(name, fn) {
+    (this._events[name] = this._events[name] || []).push(fn);
   }
 
-  // send a synthetic/test level (0..1) — handy for testing without mic
-  setSimLevel(v) {
-    const val = Math.max(0, Math.min(1, v));
-    if (!this._buf) return;
-    this._push(val);
+  off(name, fn) {
+    if (!this._events[name]) return;
+    this._events[name] = this._events[name].filter(f => f !== fn);
   }
 
-  // subscribe/unsubscribe events: 'connect','disconnect','level','error','destroy'
-  on(evt, cb) {
-    if (!this._events[evt]) this._events[evt] = [];
-    this._events[evt].push(cb);
-    return () => this.off(evt, cb);
-  }
-  off(evt, cb) {
-    if (!this._events[evt]) return;
-    const idx = this._events[evt].indexOf(cb);
-    if (idx >= 0) this._events[evt].splice(idx, 1);
-  }
-  _emit(evt, payload) {
-    if (!this._events[evt]) return;
-    for (const fn of this._events[evt].slice()) {
-      try { fn(payload); } catch(e) { console.warn('MicIndicator event handler error', e); }
-    }
+  // -----------------------
+  // internals
+  // -----------------------
+  _emit(name, ...args) {
+    const list = this._events[name];
+    if (!list || !list.length) return;
+    for (const fn of list.slice()) try { fn(...args); } catch (e) {}
   }
 
-  // ---------------- internals ----------------
-  _mountDOM() {
-    // create root wrapper only if not already present
-    this._rootEl = document.createElement('div');
-    this._rootEl.className = 'sv-mic-indicator';
-    // inner wrap for padding/background
-    const wrap = document.createElement('div');
-    wrap.className = 'sv-mic-indicator__wrap';
-    // canvas
+  _mount() {
+    // root wrapper (only one appended)
+    this._root = document.createElement('div');
+    this._root.className = 'sv-mic-indicator';
+
+    this._wrap = document.createElement('div');
+    this._wrap.className = 'sv-mic-indicator__wrap';
+
     this._canvas = document.createElement('canvas');
     this._canvas.className = 'sv-mic-indicator__canvas';
-    wrap.appendChild(this._canvas);
-    this._rootEl.appendChild(wrap);
 
-    // append to container (container should be prepared by integrator)
-    this.container.appendChild(this._rootEl);
-
-    // set canvas CSS width/height from computed style
     this._ctx = this._canvas.getContext('2d', { alpha: true });
+
+    this._wrap.appendChild(this._canvas);
+    this._root.appendChild(this._wrap);
+    this.container.appendChild(this._root);
   }
 
-  _computeMmToPx() {
-    const el = document.createElement('div');
-    el.style.width = '1mm';
-    el.style.position = 'absolute';
-    el.style.left = '-100%';
-    document.body.appendChild(el);
-    const px = parseFloat(getComputedStyle(el).width) || 3.78;
-    document.body.removeChild(el);
-    return px;
-  }
+  _onResize() {
+    // compute sizes & bars
+    const cs = getComputedStyle(this._root);
+    const padding = parseFloat(cs.getPropertyValue('--svmic-padding-px')) || 8;
+    const barWidthCss = parseFloat(cs.getPropertyValue('--svmic-bar-width-px')) || this.opts.barWidthPx || 6;
+    const gap = parseFloat(cs.getPropertyValue('--svmic-gap-px')) || this.opts.gapPx || 2;
 
-  // debounce resize briefly
-  _debouncedResize() {
-    if (this._debounceResizeTimer) clearTimeout(this._debounceResizeTimer);
-    this._debounceResizeTimer = setTimeout(() => {
-      this._resize();
-      this._debounceResizeTimer = null;
-    }, 80);
-  }
+    const rect = this._wrap.getBoundingClientRect();
+    const totalW = Math.max(40, rect.width - padding * 2);
 
-  _resize() {
-    if (!this._canvas) return;
-    // read CSS variables from root of our component to compute sizes
-    const style = getComputedStyle(this._rootEl);
-    // read unique CSS vars; fall back to constructor values
-    const gapCss = style.getPropertyValue('--svmic-gap-px').trim();
-    const padCss = style.getPropertyValue('--svmic-padding-px').trim();
-    const barWidthCss = style.getPropertyValue('--svmic-bar-width-mm').trim();
-    const heightCss = style.getPropertyValue('--svmic-height').trim();
+    let possibleBars = Math.floor((totalW + gap) / (barWidthCss + gap));
+    if (possibleBars < 4) possibleBars = 4;
 
-    if (gapCss) try { this.gapPx = parseFloat(gapCss); } catch(e){}
-    if (barWidthCss && barWidthCss.endsWith('mm')) {
-      try { this.barWidthMm = parseFloat(barWidthCss); this._mmPx = this._computeMmToPx(); } catch(e){}
-    }
-    if (padCss) {
-      // not used in js directly, but container CSS already applies padding
-    }
+    // NOTE: No maxBars cap — we rely entirely on container width and CSS to control visual length.
+    this._bars = possibleBars;
 
-    // use parent container's client size (wrap)
-    const wrap = this._rootEl.querySelector('.sv-mic-indicator__wrap');
-    const rect = wrap.getBoundingClientRect();
-    this.cssW = Math.max(40, rect.width);
-    this.cssH = Math.max(20, rect.height);
-
-    // HiDPI handling
-    this._dpr = window.devicePixelRatio || 1;
-    const wPx = Math.floor(this.cssW * this._dpr);
-    const hPx = Math.floor(this.cssH * this._dpr);
-    if (this._canvas.width !== wPx || this._canvas.height !== hPx) {
-      this._canvas.width = wPx;
-      this._canvas.height = hPx;
-      // map back to CSS pixels
-      this._ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
-    }
-
-    // compute bar width in CSS px
-    this.barWidthPx = Math.max(1, Math.round(this.barWidthMm * this._mmPx));
-    this._usableW = Math.max(40, this.cssW - (parseFloat(padCss) || 10) * 2);
-    this._barsVisible = Math.floor((this._usableW + this.gapPx) / (this.barWidthPx + this.gapPx));
-    if (this._barsVisible < 4) this._barsVisible = 4;
-
-    // prepare buffer
-    if (!this._buf || this._buf.length !== this._barsVisible) {
-      this._buf = new Float32Array(this._barsVisible);
+    // prepare circular buffer
+    if (!this._buf || this._buf.length !== this._bars) {
+      this._buf = new Float32Array(this._bars);
       for (let i=0;i<this._buf.length;i++) this._buf[i] = 0;
       this._bufPos = 0;
     }
-  }
 
-  // push value into circular buffer
-  _push(val) {
-    if (!this._buf) return;
-    this._buf[this._bufPos] = val;
-    this._bufPos = (this._bufPos + 1) % this._buf.length;
-    this._emit('level', val);
-  }
-
-  // sample RMS and return smoothed level (0..1)
-  _sampleLevel() {
-    if (!this._analyser || !this._timeDomain) return 0;
-    this._analyser.getByteTimeDomainData(this._timeDomain);
-    let sum=0;
-    for (let i=0;i<this._timeDomain.length;i++){
-      const v = (this._timeDomain[i] - 128) / 128;
-      sum += v*v;
+    // setup HiDPI canvas size
+    this._dpr = window.devicePixelRatio || 1;
+    const cssW = Math.max(1, Math.floor(rect.width));
+    const cssH = Math.max(1, Math.floor(rect.height));
+    this._canvas.style.width = cssW + 'px';
+    this._canvas.style.height = cssH + 'px';
+    const wPx = Math.max(1, Math.floor(cssW * this._dpr));
+    const hPx = Math.max(1, Math.floor(cssH * this._dpr));
+    if (this._canvas.width !== wPx || this._canvas.height !== hPx) {
+      this._canvas.width = wPx;
+      this._canvas.height = hPx;
     }
-    const rms = Math.sqrt(sum / this._timeDomain.length);
-    let level = rms * 3.0 * this.sensitivity;
-    if (level > 1) level = 1;
-    // simple envelope smoothing
-    this._env = this._env * 0.7 + level * 0.3;
-    return this._env;
+    this._ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+
+    // draw baseline immediately so widget is visible in "off" state
+    this._renderOnce();
   }
 
-  _startStepTimer() {
-    if (this._stepTimer) return;
-    const stepFn = () => {
-      let lvl = 0;
-      if (this._analyser) lvl = this._sampleLevel();
-      this._push(lvl);
-    };
-    stepFn(); // immediate
-    this._stepTimer = setInterval(stepFn, this.stepMs);
+  _startTimer() {
+    if (this._timerId) return;
+    this._timerId = setInterval(() => this._step(), this.opts.stepMs);
   }
-  _stopStepTimer() {
-    if (this._stepTimer) { clearInterval(this._stepTimer); this._stepTimer = null; }
+
+  _stopTimer() {
+    if (!this._timerId) return;
+    clearInterval(this._timerId);
+    this._timerId = null;
   }
 
   _startRender() {
@@ -316,55 +213,79 @@ class MicIndicator {
     };
     this._rafId = requestAnimationFrame(loop);
   }
+
   _stopRender() {
-    if (this._rafId) cancelAnimationFrame(this._rafId);
+    if (!this._rafId) return;
+    cancelAnimationFrame(this._rafId);
     this._rafId = null;
   }
 
+  _step() {
+    // read analyser and push a representative normalized value into buffer
+    if (!this._analyser) return;
+    try {
+      this._analyser.getByteTimeDomainData(this._timeDomain);
+    } catch (e) {
+      return;
+    }
+    // compute RMS normalized to [0..1]
+    let sum = 0;
+    for (let i = 0; i < this._timeDomain.length; i++) {
+      const v = (this._timeDomain[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / this._timeDomain.length); // 0..~1
+    // apply sensitivity curve
+    const normalized = Math.max(0, Math.min(1, Math.pow(rms, 0.75) * this.opts.sensitivity));
+    // push to circular buffer
+    if (!this._buf) return;
+    this._buf[this._bufPos] = normalized;
+    this._bufPos = (this._bufPos + 1) % this._buf.length;
+  }
+
   _renderOnce() {
-    if (!this._ctx) return;
     const ctx = this._ctx;
-    const w = this.cssW;
-    const h = this.cssH;
-    ctx.clearRect(0,0,w,h);
+    if (!ctx) return;
+    const style = getComputedStyle(this._root);
+    const baselineColor = style.getPropertyValue('--svmic-baseline-color') || '#e6e8eb';
+    const barColor = style.getPropertyValue('--svmic-bar-color') || '#151515';
+    const minVisible = parseFloat(style.getPropertyValue('--svmic-min-visible')) || this.opts.minVisible;
+    const padding = parseFloat(style.getPropertyValue('--svmic-padding-px')) || 8;
+    const barWidthCss = parseFloat(style.getPropertyValue('--svmic-bar-width-px')) || this.opts.barWidthPx || 6;
+    const gap = parseFloat(style.getPropertyValue('--svmic-gap-px')) || this.opts.gapPx || 2;
 
-    // read CSS colors (unique vars)
-    const style = getComputedStyle(this._rootEl);
-    const baselineColor = style.getPropertyValue('--svmic-baseline-color').trim() || '#e6e8eb';
-    const barColor = style.getPropertyValue('--svmic-bar-color').trim() || '#000';
+    const cssW = parseFloat(this._canvas.style.width) || this._canvas.width / this._dpr;
+    const cssH = parseFloat(this._canvas.style.height) || this._canvas.height / this._dpr;
 
-    const center = Math.round(h/2);
-    const maxH = Math.max(4, (h/2) - 2);
+    ctx.clearRect(0, 0, cssW, cssH);
 
     // baseline
-    ctx.fillStyle = baselineColor;
+    const center = Math.round(cssH / 2);
+    ctx.fillStyle = baselineColor.trim();
     ctx.globalAlpha = 1;
-    ctx.fillRect(0, center - 0.5, w, 1);
+    ctx.fillRect(0, center - 0.5, cssW, 1);
 
-    // bars (mirrored, touching center). compute startX
-    const totalBarSpace = this._barsVisible * this.barWidthPx + Math.max(0, (this._barsVisible - 1) * this.gapPx);
-    const startX = Math.round(((this._usableW - totalBarSpace) / 2) + (parseFloat(style.getPropertyValue('--svmic-padding-px')) || 10));
+    // draw bars (centered)
+    if (!this._buf || this._buf.length === 0) return;
+    const totalBarSpace = this._bars * barWidthCss + Math.max(0, (this._bars - 1) * gap);
+    const startX = Math.round(Math.max(0, (cssW - totalBarSpace) / 2));
+    const maxH = Math.max(4, Math.floor((cssH / 2) - 2));
 
+    ctx.fillStyle = barColor.trim();
+    ctx.globalAlpha = 1;
+    // iterate buffer oldest-first
     let idx = this._bufPos;
-    ctx.fillStyle = barColor;
-    ctx.shadowBlur = 3;
-    ctx.shadowColor = 'rgba(0,0,0,0.06)';
-    for (let i=0;i<this._barsVisible;i++){
-      const val = this._buf[idx] || 0;
+    for (let i = 0; i < this._bars; i++) {
+      const v = this._buf[idx] || 0;
       idx = (idx + 1) % this._buf.length;
-      // skip tiny values so baseline remains visible
-      if (val <= this.minVisible) continue;
-      const x = startX + i * (this.barWidthPx + this.gapPx);
-      const barH = Math.round(val * maxH);
-      if (barH <= 0) continue;
-      // draw top (touch center)
-      ctx.globalAlpha = 1;
-      ctx.fillRect(x, center - barH, this.barWidthPx, barH);
-      // draw bottom (start at center)
-      ctx.fillRect(x, center, this.barWidthPx, barH);
+      if (v <= minVisible) continue;
+      const x = startX + i * (barWidthCss + gap);
+      const h = Math.round(v * maxH);
+      // top and bottom mirror
+      ctx.fillRect(x, center - h, barWidthCss, h);
+      ctx.fillRect(x, center, barWidthCss, h);
     }
   }
 }
 
-// default export
 export default MicIndicator;

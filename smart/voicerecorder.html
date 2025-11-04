@@ -3,89 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <base href="./" />
-  <title>Диктофон</title>
-  <link rel="icon" href="assets/logo400.jpg" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/main.css" />
-  <!-- voicerecorder CSS (scoped) -->
-  <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
+  <title>Voice Recorder</title>
 
-  <link rel="stylesheet" href="mic-indicator/mic-indicator.css">
+  <!-- === ОБЩИЕ СТИЛИ САЙТА (menu/topbar/footer и т.д.) — НЕ УДАЛЯЙ === -->
+  <link rel="stylesheet" href="css/main.css">
+
+  <!-- Стили конкретно этого модуля (оставляем как в стабильной версии) -->
+  <link rel="stylesheet" href="voicerecorder/voicerecorder.css">
+
+  <!-- mic-indicator styles (в папке voicerecorder/mic-indicator/) -->
+  <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css">
 </head>
 <body>
-<div id="page">
-  <aside id="sidebar" aria-label="Основное меню"></aside>
-  <div id="app">
-    <header id="topbar" role="banner"></header>
+  <!-- topbar/menu вставляется сервером/шаблоном вашего проекта (не меняем) -->
 
-    <!-- IMPORTANT: module is strictly namespaced by data-module attr -->
-    <main id="main" role="main" data-module="voicerecorder">
-      <section class="vc-recorder" aria-labelledby="vc-title">
-        <h1 id="vc-title" class="vc-title">ДИКТОФОН</h1>
+  <main id="main" data-module="voicerecorder">
+    <section class="vc-recorder" aria-labelledby="vc-title">
+      <h1 id="vc-title" class="vc-title">ДИКТОФОН</h1>
 
-        <div class="vc-controls" role="region" aria-label="Управление записью">
-          <button id="vc-btn-start" class="vc-btn vc-btn-start" aria-pressed="false">СТАРТ</button>
-          <button id="vc-btn-pause" class="vc-btn vc-btn-pause" disabled>ПАУЗА</button>
-          <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
-        </div>
+      <div class="vc-controls" role="region" aria-label="Управление записью">
+        <button id="vc-btn-start" class="vc-btn vc-btn-start">СТАРТ</button>
+        <button id="vc-btn-pause" class="vc-btn vc-btn-pause" disabled>ПАУЗА</button>
+        <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
+      </div>
 
-        <!-- Visualizer: responsive waveform (bars) that fits mobile width -->
-        <div class="vc-visualizer" aria-hidden="false">
-          <div class="vc-waveform" aria-hidden="true"></div>
-          <div id="vc-level" class="vc-level sv-mic-indicator" class="vc-level" aria-hidden="true"></div>
-        </div>
+      <div class="vc-visualizer" aria-hidden="false">
+        <div class="vc-waveform" aria-hidden="true"></div>
 
-        <div class="vc-result">
-          <div class="vc-player">
-            <audio id="vc-audio" controls></audio>
-            <!--  <a id="vc-download" class="vc-download" href="#" download>Скачать</a> -->
-            <!--  <button id="vc-share" class="vc-share" disabled>Share</button> -->
-          </div>
+        <!-- Контейнер индикатора: ширина контролируется внешним CSS -->
+        <div id="vc-level" class="vc-level" aria-hidden="false"></div>
+      </div>
 
+      <div class="vc-result">
+        <div class="vc-player">
+          <audio id="vc-audio" controls></audio>
+
+          <!-- Транскрипт: НА СЛЕДУЮЩЕЙ СТРОКЕ под плеером (как просил) -->
           <div class="vc-transcript" aria-live="polite">
             <h2 class="vc-sub">Текстовая версия</h2>
             <div id="vc-transcript" class="vc-transcript-box" contenteditable="false"></div>
           </div>
+
+          <a id="vc-download" class="vc-download" href="#" download style="display:none">Скачать</a>
         </div>
+      </div>
 
-        <div id="vc-status" class="vc-status" aria-live="status">Готов</div>
-      </section>
-    </main>
+      <div id="vc-status" class="vc-status" aria-live="status">Готов</div>
+    </section>
+  </main>
 
-    <footer id="footer" role="contentinfo"></footer>
-  </div>
-</div>
+  <!-- mic-indicator: создаём экземпляр, НО НЕ ПРИСОЕДИНЯЕМ stream автоматически -->
+  <script type="module">
+    import MicIndicator from './voicerecorder/mic-indicator/mic-indicator.js';
+    // создаём экземпляр в контейнере, но не подключаем stream здесь
+    // attachStream будет вызван в voicerecorder.js при старте записи
+    window._SV_MIC_INDICATOR = window._SV_MIC_INDICATOR || new MicIndicator(document.getElementById('vc-level'));
+  </script>
 
-<div id="overlay" hidden></div>
+  <!-- основная логика модуля (стабильная версия) -->
+  <script type="module" src="voicerecorder/voicerecorder.js"></script>
 
-<script defer src="js/fragment-load.js"></script>
-<!-- voicerecorder module script (scoped) -->
-<script defer src="voicerecorder/voicerecorder.js"></script>
-<script defer src="js/register-sw.js"></script>
-
-<script type="module">
-import MicIndicator from './mic-indicator/mic-indicator.js';
-
-window._SV_MIC_INDICATOR = window._SV_MIC_INDICATOR || {};
-
-export function SVIndicatorInit() {
-  const container = document.querySelector('#vc-level');
-  if (!container) return null;
-  const inst = new MicIndicator(container, { stepMs: 100, sensitivity: 0.95 });
-  window._SV_MIC_INDICATOR.instance = inst;
-  return inst;
-}
-
-export function attachMicStream(stream) {
-  const inst = window._SV_MIC_INDICATOR.instance || SVIndicatorInit();
-  if (inst && stream) inst.connectStream(stream).catch(()=>{});
-  return inst;
-}
-
-if (window.SV_VR && window.SV_VR.mediaStream) {
-  attachMicStream(window.SV_VR.mediaStream);
-}
-</script>
+  <!-- footer/footer scripts сайта (не трогаем) -->
 </body>
 </html>
