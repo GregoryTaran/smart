@@ -1,4 +1,4 @@
-// voicerecorder.js - minimal, AudioWorklet-only recorder with responsive bar waveform indicator
+// voicerecorder.js — updated: old Waveform removed, replaced with MicIndicator
 (() => {
   const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
   if (!ROOT) return;
@@ -11,7 +11,7 @@
   const AUDIO_EL  = ROOT.querySelector('#vc-audio');
   const DOWNLOAD  = ROOT.querySelector('#vc-download');
   const TRANSCRIPT= ROOT.querySelector('#vc-transcript');
-  const WAVEFORM_CONTAINER = ROOT.querySelector('.vc-waveform');
+  const LEVEL_CONTAINER = ROOT.querySelector('#vc-level'); // container for mic indicator
 
   const CHUNK_SECONDS = 2;
   let audioCtx = null;
@@ -69,7 +69,7 @@
           if (data.transcript && TRANSCRIPT) TRANSCRIPT.textContent = data.transcript;
           log('Готово: результат получен');
         } else if (data.type === 'processing') {
-          log('Ожидайте, идёт обработка...');
+          log('Ожидайте, идёт обработка.');
         } else if (data.type === 'error') {
           log('Ошибка сервера: ' + (data.message || ''));
         }
@@ -79,87 +79,24 @@
     };
   }
 
-  /* -------------------- Waveform indicator -------------------- */
-  // Small, responsive bar waveform. Reacts to incoming RMS levels from worklet.
-  const Waveform = (function () {
-    const container = WAVEFORM_CONTAINER;
-    if (!container) return null;
-    let bars = [];
-    let raf = null;
-    let targetLevels = [];
-    let displayLevels = [];
-
-    function build() {
-      container.innerHTML = '';
-      const cw = Math.max(40, container.clientWidth);
-      const approxPitch = Math.max(6, Math.round(cw < 420 ? 6 : 8));
-      const count = Math.max(10, Math.floor(cw / approxPitch));
-      const center = Math.floor(count / 2);
-      bars = [];
-      targetLevels = new Array(count).fill(0);
-      displayLevels = new Array(count).fill(0);
-
-      for (let i = 0; i < count; i++) {
-        const span = document.createElement('span');
-        span.className = 'bar';
-        if (Math.abs(i - center) < 2) span.classList.add('center');
-        span.style.height = '14px';
-        container.appendChild(span);
-        bars.push(span);
-      }
+  // --- MicIndicator init (lazy import) ---
+  let micIndicator = null;
+  (async function initMicIndicator(){
+    if (!LEVEL_CONTAINER) return;
+    try {
+      const mod = await import('./mic-indicator/mic-indicator.js');
+      const MicIndicator = mod.default;
+      micIndicator = new MicIndicator(LEVEL_CONTAINER, {
+        stepMs: 100,
+        sensitivity: 0.9,
+        barWidthMm: 0.85,
+        gapPx: 2
+      });
+      // initially idle (shows baseline). No further actions needed.
+    } catch (e) {
+      console.warn('mic-indicator failed to load', e);
     }
-
-    // call with RMS (0..1 roughly) - propagate to bars (center heavy)
-    function pushLevel(rms) {
-      if (!bars.length) return;
-      // map rms (~0-0.5 typical) to 0..1
-      const v = Math.min(1, rms * 6); // tweak sensitivity
-      const center = Math.floor(bars.length / 2);
-      for (let i = 0; i < bars.length; i++) {
-        const distance = Math.abs(i - center);
-        const influence = Math.max(0, 1 - (distance / (bars.length * 0.5)));
-        // create envelope: center louder
-        const val = v * (0.3 + 0.7 * influence); 
-        // smooth target
-        targetLevels[i] = Math.max(targetLevels[i] * 0.85, val);
-      }
-    }
-
-    function animate() {
-      for (let i = 0; i < bars.length; i++) {
-        // lerp displayLevels -> targetLevels
-        displayLevels[i] = displayLevels[i] * 0.7 + targetLevels[i] * 0.3;
-        // also decay target a bit
-        targetLevels[i] *= 0.92;
-        // compute height
-        const ch = container.clientHeight || 40;
-        const minH = Math.floor(ch * 0.18);
-        const maxH = Math.floor(ch * 0.85);
-        const h = Math.round(minH + (maxH - minH) * Math.min(1, displayLevels[i]));
-        bars[i].style.height = h + 'px';
-      }
-      raf = requestAnimationFrame(animate);
-    }
-
-    function start() {
-      if (!bars.length) build();
-      if (!raf) { raf = requestAnimationFrame(animate); }
-    }
-    function stop() {
-      if (raf) { cancelAnimationFrame(raf); raf = null; }
-    }
-    function resize() {
-      stop(); build(); start();
-    }
-    return { build, start, stop, pushLevel, resize };
   })();
-
-  /* rebuild waveform on resize */
-  if (Waveform) {
-    window.addEventListener('resize', () => { Waveform.resize(); }, { passive: true });
-    window.addEventListener('orientationchange', () => { setTimeout(()=>Waveform.resize(), 120); }, { passive: true });
-    Waveform.start();
-  }
 
   /* -------------------- Recorder logic -------------------- */
   async function startRecording() {
@@ -182,8 +119,15 @@
         const d = e.data;
         if (!d) return;
         if (d.type === 'level') {
-          // update waveform
-          if (Waveform && typeof Waveform.pushLevel === 'function') Waveform.pushLevel(d.rms);
+          // feed our MicIndicator with mapped RMS
+          // original mapping used in old Waveform: v = Math.min(1, rms * 6)
+          try {
+            if (micIndicator && typeof micIndicator.setSimLevel === 'function') {
+              const v = Math.min(1, d.rms * 6);
+              micIndicator.setSimLevel(v);
+            }
+          } catch (err) { /* ignore */ }
+          // (old Waveform removed)
         } else if (d.type === 'chunk' && d.buffer) {
           const floatBuf = new Float32Array(d.buffer);
           const valid = Number(d.valid_samples) || floatBuf.length;
@@ -225,7 +169,7 @@
       if (BTN_START) BTN_START.disabled = true;
       if (BTN_STOP) BTN_STOP.disabled = false;
       if (BTN_PAUSE) BTN_PAUSE.disabled = false;
-      log('Recording...');
+      log('Recording.');
     } catch (err) {
       console.error('startRecording error', err);
       log('Ошибка: не удалось начать запись');
@@ -264,12 +208,15 @@
     try { audioCtx && audioCtx.close && audioCtx.close(); } catch (_) {}
     try { mediaStream && mediaStream.getTracks && mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
 
+    // stop mic indicator visualization
+    try { if (micIndicator && typeof micIndicator.disconnect === 'function') micIndicator.disconnect(); } catch (_) {}
+
     recording = false;
     paused = false;
     if (BTN_START) BTN_START.disabled = false;
     if (BTN_STOP) BTN_STOP.disabled = true;
     if (BTN_PAUSE) { BTN_PAUSE.disabled = true; BTN_PAUSE.textContent = 'PAUSE'; }
-    log('Остановка записи — ожидаем обработку...');
+    log('Остановка записи — ожидаем обработку.');
   }
 
   // Attach UI handlers

@@ -1,0 +1,53 @@
+/* mic-indicator.css
+   Unique CSS variables prefixed with --svmic- to avoid collisions.
+   Include this file in the page where you want the indicator.
+*/
+
+.sv-mic-indicator {
+  --svmic-height: 14mm;             /* visual height for the indicator area */
+  --svmic-bar-color: #000000;       /* color of bars */
+  --svmic-baseline-color: #e6e8eb;  /* light gray baseline when idle */
+  --svmic-gap-px: 2px;              /* gap between bars */
+  --svmic-bar-width-mm: 0.85mm;     /* bar width in mm (converted to px in JS) */
+  --svmic-padding-px: 10px;         /* left/right padding inside container */
+  --svmic-shadow: 0 3px 8px rgba(0,0,0,0.06);
+  display: block;
+  box-sizing: border-box;
+}
+
+.sv-mic-indicator__wrap {
+  width: 100%;
+  height: var(--svmic-height);
+  padding-left: var(--svmic-padding-px);
+  padding-right: var(--svmic-padding-px);
+  border-radius: 12px;
+  background: linear-gradient(180deg,#fff,#fbfdff);
+  border: 1px solid rgba(11,116,193,0.04);
+  box-shadow: var(--svmic-shadow);
+  overflow: hidden;
+  display:flex;
+  align-items:center;
+}
+
+.sv-mic-indicator__canvas {
+  width: 100%;
+  height: 100%;
+  display:block;
+  background: transparent;
+  border-radius: 8px;
+}
+
+/* Optional small helper class for a minimal container you can add in markup */
+.sv-mic-indicator--inline {
+  display:inline-block;
+  vertical-align:middle;
+}
+
+/* Small accessibility helper (screen-reader text hidden visually) */
+.sv-mic-sr {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden;
+  clip: rect(1px,1px,1px,1px);
+  white-space: nowrap;
+}
