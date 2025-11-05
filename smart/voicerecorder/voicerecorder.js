@@ -1,37 +1,4 @@
-// ---------- mic indicator dynamic import + init (no HTML changes required) ----------
-(async function initMicIndicator() {
-  try {
-    const root = document.getElementById('vc-level');
-    if (!root) return; // нет контейнера — ничего не делаем
-    if (window._SV_MIC_INDICATOR) return; // уже инициализировано
-
-    // динамический import — работает с <script defer src="voicerecorder.js"></script>
-    const mod = await import('./mic-indicator/mic-indicator.js');
-    // поддерживаем разные формы экспорта: default, named, or module itself
-    const MicIndicator = mod && (mod.default || mod.MicIndicator || mod);
-    if (typeof MicIndicator === 'function') {
-      try {
-        window._SV_MIC_INDICATOR = new MicIndicator(root);
-        // По умолчанию индикатор должен быть неактивен (initial state)
-        if (typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
-          window._SV_MIC_INDICATOR.setInactive();
-        } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-          window._SV_MIC_INDICATOR.setSimLevel(0);
-        }
-        console.debug('MicIndicator initialized');
-      } catch (e) {
-        console.warn('Failed to instantiate MicIndicator', e);
-      }
-    } else {
-      console.warn('MicIndicator module loaded but export not found', mod);
-    }
-  } catch (e) {
-    // не фейлим приложение если индикатор не загрузился
-    console.warn('MicIndicator dynamic import failed', e);
-  }
-})();
-
-// ---------- Existing voicerecorder logic (preserved, with MicIndicator usage points) ----------
+// voicerecorder.js - minimal, AudioWorklet-only recorder with responsive bar waveform indicator
 (() => {
   const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
   if (!ROOT) return;
@@ -62,7 +29,6 @@
 
   function log(s) { if (STATUS) STATUS.textContent = s; }
 
-  // Ensure unique session ID
   function ensureSession() {
     sessionId = localStorage.getItem('sv_session_id');
     if (!sessionId) {
@@ -113,7 +79,8 @@
     };
   }
 
-  /* -------------------- Waveform indicator (как был) -------------------- */
+  /* -------------------- Waveform indicator -------------------- */
+  // Small, responsive bar waveform. Reacts to incoming RMS levels from worklet.
   const Waveform = (function () {
     const container = WAVEFORM_CONTAINER;
     if (!container) return null;
@@ -142,22 +109,29 @@
       }
     }
 
+    // call with RMS (0..1 roughly) - propagate to bars (center heavy)
     function pushLevel(rms) {
       if (!bars.length) return;
-      const v = Math.min(1, rms * 6);
+      // map rms (~0-0.5 typical) to 0..1
+      const v = Math.min(1, rms * 6); // tweak sensitivity
       const center = Math.floor(bars.length / 2);
       for (let i = 0; i < bars.length; i++) {
         const distance = Math.abs(i - center);
         const influence = Math.max(0, 1 - (distance / (bars.length * 0.5)));
-        const val = v * (0.3 + 0.7 * influence);
+        // create envelope: center louder
+        const val = v * (0.3 + 0.7 * influence); 
+        // smooth target
         targetLevels[i] = Math.max(targetLevels[i] * 0.85, val);
       }
     }
 
     function animate() {
       for (let i = 0; i < bars.length; i++) {
+        // lerp displayLevels -> targetLevels
         displayLevels[i] = displayLevels[i] * 0.7 + targetLevels[i] * 0.3;
+        // also decay target a bit
         targetLevels[i] *= 0.92;
+        // compute height
         const ch = container.clientHeight || 40;
         const minH = Math.floor(ch * 0.18);
         const maxH = Math.floor(ch * 0.85);
@@ -180,13 +154,14 @@
     return { build, start, stop, pushLevel, resize };
   })();
 
+  /* rebuild waveform on resize */
   if (Waveform) {
     window.addEventListener('resize', () => { Waveform.resize(); }, { passive: true });
     window.addEventListener('orientationchange', () => { setTimeout(()=>Waveform.resize(), 120); }, { passive: true });
     Waveform.start();
   }
 
-  /* -------------------- Recorder logic + MicIndicator integration -------------------- */
+  /* -------------------- Recorder logic -------------------- */
   async function startRecording() {
     ensureSession();
     setupWebSocket();
@@ -196,19 +171,7 @@
       const actualRate = audioCtx.sampleRate;
       const chunkSamples = Math.round(actualRate * CHUNK_SECONDS);
 
-      // Get user media
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // --- CONNECT MIC INDICATOR HERE ---
-      // Подключаем индикатор
-      if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.connectStream === 'function') {
-        try {
-          window._SV_MIC_INDICATOR.connectStream(mediaStream);  // Интеграция с индикатором
-        } catch (e) {
-          console.warn('MicIndicator.connectStream failed', e);
-        }
-      }
-
       sourceNode = audioCtx.createMediaStreamSource(mediaStream);
 
       await audioCtx.audioWorklet.addModule('/voicerecorder/audioworklet-processor.js');
@@ -219,29 +182,40 @@
         const d = e.data;
         if (!d) return;
         if (d.type === 'level') {
-          // Update waveform
+          // update waveform
           if (Waveform && typeof Waveform.pushLevel === 'function') Waveform.pushLevel(d.rms);
-
-          // Update RMS to mic-indicator (if available)
-          if (window._SV_MIC_INDICATOR) {
-            try {
-              if (typeof window._SV_MIC_INDICATOR.setLevel === 'function') {
-                window._SV_MIC_INDICATOR.setLevel(d.rms);
-              } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-                window._SV_MIC_INDICATOR.setSimLevel(d.rms);
-              } else if (typeof window._SV_MIC_INDICATOR.pushLevel === 'function') {
-                window._SV_MIC_INDICATOR.pushLevel(d.rms);
-              }
-            } catch (err) {
-              console.debug('MicIndicator level forward error', err);
-            }
+        } else if (d.type === 'chunk' && d.buffer) {
+          const floatBuf = new Float32Array(d.buffer);
+          const valid = Number(d.valid_samples) || floatBuf.length;
+          const meta = {
+            type: 'chunk_meta',
+            seq: seq++,
+            sample_rate: actualRate,
+            channels: 1,
+            chunk_samples: floatBuf.length,
+            valid_samples: valid,
+            timestamp: Date.now()
+          };
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(meta));
+            ws.send(floatBuf.buffer);
+          } else {
+            pending.push({ meta, buffer: floatBuf.buffer.slice(0) });
+            setupWebSocket();
           }
         }
       };
 
+      // connect worklet silently
+      try {
+        const silent = audioCtx.createGain(); silent.gain.value = 0;
+        workletNode.connect(silent);
+        silent.connect(audioCtx.destination);
+      } catch (e) {}
+
       sourceNode.connect(workletNode);
 
-      // Inform server start with measured rate
+      // inform server start with measured rate
       const startMsg = { type: 'start', session_id: sessionId, sample_rate: actualRate, channels: 1, chunk_samples: chunkSamples };
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(startMsg));
       else if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify(startMsg)), { once: true });
@@ -255,25 +229,17 @@
     } catch (err) {
       console.error('startRecording error', err);
       log('Ошибка: не удалось начать запись');
-      try {
-        if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
-          window._SV_MIC_INDICATOR.setInactive();
-        } else if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-          window._SV_MIC_INDICATOR.setSimLevel(0);
-        }
-      } catch(e) {}
     }
   }
 
-  // Pause recording
   function pauseRecording() {
     if (!recording) return;
     paused = !paused;
     log(paused ? 'Запись приостановлена' : 'Запись продолжается');
     if (BTN_PAUSE) BTN_PAUSE.textContent = paused ? 'RESUME' : 'PAUSE';
+    // Note: worklet keeps running; if you want to truly pause capture, disconnect nodes.
   }
 
-  // Stop recording
   async function stopRecording() {
     if (!recording) return;
 
@@ -291,21 +257,6 @@
     } else {
       setupWebSocket();
       if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'stop', session_id: sessionId })), { once: true });
-    }
-
-    // --- DISCONNECT MIC INDICATOR ---
-    if (window._SV_MIC_INDICATOR) {
-      try {
-        if (typeof window._SV_MIC_INDICATOR.disconnect === 'function') {
-          window._SV_MIC_INDICATOR.disconnect();
-        } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-          window._SV_MIC_INDICATOR.setSimLevel(0);
-        } else if (typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
-          window._SV_MIC_INDICATOR.setInactive();
-        }
-      } catch (err) {
-        console.debug('MicIndicator disconnect error', err);
-      }
     }
 
     try { workletNode && workletNode.disconnect && workletNode.disconnect(); } catch (_) {}
