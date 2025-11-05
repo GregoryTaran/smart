@@ -1,10 +1,3 @@
-// voicerecorder.js (ES module) - расширение рабочего рекордера
-// основано на оригинальном файле (см. источник). Добавлена интеграция с MicIndicator:
-//  - при старте: window._SV_MIC_INDICATOR.connectStream(mediaStream)
-//  - при stop:   window._SV_MIC_INDICATOR.disconnect() (или сброс уровня)
-//  - при приходе сообщений 'level' также вызываем метод индикатора для отображения уровня.
-//
-// Оригинал: :contentReference[oaicite:1]{index=1}
 (() => {
   const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
   if (!ROOT) return;
@@ -35,6 +28,7 @@
 
   function log(s) { if (STATUS) STATUS.textContent = s; }
 
+  // Ensure unique session ID
   function ensureSession() {
     sessionId = localStorage.getItem('sv_session_id');
     if (!sessionId) {
@@ -168,27 +162,17 @@
       const actualRate = audioCtx.sampleRate;
       const chunkSamples = Math.round(actualRate * CHUNK_SECONDS);
 
-      // get user media
+      // Get user media
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       // --- CONNECT MIC INDICATOR HERE ---
-      // Contract: indicator exists in page as window._SV_MIC_INDICATOR
-      // and exposes connectStream(stream) and disconnect()
+      // Подключаем индикатор
       if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.connectStream === 'function') {
         try {
-          window._SV_MIC_INDICATOR.connectStream(mediaStream);
+          window._SV_MIC_INDICATOR.connectStream(mediaStream);  // Интеграция с индикатором
         } catch (e) {
           console.warn('MicIndicator.connectStream failed', e);
         }
-      } else {
-        // ensure visual is at inactive baseline if connectStream not available
-        try {
-          if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
-            window._SV_MIC_INDICATOR.setInactive();
-          } else if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-            window._SV_MIC_INDICATOR.setSimLevel(0);
-          }
-        } catch(e) {}
       }
 
       sourceNode = audioCtx.createMediaStreamSource(mediaStream);
@@ -201,13 +185,12 @@
         const d = e.data;
         if (!d) return;
         if (d.type === 'level') {
-          // update waveform
+          // Update waveform
           if (Waveform && typeof Waveform.pushLevel === 'function') Waveform.pushLevel(d.rms);
 
-          // also forward RMS to mic-indicator (if available)
+          // Update RMS to mic-indicator (if available)
           if (window._SV_MIC_INDICATOR) {
             try {
-              // preferred APIs tried in order; tolerate missing methods
               if (typeof window._SV_MIC_INDICATOR.setLevel === 'function') {
                 window._SV_MIC_INDICATOR.setLevel(d.rms);
               } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
@@ -216,42 +199,15 @@
                 window._SV_MIC_INDICATOR.pushLevel(d.rms);
               }
             } catch (err) {
-              // non-fatal
               console.debug('MicIndicator level forward error', err);
             }
-          }
-        } else if (d.type === 'chunk' && d.buffer) {
-          const floatBuf = new Float32Array(d.buffer);
-          const valid = Number(d.valid_samples) || floatBuf.length;
-          const meta = {
-            type: 'chunk_meta',
-            seq: seq++,
-            sample_rate: actualRate,
-            channels: 1,
-            chunk_samples: floatBuf.length,
-            valid_samples: valid,
-            timestamp: Date.now()
-          };
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(meta));
-            ws.send(floatBuf.buffer);
-          } else {
-            pending.push({ meta, buffer: floatBuf.buffer.slice(0) });
-            setupWebSocket();
           }
         }
       };
 
-      // connect worklet silently
-      try {
-        const silent = audioCtx.createGain(); silent.gain.value = 0;
-        workletNode.connect(silent);
-        silent.connect(audioCtx.destination);
-      } catch (e) {}
-
       sourceNode.connect(workletNode);
 
-      // inform server start with measured rate
+      // Inform server start with measured rate
       const startMsg = { type: 'start', session_id: sessionId, sample_rate: actualRate, channels: 1, chunk_samples: chunkSamples };
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(startMsg));
       else if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify(startMsg)), { once: true });
@@ -265,7 +221,6 @@
     } catch (err) {
       console.error('startRecording error', err);
       log('Ошибка: не удалось начать запись');
-      // If media failed, ensure indicator is set to inactive baseline
       try {
         if (window._SV_MIC_INDICATOR && typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
           window._SV_MIC_INDICATOR.setInactive();
@@ -276,14 +231,15 @@
     }
   }
 
+  // Pause recording
   function pauseRecording() {
     if (!recording) return;
     paused = !paused;
     log(paused ? 'Запись приостановлена' : 'Запись продолжается');
     if (BTN_PAUSE) BTN_PAUSE.textContent = paused ? 'RESUME' : 'PAUSE';
-    // Note: worklet keeps running; to truly pause, disconnect nodes (not implemented per spec).
   }
 
+  // Stop recording
   async function stopRecording() {
     if (!recording) return;
 

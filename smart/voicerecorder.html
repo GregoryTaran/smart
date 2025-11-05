@@ -67,35 +67,6 @@
 
 <script defer src="js/fragment-load.js"></script>
 
-<!-- === ИНИЦИАЛИЗАЦИЯ НОВОГО MIC INDICATOR (вставлено) === -->
-<!-- Создаёт виджет в контейнере #vc-level, не подключает микрофон автоматически.
-     Подключение stream происходит только внутри voicerecorder.js при старте записи -->
-<script type="module">
-  import MicIndicator from './voicerecorder/mic-indicator/mic-indicator.js';
-
-  // Создаём экземпляр один раз, если его ещё нет.
-  // Off-by-default: индикатор не подключает stream сам по себе.
-  (function initMicIndicator() {
-    const root = document.getElementById('vc-level');
-    if (!root) return; // если контейнер вдруг отсутствует — ничего не делаем
-
-    if (!window._SV_MIC_INDICATOR) {
-      try {
-        window._SV_MIC_INDICATOR = new MicIndicator(root, {/* опции при необходимости */});
-
-        // Явно ставим "выключенное" состояние — тонкая baseline без активности.
-        if (typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
-          window._SV_MIC_INDICATOR.setInactive();
-        } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
-          window._SV_MIC_INDICATOR.setSimLevel(0);
-        }
-      } catch (e) {
-        console.error('MicIndicator init failed', e);
-      }
-    }
-  })();
-</script>
-
 <!-- voicerecorder module script (scoped) — в нём есть вызовы connectStream(mediaStream) внутри startRecording() -->
 <script defer src="voicerecorder/voicerecorder.js"></script>
 <script defer src="js/register-sw.js"></script>
