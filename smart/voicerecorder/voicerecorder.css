@@ -1,58 +1,170 @@
-/* voicerecorder.css — scoped module styles (stable base) */
+/* smart/voicerecorder/voicerecorder.css
+   Scoped styles: все селекторы начинаются с #main[data-module="voicerecorder"]
+*/
 
-:root {
-  --vc-bg: #ffffff;
-  --vc-foreground: #111111;
-  --vc-muted: #767676;
-  --vc-accent: #2b8cff;
-  --vc-radius: 8px;
+/* Container */
+#main[data-module="voicerecorder"] { padding: 20px; box-sizing: border-box; }
+
+/* Card */
+#main[data-module="voicerecorder"] .vc-recorder {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+  max-width: 100%;
 }
 
-body {
-  margin: 0;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  background: var(--vc-bg);
-  color: var(--vc-foreground);
+/* Title */
+#main[data-module="voicerecorder"] .vc-title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  letter-spacing: .2px;
 }
 
-/* Container is scoped to module via data-module attribute on main */
-#main[data-module="voicerecorder"] {
-  max-width: 980px;
-  margin: 18px auto;
-  padding: 16px;
+/* Controls */
+#main[data-module="voicerecorder"] .vc-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#main[data-module="voicerecorder"] .vc-btn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e6e9ee;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+#main[data-module="voicerecorder"] .vc-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* Colors */
+#main[data-module="voicerecorder"] .vc-btn-start { background: #16a34a; color: white; border: none; }
+#main[data-module="voicerecorder"] .vc-btn-pause { background: #f59e0b; color: white; border: none; }
+#main[data-module="voicerecorder"] .vc-btn-stop  { background: #ef4444; color: white; border: none; }
+
+/* Visualizer wrapper */
+#main[data-module="voicerecorder"] .vc-visualizer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+/* Waveform container (bars) */
+#main[data-module="voicerecorder"] .vc-waveform {
+  width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
+  padding: 6px 8px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  background: linear-gradient(90deg,#f7fafc 0,#ffffff 100%); /* subtle background */
+  border-radius: 8px;
+  border: 1px solid #eef2f7;
 }
 
-.vc-recorder {
-  border-radius: var(--vc-radius);
-  padding: 12px;
-  box-sizing: border-box;
-  background: #fbfbfc;
-  box-shadow: 0 6px 20px rgba(23, 23, 23, 0.04);
+/* Bar */
+#main[data-module="voicerecorder"] .vc-waveform .bar {
+  display: inline-block;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #111 0%, #444 100%);
+  transition: height 120ms linear, opacity 120ms linear;
+  align-self: center;
+  height: 14px;
 }
 
-.vc-controls { display:flex; gap:8px; margin-bottom:12px; }
-.vc-btn { padding:10px 14px; border-radius:6px; border: none; background:#f1f3f5; cursor:pointer; }
-.vc-btn:disabled { opacity:0.5; cursor:default; }
-.vc-btn-start { background: var(--vc-accent); color: #fff; }
+/* Center accent */
+#main[data-module="voicerecorder"] .vc-waveform .bar.center {
+  width: 6px;
+  background: linear-gradient(180deg, #000 0%, #222 100%);
+}
 
-.vc-visualizer { display:flex; flex-direction:column; gap:12px; margin-bottom:12px; }
-.vc-waveform { height: 48px; background: linear-gradient(180deg,#fff,#fbfbfb); border-radius:8px; }
+/* small level dot */
+#main[data-module="voicerecorder"] .vc-level {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #bbb;
+  box-shadow: 0 0 8px rgba(0,0,0,0.2);
+}
 
-/* Контейнер индикатора — ширина управляется извне (в основном CSS сайта/переопределении) */
-.vc-level { width:100%; }
+/* Result area */
+#main[data-module="voicerecorder"] .vc-result {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
 
-/* Player area */
-.vc-player { display:block; margin-bottom:10px; }
-.vc-player audio { width:100%; height:44px; display:block; margin-bottom:6px; }
+#main[data-module="voicerecorder"] .vc-player {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
 
-/* Транскрипт — на следующей строке (внешний контейнер контроля) */
-.vc-transcript { margin-top: 6px; background: #fff; padding: 8px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); }
-.vc-transcript-box { min-height: 40px; white-space: pre-wrap; word-break: break-word; color: var(--vc-muted); }
+#main[data-module="voicerecorder"] .vc-download {
+  font-size: 14px;
+  color: #0b74c1;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e6eef8;
+  background: white;
+}
 
-.vc-status { font-size:13px; color:var(--vc-muted); margin-top:8px; }
+#main[data-module="voicerecorder"] .vc-share {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  background: #06b6d4;
+  color: white;
+}
 
-@media (max-width:600px) {
-  #main[data-module="voicerecorder"] { padding: 10px; }
-  .vc-controls { flex-wrap:wrap; }
+/* Transcript */
+#main[data-module="voicerecorder"] .vc-transcript { flex: 1 1 360px; }
+#main[data-module="voicerecorder"] .vc-sub { margin: 0 0 8px; font-size: 16px; }
+#main[data-module="voicerecorder"] .vc-transcript-box {
+  min-height: 120px;
+  border: 1px solid #eef2f7;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fbfcfe;
+  white-space: pre-wrap;
+  overflow: auto;
+  color: #111827;
+}
+
+/* Status */
+#main[data-module="voicerecorder"] .vc-status {
+  margin-top: 12px;
+  color: #374151;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 700px) {
+  #main[data-module="voicerecorder"] .vc-visualizer { flex-direction: column; }
+  #main[data-module="voicerecorder"] .vc-waveform { height: 40px; padding: 4px 6px; gap: 3px; }
+  #main[data-module="voicerecorder"] .vc-waveform .bar { width: 3px; height: 12px; }
+  #main[data-module="voicerecorder"] .vc-waveform .bar.center { width: 5px; }
+  #main[data-module="voicerecorder"] .vc-canvas { height: 100px; }
+}
+
+/* Hide share button temporarily (requested) */
+#main[data-module="voicerecorder"] .vc-share,
+#main[data-module="voicerecorder"] #vc-share {
+  display: none !important;
 }

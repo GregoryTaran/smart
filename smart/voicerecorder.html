@@ -7,15 +7,9 @@
   <title>Диктофон</title>
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
-
-  <!-- === НЕ ТРОГАТЬ: общие стили/шаблон сайта === -->
   <link rel="stylesheet" href="css/main.css" />
-
   <!-- voicerecorder CSS (scoped) -->
   <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
-
-  <!-- mic-indicator styles (в папке voicerecorder/mic-indicator/) -->
-  <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css">
 </head>
 <body>
 <div id="page">
@@ -34,12 +28,17 @@
           <button id="vc-btn-stop" class="vc-btn vc-btn-stop" disabled>СТОП</button>
         </div>
 
-        <!-- Контейнер для индикатора уровня звука -->
-        <div id="vc-level" class="vc-level" aria-hidden="true"></div>
+        <!-- Visualizer: responsive waveform (bars) that fits mobile width -->
+        <div class="vc-visualizer" aria-hidden="false">
+          <div class="vc-waveform" aria-hidden="true"></div>
+          <div id="vc-level" class="vc-level" aria-hidden="true"></div>
+        </div>
 
         <div class="vc-result">
           <div class="vc-player">
             <audio id="vc-audio" controls></audio>
+            <a id="vc-download" class="vc-download" href="#" download>Скачать</a>
+            <button id="vc-share" class="vc-share" disabled>Share</button>
           </div>
 
           <div class="vc-transcript" aria-live="polite">
@@ -58,11 +57,8 @@
 
 <div id="overlay" hidden></div>
 
-<script type="module" src="voicerecorder/mic-indicator/mic-indicator.js"></script>
-
 <script defer src="js/fragment-load.js"></script>
-
-<!-- voicerecorder module script (scoped) — в нём есть вызовы connectStream(mediaStream) внутри startRecording() -->
+<!-- voicerecorder module script (scoped) -->
 <script defer src="voicerecorder/voicerecorder.js"></script>
 <script defer src="js/register-sw.js"></script>
 </body>
