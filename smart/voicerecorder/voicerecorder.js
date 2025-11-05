@@ -1,3 +1,37 @@
+// ---------- mic indicator dynamic import + init (no HTML changes required) ----------
+(async function initMicIndicator() {
+  try {
+    const root = document.getElementById('vc-level');
+    if (!root) return; // нет контейнера — ничего не делаем
+    if (window._SV_MIC_INDICATOR) return; // уже инициализировано
+
+    // динамический import — работает с <script defer src="voicerecorder.js"></script>
+    const mod = await import('./mic-indicator/mic-indicator.js');
+    // поддерживаем разные формы экспорта: default, named, or module itself
+    const MicIndicator = mod && (mod.default || mod.MicIndicator || mod);
+    if (typeof MicIndicator === 'function') {
+      try {
+        window._SV_MIC_INDICATOR = new MicIndicator(root);
+        // По умолчанию индикатор должен быть неактивен (initial state)
+        if (typeof window._SV_MIC_INDICATOR.setInactive === 'function') {
+          window._SV_MIC_INDICATOR.setInactive();
+        } else if (typeof window._SV_MIC_INDICATOR.setSimLevel === 'function') {
+          window._SV_MIC_INDICATOR.setSimLevel(0);
+        }
+        console.debug('MicIndicator initialized');
+      } catch (e) {
+        console.warn('Failed to instantiate MicIndicator', e);
+      }
+    } else {
+      console.warn('MicIndicator module loaded but export not found', mod);
+    }
+  } catch (e) {
+    // не фейлим приложение если индикатор не загрузился
+    console.warn('MicIndicator dynamic import failed', e);
+  }
+})();
+
+// ---------- Existing voicerecorder logic (preserved, with MicIndicator usage points) ----------
 (() => {
   const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
   if (!ROOT) return;
