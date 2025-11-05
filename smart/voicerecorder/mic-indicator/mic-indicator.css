@@ -45,3 +45,10 @@
   .mic-box { background: rgba(20,24,28,0.75); border-color: rgba(255,255,255,0.06); }
   .sv-mic-indicator { --svmic-baseline-color: rgba(255,255,255,0.06); --svmic-bar-color: #e6eefc; }
 }
+
+#vc-level {
+  width: 100%;            /* Ширина контейнера */
+  height: 50px;           /* Высота контейнера (можно подстроить по твоим предпочтениям) */
+  background-color: #f0f0f0; /* Цвет фона, чтобы контейнер был видим */
+  position: relative;     /* Важное свойство для позиционирования индикатора */
+}
