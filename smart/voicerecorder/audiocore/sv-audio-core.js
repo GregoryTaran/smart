@@ -24,7 +24,7 @@ export default class SVAudioCore {
     this.onAudioFrame = null;
 
     this._chunkSize = options.chunkSize || 2048;
-    this._workletUrl = options.workletUrl || './voicerecorder/audiocore/recorder.worklet.js';
+    this._workletUrl = options.workletUrl || '/voicerecorder/audiocore/recorder.worklet.js';
 
     this._paused = false;
 
