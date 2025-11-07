@@ -1,170 +1,27 @@
-/* smart/voicerecorder/voicerecorder.css
-   Scoped styles: все селекторы начинаются с #main[data-module="voicerecorder"]
-*/
+.vr-root .vr-container {height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
+.vr-root .vr-container {height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
+.vr-root .vr-container .demo {max-width:720px;margin:24px auto;padding:0 16px}
+.vr-root .vr-container h3 {margin:0 0 12px 0;font-size:1.05rem}
+.vr-root .vr-container .row {display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.vr-root .vr-container .controls {display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
 
-/* Container */
-#main[data-module="voicerecorder"] { padding: 20px; box-sizing: border-box; }
+.vr-root .vr-container button {
+      padding:8px 12px;border-radius:6px;border:1px solid #cfcfd3;background:#fff;
+      cursor:pointer;transition:background .2s;
+    }
+.vr-root .vr-container button:hover:not([disabled]) {background:#f7f7f9;}
+.vr-root .vr-container button[disabled] {opacity:.5;cursor:default}
+.vr-root .vr-container .status {margin-left:8px;color:#444;font-size:0.95rem}
 
-/* Card */
-#main[data-module="voicerecorder"] .vc-recorder {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 6px 18px rgba(2,6,23,0.06);
-  max-width: 100%;
+/* === SMART VISION unique layout helpers === */
+.sv-center-700{
+  box-sizing:border-box;
+  width:min(700px,100%);
+  margin:0 auto;
+  padding:0 2px;
 }
+/* === end unique layout helpers === */
 
-/* Title */
-#main[data-module="voicerecorder"] .vc-title {
-  margin: 0 0 10px;
-  font-size: 24px;
-  letter-spacing: .2px;
-}
-
-/* Controls */
-#main[data-module="voicerecorder"] .vc-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-#main[data-module="voicerecorder"] .vc-btn {
-  padding: 10px 14px;
-  border-radius: 8px;
-  border: 1px solid #e6e9ee;
-  background: #fff;
-  cursor: pointer;
-  font-weight: 600;
-  box-shadow: none;
-}
-
-#main[data-module="voicerecorder"] .vc-btn[disabled] { opacity: 0.55; cursor: not-allowed; }
-
-/* Colors */
-#main[data-module="voicerecorder"] .vc-btn-start { background: #16a34a; color: white; border: none; }
-#main[data-module="voicerecorder"] .vc-btn-pause { background: #f59e0b; color: white; border: none; }
-#main[data-module="voicerecorder"] .vc-btn-stop  { background: #ef4444; color: white; border: none; }
-
-/* Visualizer wrapper */
-#main[data-module="voicerecorder"] .vc-visualizer {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin: 12px 0;
-  flex-wrap: wrap;
-}
-
-/* Waveform container (bars) */
-#main[data-module="voicerecorder"] .vc-waveform {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-  background: linear-gradient(90deg,#f7fafc 0,#ffffff 100%); /* subtle background */
-  border-radius: 8px;
-  border: 1px solid #eef2f7;
-}
-
-/* Bar */
-#main[data-module="voicerecorder"] .vc-waveform .bar {
-  display: inline-block;
-  width: 4px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #111 0%, #444 100%);
-  transition: height 120ms linear, opacity 120ms linear;
-  align-self: center;
-  height: 14px;
-}
-
-/* Center accent */
-#main[data-module="voicerecorder"] .vc-waveform .bar.center {
-  width: 6px;
-  background: linear-gradient(180deg, #000 0%, #222 100%);
-}
-
-/* small level dot */
-#main[data-module="voicerecorder"] .vc-level {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #bbb;
-  box-shadow: 0 0 8px rgba(0,0,0,0.2);
-}
-
-/* Result area */
-#main[data-module="voicerecorder"] .vc-result {
-  display: flex;
-  gap: 18px;
-  margin-top: 14px;
-  align-items: flex-start;
-  flex-wrap: wrap;
-}
-
-#main[data-module="voicerecorder"] .vc-player {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-#main[data-module="voicerecorder"] .vc-download {
-  font-size: 14px;
-  color: #0b74c1;
-  text-decoration: none;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #e6eef8;
-  background: white;
-}
-
-#main[data-module="voicerecorder"] .vc-share {
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: none;
-  background: #06b6d4;
-  color: white;
-}
-
-/* Transcript */
-#main[data-module="voicerecorder"] .vc-transcript { flex: 1 1 360px; }
-#main[data-module="voicerecorder"] .vc-sub { margin: 0 0 8px; font-size: 16px; }
-#main[data-module="voicerecorder"] .vc-transcript-box {
-  min-height: 120px;
-  border: 1px solid #eef2f7;
-  padding: 10px;
-  border-radius: 8px;
-  background: #fbfcfe;
-  white-space: pre-wrap;
-  overflow: auto;
-  color: #111827;
-}
-
-/* Status */
-#main[data-module="voicerecorder"] .vc-status {
-  margin-top: 12px;
-  color: #374151;
-  font-size: 14px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 700px) {
-  #main[data-module="voicerecorder"] .vc-visualizer { flex-direction: column; }
-  #main[data-module="voicerecorder"] .vc-waveform { height: 40px; padding: 4px 6px; gap: 3px; }
-  #main[data-module="voicerecorder"] .vc-waveform .bar { width: 3px; height: 12px; }
-  #main[data-module="voicerecorder"] .vc-waveform .bar.center { width: 5px; }
-  #main[data-module="voicerecorder"] .vc-canvas { height: 100px; }
-}
-
-/* Hide share button temporarily (requested) */
-#main[data-module="voicerecorder"] .vc-share,
-#main[data-module="voicerecorder"] #vc-share {
-  display: none !important;
-}
+/* SMART VISION: persistent media player */
+.sv-player{display:block;width:100%;margin-top:5mm}
+.sv-player--disabled{pointer-events:none;opacity:.6;filter:grayscale(1)}

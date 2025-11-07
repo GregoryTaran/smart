@@ -1,42 +1,48 @@
 // mic-indicator.js
-// Minimal, self-contained MicIndicator implementation compatible with voicerecorder.js usage.
+// Mic Indicator v2 — с логикой состояний: initial / working / pause
+// Состояния:
+//   initial — модуль загружен, ждет звука, рисует только baseline
+//   working — есть звук выше порога, рисует активные бары
+//   pause   — тишина дольше заданного времени, фиксирует последний кадр
+//
+// Модуль полностью визуальный, не эмитит событий наружу.
 
-// --- defaults (must be declared BEFORE class usage) ---
 const DEFAULTS = {
   stepMs: 100,
-  fftSize: 256,
+  fftSize: 1024,
   analyserSmoothing: 0.2,
-  sensitivity: 7,
+  sensitivity: 5,
   exponent: 0.95,
   minVisible: 0.01,
   minBars: 6,
-  peakMultiplier: 7,
+  peakMultiplier: 5,
   peakDecay: 0.98,
   bufDecay: 1,
   barWidthPx: null,
   gapPx: null,
-  silenceTimeoutMs: 800 // when to consider "pause" after last sound
+  // новые параметры:
+  silenceThreshold: 0.02,   // уровень звука, ниже которого — тишина
+  silenceTimeoutMs: 5000    // сколько мс подряд тишины до состояния pause
 };
 
-// --- MicIndicator class ---
 export default class MicIndicator {
   static setDefaults(o = {}) { Object.assign(DEFAULTS, o); }
 
   constructor(container, opts = {}) {
     if (!(container instanceof Element)) throw new Error('MicIndicator: container must be a DOM Element');
-    this._container = container;
-    this.container = container; // backward alias
-
-    // read data- attributes if present
-    const d = this._container.dataset || {};
+    this.container = container;
+    const d = container.dataset || {};
     const data = {};
     if (d.stepMs) data.stepMs = Number(d.stepMs);
     if (d.sensitivity) data.sensitivity = Number(d.sensitivity);
     if (d.fftSize) data.fftSize = Number(d.fftSize);
-
     this.opts = Object.assign({}, DEFAULTS, data, opts || {});
 
-    // internal state
+    // состояние
+    this._state = 'initial';
+    this._lastSoundTime = 0;
+
+    // внутреннее аудио
     this._audioCtx = null;
     this._analyser = null;
     this._source = null;
@@ -50,21 +56,12 @@ export default class MicIndicator {
     this._peakHold = 0;
     this._destroyed = false;
 
-    this._state = 'initial'; // initial | working | pause
-    this._latestRms = 0;
-    this._lastSoundTs = 0;
-
-    // mount canvas, listeners
     this._mount();
     this._boundResize = this._onResize.bind(this);
     window.addEventListener('resize', this._boundResize, { passive: true });
-    // initial sizing
     this._onResize();
   }
 
-  /* ------------------ Public API expected by voicerecorder.js ------------------ */
-
-  // connect MediaStream (host provides stream)
   async connectStream(mediaStream) {
     if (this._destroyed) return false;
     if (!mediaStream || !mediaStream.getAudioTracks || mediaStream.getAudioTracks().length === 0) {
@@ -75,20 +72,21 @@ export default class MicIndicator {
     if (this._source) try { this._source.disconnect(); } catch (e) {}
     this._source = this._audioCtx.createMediaStreamSource(mediaStream);
 
-    // create analyser
     this._analyser = this._audioCtx.createAnalyser();
-    this._analyser.fftSize = this.opts.fftSize || DEFAULTS.fftSize;
-    this._analyser.smoothingTimeConstant = this.opts.analyserSmoothing ?? DEFAULTS.analyserSmoothing;
+    this._analyser.fftSize = this.opts.fftSize;
+    this._analyser.smoothingTimeConstant = this.opts.analyserSmoothing;
     this._timeDomain = new Uint8Array(this._analyser.fftSize);
 
     try { this._source.connect(this._analyser); } catch (e) { console.warn('connectStream:', e); }
+
+    this._setState('initial');
+    this._lastSoundTime = Date.now();
 
     this._startTimer();
     this._startRender();
     return true;
   }
 
-  // disconnect MediaStream and stop rendering/timers
   disconnect() {
     this._stopTimer();
     this._stopRender();
@@ -96,205 +94,174 @@ export default class MicIndicator {
     this._source = null;
     if (this._analyser) try { this._analyser.disconnect(); } catch (e) {}
     this._analyser = null;
-    this._audioCtx = null;
-    // keep canvas visible (pause state)
-    this._state = 'initial';
-    this._clearCanvas();
+    this._setState('initial');
   }
 
-  // optional: host may pass an AudioNode (we'll attach analyser to it)
-  connectAudioNode(node) {
-    if (!node || !node.context) throw new Error('connectAudioNode: ожидается AudioNode с контекстом');
-    this._audioCtx = node.context;  // Use provided context
-    if (this._analyser) try { this._analyser.disconnect(); } catch (e) {}
-    this._analyser = this._audioCtx.createAnalyser();
-    this._analyser.fftSize = this.opts.fftSize || DEFAULTS.fftSize;
-    node.connect(this._analyser);
-    this._timeDomain = new Uint8Array(this._analyser.fftSize);
-    this._startTimer();
-    this._startRender();
+  setSimLevel(v) {
+    const val = Math.max(0, Math.min(1, Number(v) || 0));
+    if (!this._buf) return;
+    this._buf[this._bufPos] = val;
+    this._bufPos = (this._bufPos + 1) % this._buf.length;
   }
 
-  // receive a numeric level from external source (0..1)
-  setLevel(rms) {
-    const v = Number(rms) || 0;
-    this._latestRms = Math.max(0, Math.min(1, v));
-    this._onAudioLevel(this._latestRms);
-  }
-  setSimLevel(rms) { this.setLevel(rms); }
-  pushLevel(rms) { this.setLevel(rms); }
-
-  // set module to inactive / initial visual state
   setInactive() {
-    this._state = 'initial';
-    this._stopTimer();
-    this._stopRender();
-    this._clearCanvas();
+    if (!this._buf) return;
+    this._buf.fill(0); this._bufPos = 0;
+    this._setState('initial');
+    this._renderOnce();
   }
 
-  /* ------------------ Internal rendering / sampling ------------------ */
+  destroy() {
+    this.disconnect();
+    window.removeEventListener('resize', this._boundResize);
+    if (this._root && this._root.parentNode) this._root.parentNode.removeChild(this._root);
+    this._destroyed = true;
+  }
+
+  // ================== внутренние ==================
+  _setState(s) {
+    if (this._state === s) return;
+    this._state = s;
+    this._renderOnce();
+  }
 
   _mount() {
-    // create a canvas inside container
-    this._canvas = document.createElement('canvas');
-    this._canvas.style.width = '100%';
-    this._canvas.style.height = '100%';
-    this._canvas.style.display = 'block';
-    this._canvas.style.pointerEvents = 'none';
-    // ensure container has at least minimal height via CSS from host or mic CSS
-    this._container.appendChild(this._canvas);
-    this._ctx = this._canvas.getContext('2d');
-  }
-
-  _clearCanvas() {
-    if (!this._ctx) return;
-    const w = this._canvas.width;
-    const h = this._canvas.height;
-    this._ctx.clearRect(0, 0, w, h);
+    this._root = this.container.querySelector('.sv-mic-indicator');
+    if (!this._root) {
+      this._root = document.createElement('div'); this._root.className = 'sv-mic-indicator';
+      this.container.appendChild(this._root);
+    }
+    this._wrap = this._root.querySelector('.sv-mic-indicator__wrap') || document.createElement('div');
+    this._wrap.className = 'sv-mic-indicator__wrap';
+    this._canvas = this._root.querySelector('.sv-mic-indicator__canvas') || document.createElement('canvas');
+    this._canvas.className = 'sv-mic-indicator__canvas';
+    this._ctx = this._canvas.getContext('2d', { alpha: true });
+    if (!this._wrap.parentNode) this._root.appendChild(this._wrap);
+    if (!this._canvas.parentNode) this._wrap.appendChild(this._canvas);
   }
 
   _onResize() {
-    try {
-      const rect = this._container.getBoundingClientRect();
-      const w = Math.max(1, Math.floor(rect.width * this._dpr));
-      const h = Math.max(1, Math.floor(rect.height * this._dpr));
-      this._canvas.width = w;
-      this._canvas.height = h;
-      this._ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0); // handle DPR
-      // redraw last frame
-      this._draw();
-    } catch (e) {
-      // ignore
+    const cs = getComputedStyle(this._root);
+    const padding = parseFloat(cs.getPropertyValue('--svmic-padding-px')) || 0;
+    const barWidthCss = parseFloat(cs.getPropertyValue('--svmic-bar-width-px')) || this.opts.barWidthPx || 6;
+    const gap = parseFloat(cs.getPropertyValue('--svmic-gap-px')) || this.opts.gapPx || 2;
+
+    const rect = this._wrap.getBoundingClientRect();
+    const totalW = Math.max(40, rect.width - padding * 2);
+    let possibleBars = Math.floor((totalW + gap) / (barWidthCss + gap));
+    if (possibleBars < this.opts.minBars) possibleBars = this.opts.minBars;
+    this._bars = possibleBars;
+
+    if (!this._buf || this._buf.length !== this._bars) {
+      this._buf = new Float32Array(this._bars); this._buf.fill(0); this._bufPos = 0;
     }
+
+    this._dpr = window.devicePixelRatio || 1;
+    const cssRect = this._canvas.getBoundingClientRect();
+    const wPx = Math.max(1, Math.floor(cssRect.width * this._dpr));
+    const hPx = Math.max(1, Math.floor(cssRect.height * this._dpr));
+    if (this._canvas.width !== wPx || this._canvas.height !== hPx) {
+      this._canvas.width = wPx; this._canvas.height = hPx;
+    }
+    this._ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    this._renderOnce();
   }
 
-  // timer: sample analyser at interval and update _latestRms
-  _startTimer() {
-    this._stopTimer();
+  _startTimer() { if (this._timer) return; const ms = Math.max(16, this.opts.stepMs | 0); this._timer = setInterval(()=> this._step(), ms); }
+  _stopTimer() { if (!this._timer) return; clearInterval(this._timer); this._timer = null; }
+
+  _startRender() {
+    if (this._raf) return;
+    const loop = ()=> { this._renderOnce(); this._raf = requestAnimationFrame(loop); };
+    this._raf = requestAnimationFrame(loop);
+  }
+  _stopRender() { if (!this._raf) return; cancelAnimationFrame(this._raf); this._raf = null; }
+
+  _step() {
     if (!this._analyser) return;
-    const step = Math.max(20, Number(this.opts.stepMs) || DEFAULTS.stepMs);
-    this._timer = setInterval(() => {
-      try {
-        if (!this._analyser) return;
-        this._analyser.getByteTimeDomainData(this._timeDomain);
-        // compute RMS from time-domain bytes (0..255 -> center 128)
-        let sum = 0;
-        for (let i = 0; i < this._timeDomain.length; i++) {
-          const v = (this._timeDomain[i] - 128) / 128; // -1..1
-          sum += v * v;
-        }
-        const rms = Math.sqrt(sum / this._timeDomain.length); // 0..1
-        // apply sensitivity/exponent if desired
-        const scaled = Math.pow(Math.min(1, rms * (this.opts.sensitivity || 7)), this.opts.exponent || 1);
-        this._latestRms = scaled;
-        if (scaled > 0.001) this._lastSoundTs = performance.now();
-        this._onAudioLevel(scaled);
-      } catch (e) {
-        // ignore sampling errors
-      }
-    }, step);
-  }
-  _stopTimer() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
-  }
+    try { this._analyser.getByteTimeDomainData(this._timeDomain); } catch(e){ return; }
 
-  // rendering loop (RAF)
-  _startRendering() { this._rendering = true; this._renderFrame(); }
-  _stopRendering() { this._rendering = false; if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; } }
-
-  // aliases used in older code
-  _startRender() { return this._startRendering(); }
-  _stopRender() { return this._stopRendering(); }
-
-  _renderFrame() {
-    try {
-      this._draw();
-    } catch (e) { /* ignore drawing errors */ }
-    if (this._rendering) {
-      this._raf = requestAnimationFrame(this._renderFrame.bind(this));
+    // RMS и пик
+    let sum = 0, instantPeak = 0;
+    for (let i=0;i<this._timeDomain.length;i++){
+      const v = (this._timeDomain[i] - 128) / 128;
+      sum += v*v;
+      const av = Math.abs(v);
+      if (av > instantPeak) instantPeak = av;
     }
-  }
+    const rms = Math.sqrt(sum / this._timeDomain.length);
 
-  // basic draw implementation: fill background by state and draw level bar
-  _draw() {
-    if (!this._ctx) return;
-    const ctx = this._ctx;
-    const w = this._canvas.width / this._dpr;
-    const h = this._canvas.height / this._dpr;
+    // decay peak
+    this._peakHold = Math.max(instantPeak, (this._peakHold || 0) * this.opts.peakDecay);
 
-    // clear
-    ctx.clearRect(0, 0, w, h);
+    // расчет нормализованного уровня
+    const rmsPart = Math.pow(rms, this.opts.exponent) * this.opts.sensitivity;
+    const peakPart = Math.min(1, instantPeak * this.opts.peakMultiplier);
+    const normalized = Math.max(rmsPart, peakPart, this.opts.minVisible);
 
-    // draw background by state
-    if (this._state === 'working') {
-      // greenish faded background
-      ctx.fillStyle = 'rgba(39, 174, 96, 0.06)';
-      ctx.fillRect(0, 0, w, h);
-    } else if (this._state === 'pause') {
-      ctx.fillStyle = 'rgba(120,120,120,0.04)';
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    // draw level bar
-    const level = Math.max(0, Math.min(1, this._latestRms || 0));
-    const barW = Math.max(4, Math.floor(w * 0.06));
-    const gap = Math.max(2, Math.floor(barW * 0.3));
-    const barCount = Math.max(1, Math.floor((w + gap) / (barW + gap)));
-    const maxBarH = h * 0.85;
-    const baseY = h - 4;
-
-    // compute number of bars to light based on level
-    const lit = Math.round(level * barCount);
-
-    for (let i = 0; i < barCount; i++) {
-      const x = i * (barW + gap);
-      const isLit = i < lit;
-      if (isLit) {
-        // color grad
-        const g = Math.round(180 + (75 * (i / Math.max(1, barCount))));
-        ctx.fillStyle = `rgb(${g}, ${200}, ${80})`;
-        const hBar = Math.round(maxBarH * ((i + 1) / barCount));
-        ctx.fillRect(x, baseY - hBar, barW, hBar);
-      } else {
-        ctx.fillStyle = 'rgba(200,200,200,0.06)';
-        ctx.fillRect(x, baseY - (maxBarH * 0.18), barW, Math.max(2, Math.floor(maxBarH * 0.18)));
-      }
-    }
-
-    // draw peak indicator (simple)
-    if (this._latestRms > 0.001) {
-      this._peakHold = Math.max(this._peakHold * (this.opts.peakDecay || 0.98), this._latestRms);
+    // определение тишины / активности
+    const now = Date.now();
+    if (normalized > this.opts.silenceThreshold) {
+      this._lastSoundTime = now;
+      if (this._state !== 'working') this._setState('working');
     } else {
-      this._peakHold *= (this.opts.peakDecay || 0.98);
-    }
-  }
-
-  // handle audio level transitions
-  _onAudioLevel(level) {
-    const now = performance.now();
-    if (level > (this.opts.minVisible || 0.01)) {
-      if (this._state !== 'working') {
-        this._state = 'working';
-        this._startRender();
-      }
-      this._lastSoundTs = now;
-    } else {
-      if (this._lastSoundTs && (now - this._lastSoundTs) > (this.opts.silenceTimeoutMs || 800)) {
-        if (this._state !== 'pause') {
-          this._state = 'pause';
-          // keep last frame visible (do not clear), stop sampling but keep render for pause shading
-          this._stopTimer();
-        }
+      const silenceDur = now - this._lastSoundTime;
+      if (silenceDur > this.opts.silenceTimeoutMs && this._state === 'working') {
+        this._setState('pause');
       }
     }
+
+    if (!this._buf || this._state === 'initial' || this._state === 'pause') return;
+    this._buf[this._bufPos] = normalized;
+    this._bufPos = (this._bufPos + 1) % this._buf.length;
   }
 
-  // cleanup
-  destroy() {
-    this._destroyed = true;
-    this.disconnect();
-    window.removeEventListener('resize', this._boundResize);
-    try { if (this._canvas && this._canvas.parentNode) this._canvas.parentNode.removeChild(this._canvas); } catch (e) {}
-    this._ctx = null;
+  _renderOnce() {
+    const ctx = this._ctx; if (!ctx) return;
+    const canvasRect = this._canvas.getBoundingClientRect();
+    const cssW = canvasRect.width || (this._canvas.width / this._dpr);
+    const cssH = canvasRect.height || (this._canvas.height / this._dpr);
+
+    const style = getComputedStyle(this._root);
+    const baselineColor = style.getPropertyValue('--svmic-baseline-color') || '#e6e8eb';
+    const barColor = style.getPropertyValue('--svmic-bar-color') || '#151515';
+    const minVisible = parseFloat(style.getPropertyValue('--svmic-min-visible')) || this.opts.minVisible;
+    const barWidthCss = parseFloat(style.getPropertyValue('--svmic-bar-width-px')) || this.opts.barWidthPx || 6;
+    const gap = parseFloat(style.getPropertyValue('--svmic-gap-px')) || this.opts.gapPx || 2;
+
+    // initial → рисуем baseline и выходим
+    if (this._state === 'initial') {
+      ctx.clearRect(0, 0, cssW, cssH);
+      const center = Math.round(cssH / 2);
+      ctx.fillStyle = baselineColor.trim();
+      ctx.fillRect(0, center - 0.5, cssW, 1);
+      return;
+    }
+
+    // pause → не перерисовываем (оставляем последний кадр)
+    if (this._state === 'pause') return;
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    const center = Math.round(cssH / 2);
+    ctx.fillStyle = baselineColor.trim();
+    ctx.fillRect(0, center - 0.5, cssW, 1);
+
+    if (!this._buf || this._buf.length === 0) return;
+
+    const totalBarSpace = this._bars * barWidthCss + Math.max(0, (this._bars - 1) * gap);
+    const startX = Math.round(Math.max(0, (cssW - totalBarSpace) / 2));
+    const maxH = Math.max(4, Math.floor((cssH / 2) - 1));
+
+    ctx.fillStyle = barColor.trim();
+    let idx = this._bufPos;
+    for (let i=0;i<this._bars;i++){
+      const v = this._buf[idx] || 0;
+      idx = (idx + 1) % this._buf.length;
+      if (v <= minVisible) continue;
+      const x = startX + i * (barWidthCss + gap);
+      const h = Math.round(v * maxH);
+      ctx.fillRect(x, center - h, barWidthCss, h);
+      ctx.fillRect(x, center, barWidthCss, h);
+    }
   }
 }

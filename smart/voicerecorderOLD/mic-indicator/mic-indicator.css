@@ -1,0 +1,54 @@
+/* mic-indicator.css */
+
+.mic-box {
+  --mic-box-width: 460px;
+  --mic-box-min-width: 180px;
+  --mic-box-padding: 0mm;
+  --mic-box-radius: 10px;
+  --mic-box-border-color: #d7dbe0;
+  box-sizing: border-box;
+  width: var(--mic-box-width);
+  max-width: 100%;
+  min-width: var(--mic-box-min-width);
+  display: block;
+  border: 1px solid var(--mic-box-border-color);
+  border-radius: var(--mic-box-radius);
+  background: #ffffff;
+  padding: var(--mic-box-padding);
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 1px 4px rgba(16,24,40,0.04);
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* Canvas */
+.sv-mic-indicator__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.sv-mic-indicator {
+  --svmic-padding-px: 0;
+  --svmic-bar-width-px: 3;
+  --svmic-gap-px: 2;
+  --svmic-baseline-color: #e6e8eb;
+  --svmic-bar-color: #151515;
+  --svmic-min-visible: 0.01;
+}
+
+@media (prefers-color-scheme: dark) {
+  .mic-box { background: rgba(20,24,28,0.75); border-color: rgba(255,255,255,0.06); }
+  .sv-mic-indicator { --svmic-baseline-color: rgba(255,255,255,0.06); --svmic-bar-color: #e6eefc; }
+}
+
+#vc-level {
+  width: 100%;            /* Ширина контейнера */
+  height: 50px;           /* Высота контейнера (можно подстроить по твоим предпочтениям) */
+  background-color: #f0f0f0; /* Цвет фона, чтобы контейнер был видим */
+  position: relative;     /* Важное свойство для позиционирования индикатора */
+}
