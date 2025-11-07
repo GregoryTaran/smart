@@ -1,90 +1,144 @@
-Обновлённый README.md (удалил упоминания о maxBars)
-# Mic Indicator (ESM) — Smart Vision
+Mic Indicator (UI)
 
-Лёгкий, автономный ES module-индикатор уровня микрофона.  
-Показывает тонкую серую baseline в тишине и зеркальные палочки при голосе.  
-Предназначен для аккуратной интеграции в Voice Recorder и другие UI.
+Лёгкий визуальный индикатор уровня микрофона на Web Audio API. Компонент полностью визуальный: принимает MediaStream, рисует «бегущие бары», имеет состояния initial / working / pause, не эмитит события наружу. 
 
-## Содержимое папки
-- `mic-indicator.js` — ESM-класс `export default MicIndicator`.
-- `mic-indicator.css` — стили с CSS-переменными (`--svmic-*`).
-- `README.md` — этот файл.
+mic-indicator
 
-## Основная идея
-- **Контейнер-управление шириной.** Контролируйте видимую длину индикатора через CSS контейнера (например `#vc-level { min-width:120px; max-width:2600px; }`). Компонент сам адаптируется к доступной ширине.  
-- **Off-by-default.** Компонент рисует тонкую серую baseline после монтирования; активную анимацию запускает только явный вызов `connectStream(mediaStream)`.  
-- **Без автоподключения** — обязательное правило: не подключаем поток при загрузке страницы.
-
-## Быстрая интеграция
-1. Положите папку рядом со страницей (пример):
+Состав
+mic-indicator/
+├─ mic-indicator.js   # логика и рендер (Canvas), состояния, расчёт RMS/PEAK
+└─ mic-indicator.css  # стили (толщина полос, отступы, цвета, тёмная тема)
 
 
-/VoiceRecorder/voicerecorder.html
-/VoiceRecorder/voicerecorder.js
-/VoiceRecorder/mic-indicator/mic-indicator.js
-/VoiceRecorder/mic-indicator/mic-indicator.css
+В CSS по умолчанию «толщина» бара уменьшена до 3px, «gap» — 2px (см. CSS-переменные ниже). 
 
+mic-indicator
 
-2. Подключите стили в `<head>` (путь относительно HTML):
-```html
-<link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css">
+Быстрый старт
+HTML
+<div class="mic-box">
+  <div id="vc-level"></div>
+</div>
 
-
-Создайте контейнер там, где хотите видеть индикатор:
-
-<div id="vc-level" style="max-width:2600px; min-width:120px;"></div>
-
-
-Контейнер управляет видимым размером индикатора — так он будет корректно выглядеть в любом месте интерфейса.
-
-Инициализация (без автоподключения):
-
+<link rel="stylesheet" href="./mic-indicator.css">
 <script type="module">
-  import MicIndicator from './voicerecorder/mic-indicator/mic-indicator.js';
-  // создать экземпляр, но не подключать stream
-  const indicator = new MicIndicator(document.getElementById('vc-level'), {/*options*/});
-  window._SV_MIC_INDICATOR = indicator;
+  import MicIndicator from './mic-indicator.js';
+
+  // Пример инициализации (см. JS ниже)
 </script>
 
+JavaScript
+import MicIndicator from './mic-indicator.js';
 
-Подключение потока — только при старте записи:
+// Контейнер — это DOM-элемент, внутри которого компонент сам создаст canvas
+const container = document.getElementById('vc-level');
+const mic = new MicIndicator(container, {
+  // опциональные параметры (см. «Опции»)
+  analyserSmoothing: 0.2,
+  fftSize: 1024,
+  stepMs: 100,
+});
 
-// внутри вашей функции startRecording(), после получения mediaStream:
-const indicator = window._SV_MIC_INDICATOR || new MicIndicator(document.getElementById('vc-level'), {/*options*/});
-indicator.connectStream(mediaStream);
+// Подключаем аудио-поток (например, после init вашего аудио-ядра)
+await mic.connectStream(mediaStream);
+
+// Пауза/возврат/остановка
+// mic.setInactive();   // принудительно отрисовать baseline
+// mic.disconnect();    // отцепить поток и вернуться в initial
+// mic.destroy();       // убрать слушатели/DOM и очиститься
 
 
-Отключение:
+Компонент сам создаёт внутренние элементы (.sv-mic-indicator / canvas) и управляет размерами при ресайзе окна. 
 
-indicator.disconnect(); // остановить визуализацию (DOM сохраняется)
-indicator.destroy();    // удалить DOM и освободить ресурсы
+mic-indicator
 
-API (кратко)
+Опции (конструктор)
+new MicIndicator(container, {
+  stepMs: 100,            // период выборки и обновления буфера
+  fftSize: 1024,          // размер окна анализатора (time-domain)
+  analyserSmoothing: 0.2, // сглаживание AnalyserNode (0..1)
+  sensitivity: 5,         // чувствительность визуализации
+  exponent: 0.95,         // экспонента для RMS
+  minVisible: 0.01,       // минимальная видимая высота баров
+  minBars: 6,             // минимальное число баров
+  peakMultiplier: 5,      // множитель «пиков» (всплески)
+  peakDecay: 0.98,        // затухание пика
+  bufDecay: 1,            // резерв на «буферный» спад (оставлено для совместимости)
+  barWidthPx: null,       // задать ширину бара в JS (иначе берётся из CSS var)
+  gapPx: null,            // задать gap в JS (иначе из CSS var)
+  silenceThreshold: 0.02, // порог тишины (нормированный уровень)
+  silenceTimeoutMs: 5000  // длительность тишины для перехода в state=pause
+});
 
-new MicIndicator(containerElement, opts) — создаёт виджет. Не подключает аудио автоматически.
 
-await indicator.connectStream(mediaStream) — подключает существующий MediaStream.
+Глобально обновить дефолты можно через MicIndicator.setDefaults({...}). 
 
-indicator.disconnect(), indicator.destroy(), indicator.setSimLevel(v) — доступны.
+mic-indicator
 
-Опции: stepMs, sensitivity, minVisible, barWidthPx, gapPx.
+Методы
+await mic.connectStream(mediaStream) // подключает MediaStream, создаёт AudioContext/Analyser
+mic.disconnect()                     // отцепляет поток, возвращает state='initial'
+mic.setInactive()                    // сбрасывает буфер, рисует baseline (без движения)
+mic.setSimLevel(value01)             // тестовый метод: руками «кормить» уровень (0..1)
+mic.destroy()                        // снимает listeners, удаляет DOM, помечает как уничтоженный
 
-CSS-переменные (переопределяйте в локальном CSS)
 
---svmic-height — высота (например 14mm)
+Компонент не управляет вашим AudioContext и не сохраняет WAV — это чистая визуализация. 
 
---svmic-bar-color, --svmic-baseline-color
+mic-indicator
 
---svmic-gap-px, --svmic-bar-width-px, --svmic-padding-px
+Стили и кастомизация (CSS Variables)
 
-Производительность
+В корневом элементе индикатора можно настраивать параметры через CSS-переменные:
 
-Компонент использует AnalyserNode (или значения, если вы шлёте RMS из AudioWorklet).
+.sv-mic-indicator{
+  --svmic-padding-px: 0;
+  --svmic-bar-width-px: 3;  /* ширина одной полосы */
+  --svmic-gap-px: 2;        /* расстояние между полосами */
+  --svmic-baseline-color: #e6e8eb;
+  --svmic-bar-color: #151515;
+  --svmic-min-visible: 0.01;
+}
 
-Рекомендуется использовать единственный AudioContext / MediaStream в приложении и передавать stream в connectStream().
 
-Отладка / тесты
+Контейнер .mic-box задаёт рамку, фон, тени, размеры. Есть стили для тёмной темы и high-contrast. 
 
-В консоли: indicator.setSimLevel(0.8) — будет видно палочки.
+mic-indicator
 
-Если видите точку до старта: убедитесь, что connectStream() не вызывается при загрузке.
+Логика состояний
+
+initial — нет данных/стрима, рисуется только baseline (горизонтальная линия).
+
+working — пришёл уровень выше silenceThreshold, рисуются «бары».
+
+pause — длительная тишина (silenceTimeoutMs) после работы: фиксируется последний кадр (анимация останавливается). 
+
+mic-indicator
+
+Лучшие практики
+
+Подключайте индикатор к «обработанному» потоку — т.е. к тому же MediaStream, который идёт на запись (после вашего GainNode). Тогда картинка соответствует фактическому уровню записи.
+
+Для более «живого» разлёта баров:
+
+снижайте analyserSmoothing (пример: 0.15–0.25);
+
+увеличивайте sensitivity или peakMultiplier чуть-чуть;
+
+регулируйте --svmic-bar-width-px / --svmic-gap-px в CSS. 
+
+mic-indicator
+
+ 
+
+mic-indicator
+
+Отладка
+
+Если ничего не рисуется: проверьте, что передаёте валидный MediaStream и что в нём есть аудио-трек. connectStream() бросит ошибку при некорректном потоке. 
+
+mic-indicator
+
+Если полоса «замерла»: возможно, компонент в pause — проверьте silenceThreshold и silenceTimeoutMs.
+
+На мобильных убедитесь, что сайт открыт по HTTPS (иначе доступ к микрофону может быть заблокирован).

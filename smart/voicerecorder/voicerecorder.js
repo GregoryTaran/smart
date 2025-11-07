@@ -1,284 +1,162 @@
-// voicerecorder.js - minimal, AudioWorklet-only recorder with responsive bar waveform indicator
-(() => {
-  const ROOT = document.querySelector('#main[data-module="voicerecorder"]');
-  if (!ROOT) return;
+import SVAudioCore from './audiocore/sv-audio-core.js';
+import MicIndicator from './mic-indicator/mic-indicator.js';
+import WavSegmenter from './audiocore/wav-segmenter.js';
+import WavAssembler from './audiocore/wav-assembler.js';
+import { uuidv4 } from '../uuid/uuid.js';
+import { rid } from '../uuid/id.js';
 
-  // UI elements
-  const BTN_START = ROOT.querySelector('#vc-btn-start');
-  const BTN_PAUSE = ROOT.querySelector('#vc-btn-pause');
-  const BTN_STOP  = ROOT.querySelector('#vc-btn-stop');
-  const STATUS    = ROOT.querySelector('#vc-status');
-  const AUDIO_EL  = ROOT.querySelector('#vc-audio');
-  const DOWNLOAD  = ROOT.querySelector('#vc-download');
-  const TRANSCRIPT= ROOT.querySelector('#vc-transcript');
-  const WAVEFORM_CONTAINER = ROOT.querySelector('.vc-waveform');
+// -------------------- DOM --------------------
+const playerEl = document.getElementById('sv-player');
+const container = document.getElementById('vc-level');
+const startBtn  = document.getElementById('startBtn');
+const pauseBtn  = document.getElementById('pauseBtn');
+const stopBtn   = document.getElementById('stopBtn');
+const statusEl  = document.getElementById('status');
 
-  const CHUNK_SECONDS = 2;
-  let audioCtx = null;
-  let mediaStream = null;
-  let sourceNode = null;
-  let workletNode = null;
-  let recording = false;
-  let paused = false;
-  let seq = 0;
-  let sessionId = null;
+const anonEl = document.getElementById('anon-id');
+const sessEl = document.getElementById('session-id');
+const recEl  = document.getElementById('recording-id');
 
-  let ws = null;
-  const pending = [];
-  const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/voicerecorder`;
+// -------------------- Core --------------------
+const core = new SVAudioCore();             // захватчик (AEC/NS/AGC/Gain внутри sv-audio-core.js)
+const mic  = new MicIndicator(container);   // только визуализация уровня
 
-  function log(s) { if (STATUS) STATUS.textContent = s; }
+// Сегментер = режет на 2сек куски, последний паддит до 2 сек тишиной (по твоей логике)
+const segments = [];
+const segmenter = new WavSegmenter({
+  segmentSeconds: 2,
+  normalize: true,
+  normalizeTarget: 0.99,
+  emitBlobPerSegment: false,
+  padLastSegment: true,
+});
 
-  function ensureSession() {
-    sessionId = localStorage.getItem('sv_session_id');
-    if (!sessionId) {
-      sessionId = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,9);
-      localStorage.setItem('sv_session_id', sessionId);
-    }
-    return sessionId;
-  }
+segmenter.onSegment = (seg) => {
+  segments.push(seg);
+  // Тут легко добавить: отправку seg.pcmInt16 или seg.blob на сервер
+};
 
-  function setupWebSocket() {
-    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-    ws = new WebSocket(WS_URL);
-    ws.binaryType = 'arraybuffer';
-    ws.onopen = () => {
-      log('WS connected');
-      while (pending.length) {
-        const item = pending.shift();
-        try {
-          ws.send(JSON.stringify(item.meta));
-          ws.send(item.buffer);
-        } catch (e) {
-          console.warn('ws flush failed', e);
-          pending.unshift(item);
-          break;
-        }
-      }
-    };
-    ws.onclose = () => log('WS disconnected');
-    ws.onerror = (e) => { console.error(e); log('WS error'); };
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data.type === 'result') {
-          if (data.mp3_url && AUDIO_EL) {
-            AUDIO_EL.src = data.mp3_url;
-            if (DOWNLOAD) { DOWNLOAD.href = data.mp3_url; DOWNLOAD.download = `${sessionId}__record.mp3`; }
-          }
-          if (data.transcript && TRANSCRIPT) TRANSCRIPT.textContent = data.transcript;
-          log('Готово: результат получен');
-        } else if (data.type === 'processing') {
-          log('Ожидайте, идёт обработка...');
-        } else if (data.type === 'error') {
-          log('Ошибка сервера: ' + (data.message || ''));
-        }
-      } catch (e) {
-        // ignore non-json
-      }
-    };
-  }
+// Ассемблер = собирает финальный WAV из списка сегментов (сегодня на клиенте; завтра можно делать на сервере)
+const assembler = new WavAssembler({
+  // targetSampleRate: 16000, // включи при необходимости
+});
 
-  /* -------------------- Waveform indicator -------------------- */
-  // Small, responsive bar waveform. Reacts to incoming RMS levels from worklet.
-  const Waveform = (function () {
-    const container = WAVEFORM_CONTAINER;
-    if (!container) return null;
-    let bars = [];
-    let raf = null;
-    let targetLevels = [];
-    let displayLevels = [];
-
-    function build() {
-      container.innerHTML = '';
-      const cw = Math.max(40, container.clientWidth);
-      const approxPitch = Math.max(6, Math.round(cw < 420 ? 6 : 8));
-      const count = Math.max(10, Math.floor(cw / approxPitch));
-      const center = Math.floor(count / 2);
-      bars = [];
-      targetLevels = new Array(count).fill(0);
-      displayLevels = new Array(count).fill(0);
-
-      for (let i = 0; i < count; i++) {
-        const span = document.createElement('span');
-        span.className = 'bar';
-        if (Math.abs(i - center) < 2) span.classList.add('center');
-        span.style.height = '14px';
-        container.appendChild(span);
-        bars.push(span);
-      }
-    }
-
-    // call with RMS (0..1 roughly) - propagate to bars (center heavy)
-    function pushLevel(rms) {
-      if (!bars.length) return;
-      // map rms (~0-0.5 typical) to 0..1
-      const v = Math.min(1, rms * 6); // tweak sensitivity
-      const center = Math.floor(bars.length / 2);
-      for (let i = 0; i < bars.length; i++) {
-        const distance = Math.abs(i - center);
-        const influence = Math.max(0, 1 - (distance / (bars.length * 0.5)));
-        // create envelope: center louder
-        const val = v * (0.3 + 0.7 * influence); 
-        // smooth target
-        targetLevels[i] = Math.max(targetLevels[i] * 0.85, val);
-      }
-    }
-
-    function animate() {
-      for (let i = 0; i < bars.length; i++) {
-        // lerp displayLevels -> targetLevels
-        displayLevels[i] = displayLevels[i] * 0.7 + targetLevels[i] * 0.3;
-        // also decay target a bit
-        targetLevels[i] *= 0.92;
-        // compute height
-        const ch = container.clientHeight || 40;
-        const minH = Math.floor(ch * 0.18);
-        const maxH = Math.floor(ch * 0.85);
-        const h = Math.round(minH + (maxH - minH) * Math.min(1, displayLevels[i]));
-        bars[i].style.height = h + 'px';
-      }
-      raf = requestAnimationFrame(animate);
-    }
-
-    function start() {
-      if (!bars.length) build();
-      if (!raf) { raf = requestAnimationFrame(animate); }
-    }
-    function stop() {
-      if (raf) { cancelAnimationFrame(raf); raf = null; }
-    }
-    function resize() {
-      stop(); build(); start();
-    }
-    return { build, start, stop, pushLevel, resize };
-  })();
-
-  /* rebuild waveform on resize */
-  if (Waveform) {
-    window.addEventListener('resize', () => { Waveform.resize(); }, { passive: true });
-    window.addEventListener('orientationchange', () => { setTimeout(()=>Waveform.resize(), 120); }, { passive: true });
-    Waveform.start();
-  }
-
-  /* -------------------- Recorder logic -------------------- */
-  async function startRecording() {
-    ensureSession();
-    setupWebSocket();
-
-    try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const actualRate = audioCtx.sampleRate;
-      const chunkSamples = Math.round(actualRate * CHUNK_SECONDS);
-
-      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      sourceNode = audioCtx.createMediaStreamSource(mediaStream);
-
-      await audioCtx.audioWorklet.addModule('/voicerecorder/audioworklet-processor.js');
-      workletNode = new AudioWorkletNode(audioCtx, 'chunker-processor');
-      workletNode.port.postMessage({ type: 'config', chunk_samples: chunkSamples, sample_rate: actualRate, channels: 1 });
-
-      workletNode.port.onmessage = (e) => {
-        const d = e.data;
-        if (!d) return;
-        if (d.type === 'level') {
-          // update waveform
-          if (Waveform && typeof Waveform.pushLevel === 'function') Waveform.pushLevel(d.rms);
-        } else if (d.type === 'chunk' && d.buffer) {
-          const floatBuf = new Float32Array(d.buffer);
-          const valid = Number(d.valid_samples) || floatBuf.length;
-          const meta = {
-            type: 'chunk_meta',
-            seq: seq++,
-            sample_rate: actualRate,
-            channels: 1,
-            chunk_samples: floatBuf.length,
-            valid_samples: valid,
-            timestamp: Date.now()
-          };
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(meta));
-            ws.send(floatBuf.buffer);
-          } else {
-            pending.push({ meta, buffer: floatBuf.buffer.slice(0) });
-            setupWebSocket();
-          }
-        }
-      };
-
-      // connect worklet silently
-      try {
-        const silent = audioCtx.createGain(); silent.gain.value = 0;
-        workletNode.connect(silent);
-        silent.connect(audioCtx.destination);
-      } catch (e) {}
-
-      sourceNode.connect(workletNode);
-
-      // inform server start with measured rate
-      const startMsg = { type: 'start', session_id: sessionId, sample_rate: actualRate, channels: 1, chunk_samples: chunkSamples };
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(startMsg));
-      else if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify(startMsg)), { once: true });
-
-      recording = true;
-      paused = false;
-      if (BTN_START) BTN_START.disabled = true;
-      if (BTN_STOP) BTN_STOP.disabled = false;
-      if (BTN_PAUSE) BTN_PAUSE.disabled = false;
-      log('Recording...');
-    } catch (err) {
-      console.error('startRecording error', err);
-      log('Ошибка: не удалось начать запись');
-    }
-  }
-
-  function pauseRecording() {
-    if (!recording) return;
-    paused = !paused;
-    log(paused ? 'Запись приостановлена' : 'Запись продолжается');
-    if (BTN_PAUSE) BTN_PAUSE.textContent = paused ? 'RESUME' : 'PAUSE';
-    // Note: worklet keeps running; if you want to truly pause capture, disconnect nodes.
-  }
-
-  async function stopRecording() {
-    if (!recording) return;
-
-    try {
-      if (workletNode && workletNode.port && typeof workletNode.port.postMessage === 'function') {
-        workletNode.port.postMessage({ type: 'flush' });
-        await new Promise((r) => setTimeout(r, 180));
-      }
-    } catch (e) {
-      console.warn('flush failed', e);
-    }
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'stop', session_id: sessionId }));
-    } else {
-      setupWebSocket();
-      if (ws) ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'stop', session_id: sessionId })), { once: true });
-    }
-
-    try { workletNode && workletNode.disconnect && workletNode.disconnect(); } catch (_) {}
-    try { sourceNode && sourceNode.disconnect && sourceNode.disconnect(); } catch (_) {}
-    try { audioCtx && audioCtx.close && audioCtx.close(); } catch (_) {}
-    try { mediaStream && mediaStream.getTracks && mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
-
-    recording = false;
-    paused = false;
-    if (BTN_START) BTN_START.disabled = false;
-    if (BTN_STOP) BTN_STOP.disabled = true;
-    if (BTN_PAUSE) { BTN_PAUSE.disabled = true; BTN_PAUSE.textContent = 'PAUSE'; }
-    log('Остановка записи — ожидаем обработку...');
-  }
-
-  // Attach UI handlers
-  if (BTN_START) BTN_START.addEventListener('click', () => startRecording());
-  if (BTN_PAUSE) BTN_PAUSE.addEventListener('click', () => pauseRecording());
-  if (BTN_STOP) BTN_STOP.addEventListener('click', () => stopRecording());
-
-  // Init state
-  if (BTN_PAUSE) BTN_PAUSE.disabled = true;
-  if (BTN_STOP) BTN_STOP.disabled = true;
-  log('Готов');
+// -------------------- Identity --------------------
+(function initIdentity(){
+  const anonKey = 'sv_anon_user_id';
+  const sessKey = 'sv_session_id';
+  let anon = null, session = null;
+  try { anon = localStorage.getItem(anonKey); if (!anon) { anon = uuidv4(); localStorage.setItem(anonKey, anon); } } catch { anon = uuidv4(); }
+  try { session = sessionStorage.getItem(sessKey); if (!session) { session = uuidv4(); sessionStorage.setItem(sessKey, session); } } catch { session = uuidv4(); }
+  if (anonEl) anonEl.textContent = anon;
+  if (sessEl) sessEl.textContent = session;
 })();
+
+// -------------------- State --------------------
+let lastObjectUrl = null;
+let localStream = null;
+let recordingId = null;
+let paused      = false;
+
+// -------------------- Controls --------------------
+async function start() {
+  // reset preview player at the start of a new recording
+  try {
+    if (lastObjectUrl) { URL.revokeObjectURL(lastObjectUrl); lastObjectUrl = null; }
+  } catch {}
+  if (playerEl) {
+    playerEl.pause?.();
+    playerEl.removeAttribute('src');
+    try { playerEl.load?.(); } catch {}
+    playerEl.classList.add('sv-player--disabled');
+  }
+  startBtn.disabled = true;
+  pauseBtn.disabled = false;
+  stopBtn.disabled  = true;
+  statusEl.textContent = 'requesting…';
+  recordingId = uuidv4();
+  if (recEl) recEl.textContent = recordingId;
+
+  try {
+    await core.init();                         // поднимет граф и применит VR_* флаги внутри
+    localStream = core.getStream();            // отдать поток индикатору
+    await mic.connectStream(localStream);
+
+    // сообщим частоту сегментеру
+    const sr = core.getContext()?.sampleRate || 48000;
+    segmenter.setSampleRate(sr);
+
+    // подписка на аудиокадры
+    core.onAudioFrame = (frame) => segmenter.pushFrame(frame);
+
+    statusEl.textContent = 'running';
+    stopBtn.disabled = false;
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = 'error';
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stopBtn.disabled  = true;
+  }
+}
+
+function pause() {
+  if (!paused) {
+    try { mic._stopTimer?.(); } catch {}
+    core.pauseCapture?.();
+    paused = true;
+    pauseBtn.textContent = 'Resume';
+    statusEl.textContent = 'paused';
+  } else {
+    try { mic._startTimer?.(); } catch {}
+    core.resumeCapture?.();
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    statusEl.textContent = 'running';
+  }
+}
+
+function stop() {
+  // 1) Закончим сегментацию (эмитит финальный, паддед до 2 сек сегмент)
+  segmenter.stop();
+
+  // 2) Соберём финальный WAV из всех сегментов
+  assembler.clear();
+  for (const s of segments) assembler.addSegment(s);
+  const big = assembler.buildFinalWav();
+
+  // 3) Preview in persistent media player (no auto-download)
+  const url = URL.createObjectURL(big);
+  try { if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl); } catch {}
+  lastObjectUrl = url;
+  if (playerEl) {
+    playerEl.src = url;
+    playerEl.classList.remove('sv-player--disabled');
+    // optional: autoplay next line if desired
+    // try { playerEl.play?.(); } catch {}
+  }
+
+  // 4) Остановить аудио/индикатор
+  try { core.stop?.(); } catch {}
+  try { mic.disconnect?.(); } catch {}
+
+  statusEl.textContent = 'stopped';
+  startBtn.disabled = false;
+  pauseBtn.disabled = true;
+  stopBtn.disabled  = true;
+  pauseBtn.textContent = 'Pause';
+  paused = false;
+
+  // 5) Очистим списки на новую запись
+  segments.length = 0;
+}
+
+// -------------------- Wire UI --------------------
+startBtn.addEventListener('click', start);
+pauseBtn.addEventListener('click', pause);
+stopBtn.addEventListener('click', stop);
+
+window.addEventListener('beforeunload', () => {
+  try { core.destroy?.(); } catch {}
+  try { mic.destroy?.(); } catch {}
+});

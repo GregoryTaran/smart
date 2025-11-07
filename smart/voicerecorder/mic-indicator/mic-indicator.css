@@ -1,6 +1,7 @@
-/* mic-indicator.css */
+/* mic-indicator.css — толщина полоски уменьшена вдвое (3px), расстояние нормальное (2px) */
 
-.mic-box {
+/* Host box */
+.mic-box{
   --mic-box-width: 460px;
   --mic-box-min-width: 180px;
   --mic-box-padding: 0mm;
@@ -23,6 +24,39 @@
   overflow: hidden;
 }
 
+/* Mount point */
+#vc-level, .mic-box > #vc-level {
+  width: 100%;
+  height: 56px;
+  display: block;
+}
+
+/* Component root */
+.sv-mic-indicator {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: relative;
+  background: transparent;
+  border-radius: 6px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Internal wrap */
+.sv-mic-indicator__wrap {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
 /* Canvas */
 .sv-mic-indicator__canvas {
   width: 100%;
@@ -32,23 +66,25 @@
   border-radius: 4px;
 }
 
+/* CSS tuning vars: bar width halved, gap normal */
 .sv-mic-indicator {
   --svmic-padding-px: 0;
-  --svmic-bar-width-px: 3;
-  --svmic-gap-px: 2;
+  --svmic-bar-width-px: 3; /* <-- толщина полоски в 2 раза меньше (было 6) */
+  --svmic-gap-px: 2;       /* нормальное расстояние */
   --svmic-baseline-color: #e6e8eb;
   --svmic-bar-color: #151515;
   --svmic-min-visible: 0.01;
 }
 
+/* Accessibility and dark mode */
+@media (forced-colors: active) {
+  .mic-box { border-color: WindowText; background: Window; }
+  .sv-mic-indicator { --svmic-bar-color: ButtonText; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-mic-indicator__canvas { image-rendering: -moz-crisp-edges; }
+}
 @media (prefers-color-scheme: dark) {
   .mic-box { background: rgba(20,24,28,0.75); border-color: rgba(255,255,255,0.06); }
   .sv-mic-indicator { --svmic-baseline-color: rgba(255,255,255,0.06); --svmic-bar-color: #e6eefc; }
-}
-
-#vc-level {
-  width: 100%;            /* Ширина контейнера */
-  height: 50px;           /* Высота контейнера (можно подстроить по твоим предпочтениям) */
-  background-color: #f0f0f0; /* Цвет фона, чтобы контейнер был видим */
-  position: relative;     /* Важное свойство для позиционирования индикатора */
 }
