@@ -107,3 +107,112 @@ body.menu-open #overlay{ display: block; }
 .footer-inner a {
   color: inherit;
 }
+
+/* === Mobile safety fixes (точечные) === */
+
+/* 1) Корень — не даём уехать вправо */
+:where(html, body, #page, #main) {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 2) Медиа и iFrame — резиновые */
+:where(img, svg, video, canvas, iframe) {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 3) Дети flex/grid не распирают родителя */
+:where(.row, .grid, .flex, [class*="row"], [class*="grid"], [class*="flex"]) > * {
+  min-width: 0;
+}
+
+/* 4) Длинные строки/преформат — не тянут макет */
+:where(pre, code, kbd, samp) {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 5) Широкие блоки (таблицы и т.п.) скроллятся внутри себя */
+:where(table, .table, .wide, .scroll-x) {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 6) Оверлей по умолчанию скрыт; показываем только при .menu-open */
+#overlay { display: none; }
+body.menu-open #overlay { display: block; }
+
+/* 7) Небольшой «досвидос» лишним горизонтальным паддингам на узких экранах */
+@media (max-width: 899.98px) {
+  #main { padding-left: 16px; padding-right: 16px; }
+}
+
+
+/* ================== MOBILE-ONLY SAFE FIXES ================== */
+@media (max-width: 899.98px) {
+
+  /* корневые слои — без горизонтального скролла */
+  html, body, #page, #app, #main {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  /* медиа и iframe всегда влезают */
+  img, svg, video, canvas, iframe {
+    max-width: 100% !important;
+    height: auto !important;
+    display: block;
+  }
+
+  /* длинные строки/код не распирают */
+  pre, code, kbd, samp {
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+  }
+
+  /* таблицы и любые широкие блоки скроллятся внутри себя */
+  table, .table, .wide, .scroll-x {
+    display: block;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* дети flex/grid не ломают родителя */
+  .row > *, .grid > *, .flex > *,
+  [class*="row"] > *, [class*="grid"] > *, [class*="flex"] > * {
+    min-width: 0 !important;
+  }
+
+  /* карточки/контейнеры — в экран */
+  .card,
+  .sv-center-700, .sv-center-900, .sv-center-1100,
+  .container, .content, .section {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* заголовки не вываливаются и не огромные */
+  h1, h2, h3 { overflow-wrap: anywhere; word-break: break-word; }
+  h1 { font-size: clamp(1.4rem, 4.5vw + .4rem, 2rem); line-height: 1.2; }
+
+  /* сайдбар и логотип — компактно на мобиле */
+  #sidebar { max-width: 85vw !important; }
+  .logo img { max-width: 70vw !important; height: auto !important; }
+
+  /* спец-фиксы для voicerecorder */
+  .vr-root, .vr-container, .demo {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .demo .controls { flex-wrap: wrap; gap: 8px; }
+  .demo audio, .demo button { max-width: 100% !important; }
+}
+/* ================== /MOBILE-ONLY SAFE FIXES ================== */
