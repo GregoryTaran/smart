@@ -27,6 +27,12 @@ try:
 except Exception as e:
     log.warning(f"API module not loaded: {e}")
 
+try:
+    from api_auth import router as auth_router
+    app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+except Exception as e:
+    log.warning(f"Auth module not loaded: {e}")
+
 # --- Additional mounts / routers for Voicerecorder microservice
 # Try to include optional voicerecorder ws router (safe import) BEFORE mounting root static.
 try:
