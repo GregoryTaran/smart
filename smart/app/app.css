@@ -1,0 +1,84 @@
+/* Базируемся на твоём стиле и хелперах (sv-center-700 уже есть) */
+/* Центровка блока установки */
+.sv-install {
+  min-height: 80svh;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: #0b1220;
+  font-family: system-ui, Arial, sans-serif;
+}
+
+.sv-install__box {
+  text-align: center;
+  padding: 24px;
+}
+
+.sv-install__logo {
+  display: block;
+  margin: 0 auto 8px;
+  border-radius: 16px;
+}
+
+.sv-install__title {
+  margin: 8px 0 4px;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.sv-install__lead {
+  margin: 0 0 20px;
+  color: #475569;
+  font-size: 1rem;
+}
+
+.sv-install__button {
+  display: inline-block;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid #cfcfd3;
+  text-decoration: none;
+  font-weight: 600;
+  background: #0b5fff;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(11,95,255,0.25);
+  transition: transform .06s ease, box-shadow .2s ease, opacity .2s ease;
+}
+
+.sv-install__button:hover,
+.sv-install__button:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(11,95,255,0.3);
+}
+
+.sv-install__button:active {
+  transform: translateY(0);
+  opacity: .95;
+}
+
+.sv-install__hint {
+  margin-top: 14px;
+  font-size: .95rem;
+  color: #374151;
+}
+
+.sv-install__hint a { color: #0b5fff; }
+
+.sv-install__help {
+  margin-top: 18px;
+  text-align: left;
+  display: inline-block;
+  max-width: 520px;
+  color: #334155;
+}
+
+.sv-install__help summary {
+  cursor: pointer;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.sv-install__help ol {
+  padding-left: 18px;
+  margin: 8px 0 0;
+}
