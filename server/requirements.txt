@@ -8,3 +8,4 @@ pydub>=0.25.1
 
 # OpenAI client
 openai>=1.0.0
+email-validator==2.2.0
