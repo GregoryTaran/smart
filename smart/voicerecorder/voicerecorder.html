@@ -40,7 +40,67 @@
   </div>
 </div>
 <div id="overlay" hidden></div>
+
 <script defer src="js/fragment-load.js"></script>
+
+<!-- === NEW: мягкий автозапрос доступа к микрофону + обновление статуса === -->
+<script type="module">
+  const statusEl = document.getElementById('status');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const stopBtn  = document.getElementById('stopBtn');
+
+  const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+
+  async function requestMicOnce() {
+    try {
+      // По возможности проверим permissions API
+      if (navigator.permissions?.query) {
+        try {
+          const perm = await navigator.permissions.query({ name: 'microphone' });
+          if (perm.state === 'granted') { setStatus('microphone: granted'); return true; }
+          if (perm.state === 'denied')  { setStatus('microphone: denied');  return false; }
+          // если "prompt" — продолжим и попросим через getUserMedia
+        } catch { /* продолжим запрос через getUserMedia */ }
+      }
+
+      // Сам запрос доступа
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      // Останавливаем — цель была только запросить разрешение
+      stream.getTracks().forEach(t => t.stop());
+      setStatus('microphone: granted');
+
+      // Разрешим пользователю стартовать запись сразу, если твой код это поддерживает
+      startBtn?.removeAttribute('disabled');
+      return true;
+    } catch (e) {
+      console.error('getUserMedia error:', e);
+      // Типовые причины
+      if (e?.name === 'NotAllowedError') setStatus('microphone: denied (user)');
+      else if (e?.name === 'NotFoundError') setStatus('microphone: device not found');
+      else setStatus(`microphone: error (${e?.name || 'unknown'})`);
+      // Блокируем управление, чтобы не было ложных кликов
+      startBtn?.setAttribute('disabled', 'true');
+      pauseBtn?.setAttribute('disabled', 'true');
+      stopBtn?.setAttribute('disabled', 'true');
+      return false;
+    }
+  }
+
+  // Стартуем мягко после загрузки DOM
+  document.addEventListener('DOMContentLoaded', () => {
+    requestMicOnce();
+  });
+</script>
+<!-- === /NEW === -->
+
 <script defer type="module" src="voicerecorder/voicerecorder.js"></script>
 <script defer src="js/register-sw.js"></script>
 </body>
