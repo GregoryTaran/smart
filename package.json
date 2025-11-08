@@ -1,0 +1,21 @@
+{
+  "name": "smartvision-dev-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local static server + API proxy for SMART VISION",
+  "scripts": {
+    "dev": "node dev-proxy.cjs",
+    "dev:local": "cross-env API_BASE=http://localhost:8000 node dev-proxy.cjs",
+    "start": "node dev-proxy.cjs"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "http-proxy-middleware": "^2.0.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
