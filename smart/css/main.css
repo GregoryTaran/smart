@@ -35,7 +35,7 @@ button { font: inherit; }
 
 /* Отступы */
 #topbar, #footer { padding: 0 16px; }
-#main { padding: 16px; }
+#main { padding: 10px; }
 
 /* Оверлей для мобильного меню */
 #overlay{ position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
@@ -148,7 +148,7 @@ body.menu-open #overlay { display: block; }
 
 /* 7) Небольшой «досвидос» лишним горизонтальным паддингам на узких экранах */
 @media (max-width: 899.98px) {
-  #main { padding-left: 16px; padding-right: 16px; }
+  #main { padding-left: 10px; padding-right: 10px; }
 }
 
 
