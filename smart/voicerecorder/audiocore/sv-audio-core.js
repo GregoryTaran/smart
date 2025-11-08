@@ -10,7 +10,7 @@ const VR_COMP_THRESHOLD_DB   = -24;      // Порог: всё громче эт
 const VR_COMP_KNEE_DB        = 30;       // «Плавность» перехода (knee), дБ
 const VR_COMP_RATIO          = 12;       // Степень сжатия (отношение). 8–12 — хороший старт
 const VR_COMP_ATTACK_SEC     = 0.003;    // Скорость срабатывания (сек)
-const VR_COMP_RELEASE_SEC    = 0.25;     // Скорость восстановления (сек)
+const VR_COMP_RELEASE_SEC    = 0.1;     // Скорость восстановления (сек)
 
 // Make‑up gain: общий подъём после сжатия (множитель). 1.5 ≈ +3.5 дБ
 const VR_MAKEUP_GAIN         = 1.5;      // 1.0–3.0 обычно достаточно
