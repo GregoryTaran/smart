@@ -18,6 +18,21 @@
     <!-- Стили -->
     <link rel="stylesheet" href="css/main.css" />
     <link rel="stylesheet" href="index/index.css" />
+
+    <style>
+      /* маленькая панель разрешений (минимальная стилизация, чтобы не мешать твоим стилям) */
+      .perm-card {
+        margin: 16px 0; padding: 16px;
+        border-radius: 12px; border:1px solid #2b3b51;
+        background: #0f1622; color:#e8eef6;
+      }
+      .perm-card h3 { margin: 0 0 8px; font-size: 18px; }
+      .perm-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+      .perm-row button {
+        padding:10px 14px; border-radius:10px; border:1px solid #2b3b51; background:#152033; color:#e8eef6; cursor:pointer;
+      }
+      .perm-status { margin-top:8px; opacity:.85; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    </style>
   </head>
 
   <body>
@@ -41,6 +56,17 @@
               микромодули (HTML+JS) с префиксами классов <code>mod-*</code>.
             </p>
           </section>
+
+          <!-- Новая панель: единые разрешения -->
+          <section class="perm-card" aria-label="Разрешения приложения">
+            <h3>Разрешения</h3>
+            <div class="perm-row">
+              <button id="btnMic">Разрешить микрофон</button>
+              <button id="btnCam">Разрешить камеру</button>
+              <button id="btnNoti">Разрешить уведомления</button>
+            </div>
+            <div id="permStatus" class="perm-status">status: idle</div>
+          </section>
         </main>
 
         <footer id="footer" role="contentinfo"></footer>
@@ -52,6 +78,24 @@
 
     <!-- Скрипты -->
     <script defer src="js/fragment-load.js"></script>
+
+    <!-- Подключение универсального модуля разрешений -->
+    <script type="module">
+      import {
+        setStatusEl,
+        bindMicPermissionButton,
+        bindCameraPermissionButton,
+        bindNotificationsButton,
+      } from "./js/mic-permission.js";
+
+      const statusEl = document.getElementById('permStatus');
+      setStatusEl(statusEl);
+
+      bindMicPermissionButton(document.getElementById('btnMic'), statusEl);
+      bindCameraPermissionButton(document.getElementById('btnCam'), statusEl);
+      bindNotificationsButton(document.getElementById('btnNoti'), statusEl);
+    </script>
+
     <script defer src="index/index.js"></script>
     <script defer src="js/register-sw.js"></script>
   </body>
