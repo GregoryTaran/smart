@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Мы в /app/, поэтому база — на уровень выше -->
+  <base href="../" />
+  <title>Установка SMART VISION для Android</title>
+
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- ВАЖНО: подтягиваем общий стиль сайта, как в voicerecorder.html -->
+  <link rel="stylesheet" href="css/main.css" />
+
+  <!-- Локальные стили страницы приложения -->
+  <link rel="stylesheet" href="app/app.css" />
+</head>
+<body>
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
+    <div id="app">
+      <header id="topbar" role="banner"></header>
+      <main id="main" role="main">
+        <section class="sv-install">
+          <div class="sv-center-700 sv-install__box">
+            <img class="sv-install__logo" src="assets/logo400.jpg" alt="SMART VISION" height="96" />
+      
+            <p class="sv-install__lead">
+              Установите приложение и пользуйтесь диктофоном и сервисами прямо с телефона.
+            </p>
+
+            <a class="sv-install__button"
+               href="app/SmartVisionAndroid.apk"
+               download
+               rel="noopener">
+              Установить приложение SMART VISION для Android
+            </a>
+
+            <p class="sv-install__hint">
+              Если загрузка не началась, <a href="app/SmartVisionAndroid.apk" rel="noopener">нажмите здесь</a>.
+            </p>
+
+            <details class="sv-install__help">
+              <summary>Как установить APK</summary>
+              <ol>
+                <li>Нажмите кнопку «Установить» и дождитесь загрузки файла <code>SmartVisionAndroid.apk</code>.</li>
+                <li>Откройте файл в «Загрузках» на телефоне.</li>
+                <li>Если система попросит — разрешите установку из этого источника.</li>
+                <li>Подтвердите установку и дождитесь завершения.</li>
+              </ol>
+            </details>
+          </div>
+        </section>
+      </main>
+      <footer id="footer" role="contentinfo"></footer>
+    </div>
+  </div>
+
+  <div id="overlay" hidden></div>
+
+  <!-- Общие скрипты сайта (подтянут меню/хедер/футер) -->
+  <script defer src="js/fragment-load.js"></script>
+  <script defer src="js/register-sw.js"></script>
+
+  <!-- Небольшой UX на Android: прокрутка к кнопке -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.querySelector('.sv-install__button');
+      if (btn && /Android/i.test(navigator.userAgent)) {
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  </script>
+</body>
+</html>
