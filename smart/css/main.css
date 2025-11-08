@@ -42,7 +42,7 @@ button { font: inherit; }
 
 /* === Header === */
 .topbar-inner{
-  height: 80px; display: grid; align-items: center;
+  height: 54px; display: grid; align-items: center;
   grid-template-columns: 48px 1fr 80px; gap: 8px;
 }
 .topbar-inner .menu-toggle{
@@ -195,8 +195,8 @@ body.menu-open #overlay { display: block; }
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 10px;
+    padding-right: 10px;
   }
 
   /* заголовки не вываливаются и не огромные */
@@ -205,7 +205,7 @@ body.menu-open #overlay { display: block; }
 
   /* сайдбар и логотип — компактно на мобиле */
   #sidebar { max-width: 85vw !important; }
-  .logo img { max-width: 70vw !important; height: auto !important; }
+  .logo img { height: auto !important; }
 
   /* спец-фиксы для voicerecorder */
   .vr-root, .vr-container, .demo {
@@ -216,3 +216,52 @@ body.menu-open #overlay { display: block; }
   .demo audio, .demo button { max-width: 100% !important; }
 }
 /* ================== /MOBILE-ONLY SAFE FIXES ================== */
+
+/* === Topbar: компактная версия для мобилы === */
+@media (max-width: 899.98px) {
+  #topbar {
+    display: flex;
+    align-items: center;          /* по центру по вертикали */
+    justify-content: space-between;
+    gap: 8px;                     /* меньше зазоров */
+    padding: 8px 10px;            /* было 12/16 — уменьшаем */
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;             /* на всякий */
+  }
+
+  /* если мы раньше добавляли отступ под сайдбар — уберём */
+  #app { padding-left: 0 !important; }
+
+  /* логотип компактнее */
+  #topbar .logo, #topbar .brand { flex: 0 1 auto; min-width: 0; }
+  #topbar .brand img, #topbar .logo img {
+    max-height: 28px;             /* фикс по высоте, чтобы шапка не росла */
+    width: auto;                   /* пропорции сохраняем */
+    display: block;
+  }
+
+  /* навигация — в одну строку, без переноса */
+  #topbar nav { flex: 1 1 auto; min-width: 0; }
+  #topbar nav ul {
+    display: flex;
+    flex-wrap: nowrap;             /* запрещаем перенос, чтобы не росла высота */
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* ссылки компактнее */
+  #topbar nav a {
+    display: block;
+    padding: 6px 8px;              /* меньше внутренние отступы */
+    line-height: 1;                /* плотнее вертикально */
+    white-space: nowrap;           /* не переносить пункт на 2 строки */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;       /* если совсем узко — троеточие */
+  }
+}
