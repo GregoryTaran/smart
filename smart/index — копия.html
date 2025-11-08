@@ -69,10 +69,7 @@
           </section>
         </main>
 
-        <!-- Домашний гео-виджет (только на главной) -->
-<div id="home-geo-footer"></div>
-
-<footer id="footer" role="contentinfo"></footer>
+        <footer id="footer" role="contentinfo"></footer>
       </div>
     </div>
 
@@ -110,18 +107,6 @@
 
     <!-- 4) Твой индексный скрипт как был -->
     <script defer src="index/index.js?v=2"></script>
-
-    <!-- 4.1) Гео-виджет (только на главной) -->
-    <script defer src="js/footer.geo.bundle.js"></script>
-    <script>
-      window.addEventListener('DOMContentLoaded', function () {
-        var targetId = 'home-geo-footer';
-        if (window.SVFooter && document.getElementById(targetId)) {
-          try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
-        }
-      });
-    </script>
-
 
     <!-- 5) Сервис-воркер -->
     <script defer src="js/register-sw.js?v=2"></script>
