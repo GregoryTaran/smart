@@ -34,7 +34,7 @@ button { font: inherit; }
 #main { background: var(--main-bg); }
 
 /* Отступы */
-#topbar, #footer { padding: 0 16px; }
+#topbar { padding: 0 16px; }
 #main { padding: 10px; }
 
 /* Оверлей для мобильного меню */
@@ -264,4 +264,29 @@ body.menu-open #overlay { display: block; }
     overflow: hidden;
     text-overflow: ellipsis;       /* если совсем узко — троеточие */
   }
+}
+
+
+/* === SMART VISION footer === */
+.sv-footer{
+  padding:5px 5px;
+  border-top:1px solid #afafaf;
+  background:#ffffff;
+  color:#1b3b64;
+}
+.sv-footer__row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.sv-brand{ opacity:.95; }
+.sv-sep{ opacity:.4; margin:0 6px; }
+.sv-env{ opacity:.75; }
+.sv-footer__right{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
 }

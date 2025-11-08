@@ -20,7 +20,7 @@
     await Promise.all([
       loadFragment("menu.html", "#sidebar"),
       loadFragment("topbar.html", "#topbar"),
-      loadFragment("footer.html", "#footer"),
+       // loadFragment("footer.html", "#footer"),
     ]);
 
     // После вставки — инициализируем меню и подсветку
