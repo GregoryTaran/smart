@@ -44,6 +44,27 @@ try:
 except Exception as e:
     log.info("voicerecorder router not mounted (module missing or import error): %s", e)
 
+# server/main.py (добавить рядом с остальными include_router)
+try:
+    from database.api_db import router as db_router
+    app.include_router(db_router, prefix="/api/db", tags=["db"])
+except Exception as e:
+    log.warning(f"DB API not loaded: {e}")
+
+# server/main.py — добавить блок
+try:
+    from database.api_records import router as records_router
+    app.include_router(records_router, prefix="/api/db", tags=["records"])
+except Exception as e:
+    log.warning(f"Records API not loaded: {e}")
+
+try:
+    from database.api_testserver import router as testserver_router
+    app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
+except Exception as e:
+    log.warning(f"TestServer API not loaded: {e}")
+
+
 # --- Health endpoints ---
 @app.get("/health")
 def health():

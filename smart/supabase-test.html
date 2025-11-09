@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Supabase Simple Tester</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {font-family:sans-serif;background:#0b0f14;color:#e6edf3;margin:0;padding:20px;}
+input,button {padding:10px;margin:6px 0;border-radius:6px;border:1px solid #243041;background:#121823;color:#e6edf3;width:100%;}
+button {cursor:pointer;font-weight:600;}
+textarea {width:100%;height:150px;margin-top:10px;background:#121823;color:#e6edf3;border-radius:6px;border:1px solid #243041;}
+</style>
+</head>
+<body>
+<h2>🔑 Supabase тест логина и API</h2>
+
+<label>Supabase URL</label>
+<input id="url" placeholder="https://xxxxx.supabase.co">
+
+<label>Anon key</label>
+<input id="anon" placeholder="eyJhbGciOi...">
+
+<label>Email</label>
+<input id="email" placeholder="you@example.com">
+
+<label>Пароль</label>
+<input id="pass" type="password" placeholder="******">
+
+<label>API (FastAPI) URL</label>
+<input id="api" value="http://127.0.0.1:8000">
+
+<button id="signup">🆕 Sign Up</button>
+<button id="signin">➡️ Sign In</button>
+<button id="guest">🧪 Гостевой</button>
+<button id="whoami">GET /api/db/whoami</button>
+<button id="profile">GET /api/db/profiles/me</button>
+<button id="health">GET /health</button>
+
+<textarea id="out" readonly placeholder="Результаты появятся здесь..."></textarea>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+let supabase = null
+let token = null
+const $ = id => document.getElementById(id)
+const log = (msg, data) => {
+  const t = new Date().toLocaleTimeString()
+  $('out').value = `[${t}] ${msg}\n` + (data ? JSON.stringify(data,null,2)+'\n\n' : '\n') + $('out').value
+}
+
+function init() {
+  const url = $('url').value.trim()
+  const anon = $('anon').value.trim()
+  if(!url || !anon){log('❗ Укажи URL и anon key');return null}
+  supabase = createClient(url, anon)
+  log('✅ Клиент инициализирован')
+  return supabase
+}
+
+async function getToken(){
+  if(!supabase) init()
+  const { data:{session} } = await supabase.auth.getSession()
+  token = session?.access_token || null
+  if(token) log('🔒 Access token получен')
+  else log('❗ Нет токена')
+  return token
+}
+
+$('signup').onclick = async()=>{
+  init()
+  const {data,error}=await supabase.auth.signUp({email:$('email').value, password:$('pass').value})
+  if(error) log('❌ SignUp error',error)
+  else log('🆕 SignUp ok',data)
+}
+
+$('signin').onclick = async()=>{
+  init()
+  const {data,error}=await supabase.auth.signInWithPassword({email:$('email').value, password:$('pass').value})
+  if(error) log('❌ SignIn error',error)
+  else { log('➡️ SignIn ok',data); await getToken() }
+}
+
+$('guest').onclick = async()=>{
+  init()
+  const rnd=crypto.randomUUID()
+  const email=`${rnd}@guest.local`, pass=crypto.randomUUID()
+  const {data,error}=await supabase.auth.signUp({email,password:pass})
+  if(error) log('❌ Guest error',error)
+  else { log('🧪 Guest created',data.user); await getToken() }
+}
+
+async function callApi(path, auth=true){
+  const api=$('api').value.trim()
+  if(!api){log('❗ Укажи API URL');return}
+  if(auth && !token) await getToken()
+  const headers={'Content-Type':'application/json'}
+  if(auth && token) headers['Authorization']=`Bearer ${token}`
+  try{
+    const res=await fetch(api.replace(/\/$/,'')+path,{headers})
+    const txt=await res.text()
+    let json
+    try{json=JSON.parse(txt)}catch{json=txt}
+    log(`🌐 ${res.status} ${res.statusText} — ${path}`,json)
+  }catch(e){log('❌ fetch error',e)}
+}
+
+$('whoami').onclick=()=>callApi('/api/db/whoami')
+$('profile').onclick=()=>callApi('/api/db/profiles/me')
+$('health').onclick=()=>callApi('/health',false)
+</script>
+</body>
+</html>
