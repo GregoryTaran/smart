@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<base href="./" />
+<base href="../" />
 <title>Политика конфиденциальности</title>
+
 <link rel="icon" href="assets/logo400.jpg" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="css/main.css" />
@@ -12,11 +13,10 @@
 </head>
 <body>
 <div id="page">
-<aside id="sidebar" aria-label="Основное меню"></aside>
-<div id="app">
-<header id="topbar" role="banner"></header>
-<main id="main" role="main">
-
+  <aside id="sidebar" aria-label="Основное меню"></aside>
+  <div id="app">
+    <header id="topbar" role="banner"></header>
+    <main id="main" role="main">
 <section class="doc">
   <h1>Политика конфиденциальности</h1>
   <p>
@@ -60,17 +60,20 @@
     По вопросам, связанным с конфиденциальностью, можно написать на электронную почту: <a href="mailto:support@smartvision.life">support@smartvision.life</a>.
   </p>
 </section>
-
-
-</main>
-<footer id="footer" role="contentinfo"></footer>
+    </main>
+    <footer id="footer" role="contentinfo"></footer>
+  </div>
 </div>
-</div>
+
 <div id="overlay" hidden></div>
+
 <script defer src="js/fragment-load.js"></script>
 <script defer src="js/footer.js?v=2"></script>
-<script defer src="privacy/privacy.js"></script>
 <script defer src="js/register-sw.js"></script>
+
+<!-- локальная логика -->
+<script defer src="privacy/privacy.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="js/identity-guard.js"></script>
 </body>

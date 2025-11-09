@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="../" />
+<title>О проекте</title>
+
+<link rel="icon" href="assets/logo400.jpg" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="css/main.css" />
+<!-- локальный стиль лежит рядом -->
+<link rel="stylesheet" href="about/about.css" />
+</head>
+<body>
+<div id="page">
+  <aside id="sidebar" aria-label="Основное меню"></aside>
+  <div id="app">
+    <header id="topbar" role="banner"></header>
+    <main id="main" role="main">
+      <section class="about">
+        <h1>О проекте</h1>
+        <p>SMART VISION — коллекция микросервисов и страниц проекта.</p>
+      </section>
+    </main>
+    <footer id="footer" role="contentinfo"></footer>
+  </div>
+</div>
+
+<div id="overlay" hidden></div>
+
+<!-- общие скрипты -->
+<script defer src="js/fragment-load.js"></script>
+<script defer src="js/footer.js?v=2"></script>
+<script defer src="js/register-sw.js"></script>
+
+<!-- локальная логика страницы -->
+<script defer src="about/about.js"></script>
+
+<!-- идентификация (единый гард) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="js/identity-guard.js"></script>
+</body>
+</html>
