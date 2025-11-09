@@ -27,9 +27,7 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import storage
-import audio_assembler
-import whisper_client
+from voicerecorder import storage, audio_assembler, whisper_client
 
 log = logging.getLogger("ws_voicerecorder")
 router = APIRouter()
