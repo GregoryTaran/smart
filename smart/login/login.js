@@ -1,68 +1,59 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const formLogin = document.getElementById('login-form');
-  const formReg   = document.getElementById('register-form');
-  const statusLogin = document.getElementById('login-status');
-  const statusReg   = document.getElementById('register-status');
-  const btnSignup = document.getElementById('signup-btn');
+// --- Supabase client setup ---
+const SUPABASE_URL = "https://bqtlomddtojirtkazpvj.supabase.co"; // заменишь
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdGxvbWRkdG9qaXJ0a2F6cHZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NzgyODcsImV4cCI6MjA3ODI1NDI4N30.Q6c_Ehc9WmjcF5FNNT-48GGy60Rk53i3t99K5zqTSJk";               // заменишь
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  const setStatus = (el, t) => el && (el.textContent = t || '');
+// --- DOM elements ---
+const formLogin = document.getElementById("login-form");
+const formReg = document.getElementById("register-form");
+const statusLogin = document.getElementById("login-status");
+const statusReg = document.getElementById("register-status");
+const btnSignup = document.getElementById("signup-btn");
 
-  function show(mode) {
-    const isLogin = mode !== 'register';
-    formLogin?.classList.toggle('hidden', !isLogin);
-    formReg?.classList.toggle('hidden', isLogin);
-    (isLogin ? formLogin : formReg)?.querySelector('input')?.focus();
-  }
-  function currentMode() {
-    const h = (location.hash || '').slice(1).toLowerCase();
-    return h === 'register' ? 'register' : 'login';
-  }
-  window.addEventListener('hashchange', () => show(currentMode()));
-  if (!location.hash) location.hash = '#login';
-  show(currentMode());
+const setStatus = (el, t) => (el.textContent = t || "");
 
-  // «Создать аккаунт» -> показываем форму регистрации
-  btnSignup?.addEventListener('click', () => { location.hash = '#register'; });
+function show(mode) {
+  const isLogin = mode !== "register";
+  formLogin.classList.toggle("hidden", !isLogin);
+  formReg.classList.toggle("hidden", isLogin);
+}
+function currentMode() {
+  const h = (location.hash || "").slice(1).toLowerCase();
+  return h === "register" ? "register" : "login";
+}
+window.addEventListener("hashchange", () => show(currentMode()));
+if (!location.hash) location.hash = "#login";
+show(currentMode());
 
-  async function postJSON(url, body) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body),
-      credentials: 'same-origin'
-    });
-    let data = {};
-    try { data = await res.json(); } catch {}
-    if (!res.ok) throw new Error(data?.detail || data?.message || 'Ошибка сервера');
-    return data;
-  }
+btnSignup?.addEventListener("click", () => { location.hash = "#register"; });
 
-  formLogin?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = /** @type {HTMLInputElement} */(document.getElementById('email'))?.value?.trim();
-    const password = /** @type {HTMLInputElement} */(document.getElementById('password'))?.value;
-    if (!email || !password) { setStatus(statusLogin, 'Введите email и пароль'); return; }
-    setStatus(statusLogin, 'Входим…');
-    try {
-      const { redirect } = await postJSON('/api/auth/login', { email, password });
-      window.location.assign(redirect || '/');
-    } catch (e) {
-      setStatus(statusLogin, e.message);
-    }
+// --- LOGIN ---
+formLogin?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = e.target.email.value.trim();
+  const password = e.target.password.value.trim();
+  if (!email || !password) return setStatus(statusLogin, "Введите email и пароль");
+  setStatus(statusLogin, "Входим…");
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) return setStatus(statusLogin, error.message);
+  window.location.href = "/";
+});
+
+// --- REGISTER ---
+formReg?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = e.target.email.value.trim();
+  const password = e.target.password.value.trim();
+  const name = e.target.name.value.trim();
+  if (!email || !password) return setStatus(statusReg, "Введите email и пароль");
+  setStatus(statusReg, "Регистрируем…");
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name } }
   });
-
-  formReg?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = /** @type {HTMLInputElement} */(document.getElementById('reg-name'))?.value?.trim();
-    const email = /** @type {HTMLInputElement} */(document.getElementById('reg-email'))?.value?.trim();
-    const password = /** @type {HTMLInputElement} */(document.getElementById('reg-password'))?.value;
-    if (!name || !email || !password) { setStatus(statusReg, 'Заполните все поля'); return; }
-    setStatus(statusReg, 'Регистрируем…');
-    try {
-      const { redirect } = await postJSON('/api/auth/register', { name, email, password });
-      window.location.assign(redirect || '/');
-    } catch (e) {
-      setStatus(statusReg, e.message);
-    }
-  });
+  if (error) return setStatus(statusReg, error.message);
+  window.location.href = "/";
 });
