@@ -26,7 +26,7 @@ async def list_records(user = Depends(get_user_context)):
     except Exception as e:
         raise HTTPException(500, f"records/list failed: {e}")
 
-@router.post("/records")
+@router.post("/records", status_code=201)
 async def create_record(payload: dict, user = Depends(get_user_context)):
     _require_admin()
     try:
@@ -36,11 +36,56 @@ async def create_record(payload: dict, user = Depends(get_user_context)):
         }
         if user.get("id"):
             data["owner_id"] = user["id"]
-        res = admin.table("records").insert(data).execute()
+
+        # Вернём один объект, а не массив.
+        res = admin.table("records").insert(data).select("*").execute()
         if getattr(res, "error", None):
             raise HTTPException(502, f"Supabase error: {res.error}")
-        return res.data or {}
+
+        rows = res.data or []
+        item = rows[0] if isinstance(rows, list) and rows else rows
+        return item or {}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"records/create failed: {e}")
+
+@router.get("/records/{record_id}")
+async def get_record(record_id: str, user = Depends(get_user_context)):
+    _require_admin()
+    try:
+        q = admin.table("records").select("*").eq("id", record_id)
+        if user.get("id"):
+            q = q.eq("owner_id", user["id"])
+        res = q.limit(1).execute()
+        if getattr(res, "error", None):
+            raise HTTPException(502, f"Supabase error: {res.error}")
+
+        rows = res.data or []
+        if not rows:
+            raise HTTPException(404, "Record not found")
+        return rows[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"records/get failed: {e}")
+
+@router.delete("/records/{record_id}")
+async def delete_record(record_id: str, user = Depends(get_user_context)):
+    _require_admin()
+    try:
+        q = admin.table("records").delete().eq("id", record_id)
+        if user.get("id"):
+            q = q.eq("owner_id", user["id"])
+        res = q.execute()
+        if getattr(res, "error", None):
+            raise HTTPException(502, f"Supabase error: {res.error}")
+
+        rows = res.data or []
+        if not rows:
+            raise HTTPException(404, "Record not found or not owned by user")
+        return {"deleted": True, "id": record_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"records/delete failed: {e}")
