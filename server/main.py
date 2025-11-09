@@ -111,5 +111,3 @@ def static_check():
     return {"mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
             "static_root": str(STATIC_ROOT) if STATIC_ROOT else None}
 
-from identity.api_auth import auth_router
-app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
