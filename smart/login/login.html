@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <base href="../" />
-  <title>Вход / регистрация — SMART VISION</title>
+  <title>Вход/регистрация</title>
 
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
@@ -14,6 +14,7 @@
   <!-- Локальные стили логина -->
   <link rel="stylesheet" href="login/login.css" />
 
+  <!-- Мелкий локальный стиль для табов/подсказок; дизайн не менял -->
   <style>
     .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 12px; }
     .tablink {
@@ -41,40 +42,35 @@
           <h1 class="login__title">Вход в SMART VISION</h1>
           <p class="login__lead">Войдите или зарегистрируйтесь, чтобы сохранить записи и настройки.</p>
 
-          <!-- Форма Входа -->
+          <!-- Форма входа -->
           <form class="login__form" id="login-form" novalidate>
             <label class="login__label">
               Email
               <input class="login__input" type="email" id="email" name="email" required autocomplete="email" />
             </label>
-
             <label class="login__label">
               Пароль
               <input class="login__input" type="password" id="password" name="password" required minlength="8" autocomplete="current-password" />
             </label>
-
             <button type="submit" class="login__btn">Войти</button>
             <button type="button" class="login__btn login__btn--ghost" id="signup-btn">Создать аккаунт</button>
             <div class="login__status" id="login-status" role="status" aria-live="polite"></div>
           </form>
 
-          <!-- Форма Регистрации -->
+          <!-- Форма регистрации -->
           <form class="login__form hidden" id="register-form" novalidate>
             <label class="login__label">
               Имя
               <input class="login__input" type="text" id="reg-name" name="name" required autocomplete="name" />
             </label>
-
             <label class="login__label">
               Email
               <input class="login__input" type="email" id="reg-email" name="email" required autocomplete="email" />
             </label>
-
             <label class="login__label">
               Пароль
               <input class="login__input" type="password" id="reg-password" name="password" required minlength="8" autocomplete="new-password" />
             </label>
-
             <button type="submit" class="login__btn">Зарегистрироваться</button>
             <div class="login__status" id="register-status" role="status" aria-live="polite"></div>
             <p class="micro-hint">Уже есть аккаунт? <a href="login/login.html#login">Войти</a></p>
@@ -94,15 +90,11 @@
 <script defer src="js/footer.js?v=2"></script>
 <script defer src="js/register-sw.js"></script>
 
-<!-- Подключаем Supabase и логику -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="login/login.js"></script>
-
-<!-- Автовыбор #login, если нет хэштега -->
-<script>
-  (function(){ if(!location.hash) location.hash = '#login'; })();
-</script>
+<!-- Библиотека Supabase (обязательно до login.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="js/identity-guard.js"></script>
+
+<!-- Вся логика — в login.js -->
+<script defer src="login/login.js"></script>
 </body>
 </html>
