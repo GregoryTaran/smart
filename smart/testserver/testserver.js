@@ -143,8 +143,8 @@ $("btnWhoAmI").onclick = () => callApi("/api/db/whoami", true, $("authOut"));
 $("btnProfileMe").onclick = () => callApi("/api/db/profiles/me", true, $("authOut"));
 
 /** 4) SERVER: records list/create */
-$("btnList").onclick = () => callApi("/api/db/records", false, $("listOut")); // dev-bypass может не требовать токен
-$("btnCreate").onclick = () => callApi("/api/db/records", false, $("listOut"), {
+$("btnList").onclick = () => callApi("/api/db/records", true, $("listOut"));
+$("btnCreate").onclick = () => callApi("/api/db/records", true, $("listOut"), {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ title: "Hello from TestServer", meta: { source: "testserver" } })
