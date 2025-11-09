@@ -167,3 +167,20 @@ async function callApi(path, needsToken, outEl, opts = {}) {
     log(`${path} error`, { error: e.message || String(e) });
   }
 }
+
+
+// --- one/get & delete by id ---
+const $id = document.getElementById("recordId");
+const $oneOut = document.getElementById("oneOut");
+
+document.getElementById("btnGetOne").onclick = () => {
+  const id = ($id.value || "").trim();
+  if (!id) { $oneOut.textContent = "Укажи record_id"; return; }
+  callApi(`/api/db/records/${id}`, true, $oneOut);
+};
+
+document.getElementById("btnDelete").onclick = () => {
+  const id = ($id.value || "").trim();
+  if (!id) { $oneOut.textContent = "Укажи record_id"; return; }
+  callApi(`/api/db/records/${id}`, true, $oneOut, { method: "DELETE" });
+};

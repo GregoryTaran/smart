@@ -83,15 +83,23 @@
       <pre id="authOut" class="out"></pre>
     </section>
 
-    <!-- Блок 4: Мини-CRUD (records) -->
-    <section class="card">
-      <h2>4) Records (минимальный CRUD)</h2>
-      <div class="row">
-        <button id="btnList">GET /api/db/records</button>
-        <button id="btnCreate">POST /api/db/records</button>
-      </div>
-      <pre id="listOut" class="out"></pre>
-    </section>
+<!-- Блок 4: Мини-CRUD (records) -->
+<section class="card">
+  <h2>4) Records (минимальный CRUD)</h2>
+  <div class="row">
+    <button id="btnList">GET /api/db/records</button>
+    <button id="btnCreate">POST /api/db/records</button>
+  </div>
+
+  <div class="row" style="margin-top:8px">
+    <input id="recordId" placeholder="record_id (UUID)" style="flex:1" />
+    <button id="btnGetOne">GET /api/db/records/{id}</button>
+    <button id="btnDelete">DELETE /api/db/records/{id}</button>
+  </div>
+
+  <pre id="listOut" class="out" style="margin-top:8px"></pre>
+  <pre id="oneOut" class="out small"></pre>
+</section>
 
     <section class="card">
       <h2>Логи</h2>
