@@ -1,0 +1,24 @@
+# SMART VISION — PROJECT PASSPORT
+
+1. PROJECT NAME: SMART VISION
+2. AUTHOR: Greg Taran
+3. PURPOSE: Web platform (Frontend + FastAPI Backend + Supabase)
+4. FRONTEND: static /smart/ (Render-hosted, uses Supabase Auth)
+5. BACKEND: FastAPI server (Render)
+6. DATABASE: Supabase (Auth + Postgres + Storage)
+7. DOMAIN: https://test.smartvision.life/
+8. STRUCTURE: two folders — smart/ (frontend) and server/ (backend)
+9. FRONT-ENTRY: /smart/index.html
+10. AUTH PAGE: /smart/login/login.html
+11. REDIRECT AFTER LOGIN: "/"
+12. COOKIES: sb-access-token / sb-refresh-token (HttpOnly)
+13. ENV VARS (Render): SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / OPENAI_API_KEY / GOOGLE_API_KEY
+14. MAIN SERVER DIRS: /server/core /server/database /server/identity
+15. MAIN FILES: main.py / identity/api_auth.py
+16. AUTH TYPE: Supabase Auth (email/password, no email confirmation)
+17. AUTH CHECK: auth-check.js (redirects to /login if no session)
+18. DEPLOYMENT: Render (auto from GitHub)
+19. DEV PROXY: optional Node.js/Express local proxy for development
+20. CLIENT AUTH JS: login.js using supabase.auth.signInWithPassword() & supabase.auth.signUp()
+
+
