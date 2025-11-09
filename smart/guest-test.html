@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>SMART VISION — Guest test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    button { padding: 10px 16px; font-size: 16px; cursor: pointer; }
+    .row { margin: 14px 0; }
+    pre { background: #0b1020; color: #bfe7ff; padding: 12px; border-radius: 8px; overflow:auto; }
+    code { background:#f5f7fb; padding:2px 4px; border-radius:4px; }
+  </style>
+</head>
+<body>
+
+  <h1>SMART VISION — проверка гостя (Supabase)</h1>
+
+  <div class="row">
+    <button id="btn">Create GUEST and check profile</button>
+  </div>
+
+  <div class="row">
+    <strong>Логи:</strong>
+    <pre id="log">готов к запуску…</pre>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js'
+
+    // 👉 ТВОИ ДАННЫЕ ПРОЕКТА
+    const SUPABASE_URL = 'https://bqtlomddtojirtkazpvj.supabase.co'
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdGxvbWRkdG9qaXJ0a2F6cHZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NzgyODcsImV4cCI6MjA3ODI1NDI4N30.Q6c_Ehc9WmjcF5FNNT-48GGy60Rk53i3t99K5zqTSJk' // ⬅️ вставь сюда anon key
+
+    // === КЛИЕНТ ===
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+    // === ВСПОМОГАТОРЫ ===
+    const logEl = document.getElementById('log')
+    const log = (title, obj) => {
+      const m = `[${new Date().toLocaleTimeString()}] ${title}` +
+                (obj ? ` ${JSON.stringify(obj, null, 2)}` : '')
+      logEl.textContent += '\n' + m
+      console.log(title, obj || '')
+    }
+    const rnd = () => crypto.randomUUID().replace(/-/g, '')
+
+    // === ОСНОВНОЙ ПРОЦЕСС ===
+    async function run() {
+      try {
+        log('Запускаю создание гостя…')
+
+        // 1) создаём гостя с валидным фиктивным email
+        const email = `guest+1@example.com`
+        const password = rnd()
+
+        const { data: sign, error: signErr } = await supabase.auth.signUp({ email, password })
+        if (signErr) {
+          log('signUp error:', { name: signErr.name, status: signErr.status, message: signErr.message })
+          log('Подсказка:', 'В Auth → Settings проверь Allow new users to sign up. В Email provider можно отключить Confirm email для dev.')
+          return
+        }
+
+        const userId = sign.user?.id
+        log('GUEST создан:', { userId, email })
+
+        // 2) проверяем текущего пользователя (сессия)
+        const { data: me } = await supabase.auth.getUser()
+        log('auth.getUser():', me)
+
+        // 3) читаем профиль из public.profiles (должен быть создан триггером)
+        const { data: prof, error: profErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
+
+        if (profErr) {
+          log('Ошибка запроса profiles:', { message: profErr.message })
+          return
+        }
+
+        if (!prof) {
+          log('Профиль пока не найден:', 'возможно, триггер не создан или RLS/политики не применены.')
+        } else {
+          log('Профиль найден:', prof) // ожидаем is_guest: true
+        }
+
+      } catch (e) {
+        log('UNHANDLED ERROR:', { message: e?.message })
+      }
+    }
+
+    document.getElementById('btn').addEventListener('click', run)
+  </script>
+</body>
+</html>
