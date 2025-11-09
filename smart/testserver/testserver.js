@@ -1,59 +1,169 @@
-// /testserver/testserver.js
-document.addEventListener("DOMContentLoaded", async () => {
-  const out = document.getElementById("pingBox");
-  if (!out) return;
+// TestServer — E2E проверка: фронт ↔ сервер ↔ база
+// Работает на проде (относительные пути) и локально (override API Base)
 
-  // 1) Определяем базовый URL API
-  // - если фронт запущен локально на 127.0.0.1:5500 → идём на 127.0.0.1:8000
-  // - иначе (прод) → используем тот же origin (относительный путь)
-  const isLocal = location.origin.includes("127.0.0.1:5500");
-  const API_BASE = isLocal ? "http://127.0.0.1:8000" : location.origin;
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-  const fetchJSON = async (url, opts) => {
-    const r = await fetch(url, opts);
-    const text = await r.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = text; }
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText} :: ${JSON.stringify(data)}`);
-    return data;
-  };
+const $ = (id) => document.getElementById(id);
+const log = (msg, data) => {
+  const t = new Date().toLocaleTimeString();
+  const line = `[${t}] ${msg}` + (data ? `\n${safe(JSON.stringify(data, null, 2))}` : "");
+  $("logOut").textContent = line + "\n\n" + $("logOut").textContent;
+};
+const safe = (s) => s;
 
-  // 2) Пингуем бэк
+let supabase = null;
+let token = null;
+
+function apiBase() {
+  const override = $("apiBase").value.trim();
+  if (override) return override.replace(/\/$/, "");
+  // по умолчанию — тот же домен (прод)
+  return location.origin.replace(/\/$/, "");
+}
+
+function setState() {
+  $("stateApi").textContent = apiBase();
+  $("stateUrl").textContent = $("sbUrl").value ? "ok" : "—";
+  $("stateAnon").textContent = $("sbAnon").value ? "ok" : "—";
+}
+
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts);
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = text; }
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText} :: ${typeof data === "string" ? data : JSON.stringify(data)}`);
+  return data;
+}
+
+/** 0) PING */
+$("btnPing").onclick = async () => {
   try {
-    const data = await fetchJSON(`${API_BASE}/api/testserver/ping`, { cache: "no-cache" });
-    out.textContent = `OK: ${JSON.stringify(data)}`;
+    const data = await fetchJSON(`${apiBase()}/api/testserver/ping`, { cache: "no-cache" });
+    $("pingOut").textContent = JSON.stringify(data, null, 2);
+    log("PING ok", data);
   } catch (e) {
-    out.textContent = `Ошибка связи с API: ${e.message}`;
-    console.warn(e);
+    $("pingOut").textContent = String(e.message || e);
+    log("PING error", { error: e.message || String(e) });
   }
+};
 
-  // 3) (опционально) добавим быстрые кнопки для records
-  const btnList = document.getElementById("btnList");
-  const btnCreate = document.getElementById("btnCreate");
-  const listOut = document.getElementById("listOut");
-
-  if (btnList && btnCreate && listOut) {
-    btnList.onclick = async () => {
-      try {
-        const data = await fetchJSON(`${API_BASE}/api/db/records`);
-        listOut.textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        listOut.textContent = `Ошибка GET /records: ${e.message}`;
-      }
-    };
-
-    btnCreate.onclick = async () => {
-      try {
-        const body = { title: "Hello from TestServer", meta: { source: "testserver" } };
-        const data = await fetchJSON(`${API_BASE}/api/db/records`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        listOut.textContent = "Создано: " + JSON.stringify(data, null, 2);
-      } catch (e) {
-        listOut.textContent = `Ошибка POST /records: ${e.message}`;
-      }
-    };
+/** 1) INIT */
+$("btnInit").onclick = () => {
+  const url = $("sbUrl").value.trim();
+  const anon = $("sbAnon").value.trim();
+  if (!url || !anon) {
+    log("Укажи Supabase URL и ANON KEY");
+    return;
   }
+  supabase = createClient(url, anon);
+  setState();
+  log("Supabase клиент инициализирован");
+};
+
+$("btnClear").onclick = () => {
+  ["apiBase", "sbUrl", "sbAnon", "email", "password"].forEach(id => $(id).value = "");
+  ["pingOut", "authOut", "listOut", "tokenOut", "logOut"].forEach(id => $(id).textContent = "");
+  $("stateUser").textContent = "—";
+  $("stateHasSession").textContent = "нет";
+  supabase = null; token = null;
+  setState();
+  log("Форма очищена");
+};
+
+setState();
+
+/** 2) AUTH */
+async function refreshSession() {
+  if (!supabase) { log("Сначала инициализируй Supabase (кнопка 'Инициализировать')"); return null; }
+  const { data: { session } } = await supabase.auth.getSession();
+  token = session?.access_token || null;
+  $("stateHasSession").textContent = token ? "да" : "нет";
+  $("stateUser").textContent = session?.user?.email || session?.user?.id || "—";
+  $("tokenOut").textContent = token ? token : "—";
+  return session;
+}
+
+$("btnSignUp").onclick = async () => {
+  try {
+    if (!supabase) { log("Инициализируй Supabase", null); return; }
+    const { data, error } = await supabase.auth.signUp({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+    if (error) throw error;
+    log("SignUp ok", data);
+    await refreshSession();
+  } catch (e) { log("SignUp error", { message: e.message }); }
+};
+
+$("btnSignIn").onclick = async () => {
+  try {
+    if (!supabase) { log("Инициализируй Supabase", null); return; }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+    if (error) throw error;
+    log("SignIn ok", { user: data.user?.id || data.user?.email || "ok" });
+    await refreshSession();
+  } catch (e) { log("SignIn error", { message: e.message }); }
+};
+
+$("btnGuest").onclick = async () => {
+  try {
+    if (!supabase) { log("Инициализируй Supabase", null); return; }
+    const rnd = crypto.randomUUID();
+    const { data, error } = await supabase.auth.signUp({
+      email: `${rnd}@guest.local`,
+      password: crypto.randomUUID()
+    });
+    if (error) throw error;
+    log("Guest created", data.user);
+    await refreshSession();
+  } catch (e) { log("Guest error", { message: e.message }); }
+};
+
+$("btnSignOut").onclick = async () => {
+  try {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    await refreshSession();
+    log("Signed out");
+  } catch (e) { log("SignOut error", { message: e.message }); }
+};
+
+$("btnGetSession").onclick = async () => {
+  try { await refreshSession(); log("Session fetched"); }
+  catch (e) { log("GetSession error", { message: e.message }); }
+};
+
+/** 3) SERVER: whoami / profiles */
+$("btnWhoAmI").onclick = () => callApi("/api/db/whoami", true, $("authOut"));
+$("btnProfileMe").onclick = () => callApi("/api/db/profiles/me", true, $("authOut"));
+
+/** 4) SERVER: records list/create */
+$("btnList").onclick = () => callApi("/api/db/records", false, $("listOut")); // dev-bypass может не требовать токен
+$("btnCreate").onclick = () => callApi("/api/db/records", false, $("listOut"), {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ title: "Hello from TestServer", meta: { source: "testserver" } })
 });
+
+async function callApi(path, needsToken, outEl, opts = {}) {
+  try {
+    const base = apiBase();
+    const headers = Object.assign({ }, opts.headers || {});
+    if (needsToken) {
+      const s = await refreshSession();
+      if (!token) throw new Error("Нет токена (в dev можно включить DEV_BYPASS_AUTH на бэке)");
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const data = await fetchJSON(`${base}${path}`, Object.assign({}, opts, { headers }));
+    outEl.textContent = JSON.stringify(data, null, 2);
+    log(`${path} ok`, data);
+  } catch (e) {
+    outEl.textContent = String(e.message || e);
+    log(`${path} error`, { error: e.message || String(e) });
+  }
+}

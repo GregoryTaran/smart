@@ -1,34 +1,105 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<base href="./" />
-<title>Проверка сервера</title>
-<link rel="icon" href="assets/logo400.jpg" />
-<link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="css/main.css" />
-<link rel="stylesheet" href="testserver/testserver.css" />
+  <meta charset="utf-8" />
+  <title>Test Server — e2e связка</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./testserver.css" />
 </head>
 <body>
-<div id="page">
-<aside id="sidebar" aria-label="Основное меню"></aside>
-<div id="app">
-<header id="topbar" role="banner"></header>
-<main id="main" role="main">
-<section class="test">
-<h1>Проверка сервера</h1>
-<p>Ниже — пинг API.</p>
-<div class="mod-ping" id="pingBox">Проверяем…</div>
-</section>
-</main>
-<footer id="footer" role="contentinfo"></footer>
-</div>
-</div>
-<div id="overlay" hidden></div>
-<script defer src="js/fragment-load.js"></script>
-<script defer src="js/footer.js?v=2"></script>
-<script defer src="testserver/testserver.js"></script>
-<script defer src="js/register-sw.js"></script>
+  <div class="wrap">
+    <h1>✅ Test Server — фронт ↔ сервер ↔ база</h1>
+    <p class="muted">Эта страница делает всё «в лоб»: логин в Supabase, берёт токен, ходит на сервер и в БД.</p>
+
+    <!-- Блок 0: Пинг сервера -->
+    <section class="card">
+      <h2>0) Пинг сервера</h2>
+      <div class="row">
+        <button id="btnPing">Проверить /api/testserver/ping</button>
+        <span class="hint">На проде — относительный путь; локально — можно указать override API.</span>
+      </div>
+      <pre id="pingOut" class="out"></pre>
+    </section>
+
+    <!-- Блок 1: Конфиг -->
+    <section class="card">
+      <h2>1) Конфиг</h2>
+      <label>API Base (опционально, пусто = этот же домен)</label>
+      <input id="apiBase" placeholder="напр. http://127.0.0.1:8000 для локалки" />
+
+      <label>Supabase URL</label>
+      <input id="sbUrl" placeholder="https://xxxxxx.supabase.co" />
+
+      <label>Supabase ANON KEY</label>
+      <input id="sbAnon" placeholder="eyJhbGciOi..." />
+
+      <div class="row">
+        <button id="btnInit">Инициализировать supabase-js</button>
+        <button id="btnClear">Очистить форму</button>
+      </div>
+      <div class="row badges">
+        <span class="badge">API: <b id="stateApi">—</b></span>
+        <span class="badge">SB URL: <b id="stateUrl">—</b></span>
+        <span class="badge">Anon: <b id="stateAnon">—</b></span>
+      </div>
+    </section>
+
+    <!-- Блок 2: Аутентификация Supabase -->
+    <section class="card">
+      <h2>2) Аутентификация</h2>
+      <label>Email</label>
+      <input id="email" placeholder="you@example.com" />
+
+      <label>Пароль</label>
+      <input id="password" type="password" placeholder="******" />
+
+      <div class="row">
+        <button id="btnSignUp">Sign Up</button>
+        <button id="btnSignIn">Sign In</button>
+        <button id="btnGuest">Гостевой (random)</button>
+        <button id="btnSignOut">Sign Out</button>
+        <button id="btnGetSession">Получить сессию</button>
+      </div>
+
+      <div class="row badges">
+        <span class="badge">User: <b id="stateUser">—</b></span>
+        <span class="badge">Has session: <b id="stateHasSession">нет</b></span>
+      </div>
+
+      <details>
+        <summary>Показать токен (JWT)</summary>
+        <pre id="tokenOut" class="out small"></pre>
+      </details>
+    </section>
+
+    <!-- Блок 3: Запросы к серверу -->
+    <section class="card">
+      <h2>3) Запросы к серверу</h2>
+      <p class="muted">В dev-режиме можно без токена (если включён DEV_BYPASS_AUTH на бэке). Если нужен токен — берём из Supabase сессии.</p>
+      <div class="row">
+        <button id="btnWhoAmI">GET /api/db/whoami</button>
+        <button id="btnProfileMe">GET /api/db/profiles/me</button>
+      </div>
+      <pre id="authOut" class="out"></pre>
+    </section>
+
+    <!-- Блок 4: Мини-CRUD (records) -->
+    <section class="card">
+      <h2>4) Records (минимальный CRUD)</h2>
+      <div class="row">
+        <button id="btnList">GET /api/db/records</button>
+        <button id="btnCreate">POST /api/db/records</button>
+      </div>
+      <pre id="listOut" class="out"></pre>
+    </section>
+
+    <section class="card">
+      <h2>Логи</h2>
+      <pre id="logOut" class="out small"></pre>
+    </section>
+  </div>
+
+  <!-- ESM supabase-js -->
+  <script type="module" src="./testserver.js"></script>
 </body>
 </html>
