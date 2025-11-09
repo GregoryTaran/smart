@@ -29,22 +29,29 @@ async def list_records(user = Depends(get_user_context)):
 @router.post("/records", status_code=201)
 async def create_record(payload: dict, user = Depends(get_user_context)):
     _require_admin()
+    import uuid
     try:
+        new_id = str(uuid.uuid4())
         data = {
+            "id": new_id,  # генерим id заранее
             "title": payload.get("title") or "Untitled",
             "meta": payload.get("meta") or {},
         }
         if user.get("id"):
             data["owner_id"] = user["id"]
 
-        # Вернём один объект, а не массив.
-        res = admin.table("records").insert(data).select("*").execute()
-        if getattr(res, "error", None):
-            raise HTTPException(502, f"Supabase error: {res.error}")
+        # 1) вставка
+        res_ins = admin.table("records").insert(data).execute()
+        if getattr(res_ins, "error", None):
+            raise HTTPException(502, f"Supabase insert error: {res_ins.error}")
 
-        rows = res.data or []
-        item = rows[0] if isinstance(rows, list) and rows else rows
-        return item or {}
+        # 2) дочитываем вставленную строку (одним объектом)
+        res_get = admin.table("records").select("*").eq("id", new_id).limit(1).execute()
+        if getattr(res_get, "error", None):
+            raise HTTPException(502, f"Supabase select-after-insert error: {res_get.error}")
+
+        rows = res_get.data or []
+        return rows[0] if rows else data  # на крайний случай вернём то, что вставили
     except HTTPException:
         raise
     except Exception as e:
