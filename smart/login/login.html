@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Мы в /login/, поэтому база — на уровень выше (как в voicerecorder.html) -->
   <base href="../" />
-  <title>Вход/регистрация</title>
+  <title>Вход / регистрация — SMART VISION</title>
 
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
@@ -15,7 +14,6 @@
   <!-- Локальные стили логина -->
   <link rel="stylesheet" href="login/login.css" />
 
-  <!-- Небольшой локальный стиль только для табов/подсказок; не трогает твою тему -->
   <style>
     .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 12px; }
     .tablink {
@@ -38,56 +36,51 @@
     <header id="topbar" role="banner"></header>
     <main id="main" role="main">
 
+      <section class="login">
+        <div class="login__box sv-center-700">
+          <h1 class="login__title">Вход в SMART VISION</h1>
+          <p class="login__lead">Войдите или зарегистрируйтесь, чтобы сохранить записи и настройки.</p>
 
-<section class="login">
-  <div class="login__box sv-center-700">
-    <h1 class="login__title">Вход в SMART VISION</h1>
-    <p class="login__lead">Войдите или зарегистрируйтесь, чтобы сохранить записи и настройки.</p>
+          <!-- Форма Входа -->
+          <form class="login__form" id="login-form" novalidate>
+            <label class="login__label">
+              Email
+              <input class="login__input" type="email" id="email" name="email" required autocomplete="email" />
+            </label>
 
-    <!-- Форма Входа (видна по умолчанию) -->
-    <form class="login__form" id="login-form" novalidate>
-      <label class="login__label">
-        Email
-        <input class="login__input" type="email" id="email" name="email" required autocomplete="email" />
-      </label>
+            <label class="login__label">
+              Пароль
+              <input class="login__input" type="password" id="password" name="password" required minlength="8" autocomplete="current-password" />
+            </label>
 
-      <label class="login__label">
-        Пароль
-        <input class="login__input" type="password" id="password" name="password" required minlength="8" autocomplete="current-password" />
-      </label>
+            <button type="submit" class="login__btn">Войти</button>
+            <button type="button" class="login__btn login__btn--ghost" id="signup-btn">Создать аккаунт</button>
+            <div class="login__status" id="login-status" role="status" aria-live="polite"></div>
+          </form>
 
-      <button type="submit" class="login__btn">Войти</button>
-      <button type="button" class="login__btn login__btn--ghost" id="signup-btn">Создать аккаунт</button>
-      <div class="login__status" id="login-status" role="status" aria-live="polite"></div>
-    </form>
+          <!-- Форма Регистрации -->
+          <form class="login__form hidden" id="register-form" novalidate>
+            <label class="login__label">
+              Имя
+              <input class="login__input" type="text" id="reg-name" name="name" required autocomplete="name" />
+            </label>
 
-    <!-- Форма Регистрации (скрыта до #register) -->
-    <form class="login__form hidden" id="register-form" novalidate>
-      <label class="login__label">
-        Имя
-        <input class="login__input" type="text" id="reg-name" name="name" required autocomplete="name" />
-      </label>
+            <label class="login__label">
+              Email
+              <input class="login__input" type="email" id="reg-email" name="email" required autocomplete="email" />
+            </label>
 
-      <label class="login__label">
-        Email
-        <input class="login__input" type="email" id="reg-email" name="email" required autocomplete="email" />
-      </label>
+            <label class="login__label">
+              Пароль
+              <input class="login__input" type="password" id="reg-password" name="password" required minlength="8" autocomplete="new-password" />
+            </label>
 
-      <label class="login__label">
-        Пароль
-        <input class="login__input" type="password" id="reg-password" name="password" required minlength="8" autocomplete="new-password" />
-      </label>
-
-      <button type="submit" class="login__btn">Зарегистрироваться</button>
-      <div class="login__status" id="register-status" role="status" aria-live="polite"></div>
-   <p class="micro-hint"> Уже есть аккаунт? <a href="login/login.html#login">Войти</a> </p>
-
-    </form>
-  </div>
-</section>
-
-
-
+            <button type="submit" class="login__btn">Зарегистрироваться</button>
+            <div class="login__status" id="register-status" role="status" aria-live="polite"></div>
+            <p class="micro-hint">Уже есть аккаунт? <a href="login/login.html#login">Войти</a></p>
+          </form>
+        </div>
+      </section>
 
     </main>
     <footer id="footer" role="contentinfo"></footer>
@@ -96,15 +89,16 @@
 
 <div id="overlay" hidden></div>
 
-<!-- Общие загрузчики фрагментов/сервис-воркера (как у диктофона) -->
+<!-- Общие загрузчики -->
 <script defer src="js/fragment-load.js"></script>
 <script defer src="js/footer.js?v=2"></script>
 <script defer src="js/register-sw.js"></script>
 
-<!-- Локальная логика страницы -->
+<!-- Подключаем Supabase и логику -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="login/login.js"></script>
 
-<!-- Автовыбор #login по умолчанию, если хэштега нет -->
+<!-- Автовыбор #login, если нет хэштега -->
 <script>
   (function(){ if(!location.hash) location.hash = '#login'; })();
 </script>

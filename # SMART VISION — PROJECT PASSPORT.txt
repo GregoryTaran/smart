@@ -21,4 +21,9 @@
 19. DEV PROXY: optional Node.js/Express local proxy for development
 20. CLIENT AUTH JS: login.js using supabase.auth.signInWithPassword() & supabase.auth.signUp()
 
+22. SUPABASE_URL = "https://bqtlomddtojirtkazpvj.supabase.co";
+const 
+23.SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJxdGxvbWRkdG9qaXJ0a2F6cHZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NzgyODcsImV4cCI6MjA3ODI1NDI4N30.Q6c_Ehc9WmjcF5FNNT-48GGy60Rk53i3t99K5zqTSJk
+
+
 
