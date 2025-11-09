@@ -144,11 +144,52 @@ $("btnProfileMe").onclick = () => callApi("/api/db/profiles/me", true, $("authOu
 
 /** 4) SERVER: records list/create */
 $("btnList").onclick = () => callApi("/api/db/records", true, $("listOut"));
-$("btnCreate").onclick = () => callApi("/api/db/records", true, $("listOut"), {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ title: "Hello from TestServer", meta: { source: "testserver" } })
-});
+// СТАЛО: автоподстановка record_id после успешного POST
+const recordIdInput = document.getElementById("recordId");
+$("btnCreate").onclick = async () => {
+  const out = document.getElementById("listOut");
+  try {
+    const base = apiBase();
+    const headers = { "Content-Type": "application/json" };
+
+    // токен нужен для records
+    await refreshSession();
+    if (!token) throw new Error("Нет токена (войдите и нажмите «Получить сессию»)");
+    headers.Authorization = `Bearer ${token}`;
+
+    const body = { title: "Hello from TestServer", meta: { source: "testserver" } };
+
+    // POST /api/db/records — создаём и получаем 1 объект
+    const created = await fetchJSON(`${base}/api/db/records`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    out.textContent = "Создано:\n" + JSON.stringify(created, null, 2);
+    log("/api/db/records POST ok", created);
+
+    // авто-подставим id в поле и сразу покажем GET {id}
+    if (created && created.id && recordIdInput) {
+      recordIdInput.value = created.id;
+      const oneOut = document.getElementById("oneOut");
+      const obj = await fetchJSON(`${base}/api/db/records/${created.id}`, { headers });
+      if (oneOut) oneOut.textContent = JSON.stringify(obj, null, 2);
+      log(`/api/db/records/${created.id} GET ok`, obj);
+    }
+
+    // по желанию — обновим список
+    try {
+      const list = await fetchJSON(`${base}/api/db/records`, { headers });
+      out.textContent = JSON.stringify(list, null, 2);
+      log("/api/db/records GET ok", list);
+    } catch (_) {}
+  } catch (e) {
+    out.textContent = `Ошибка POST /records: ${e.message || e}`;
+    log("/api/db/records POST error", { error: e.message || String(e) });
+  }
+};
+
 
 async function callApi(path, needsToken, outEl, opts = {}) {
   try {
