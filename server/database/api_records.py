@@ -11,11 +11,10 @@ def _require_admin():
         raise HTTPException(503, "Supabase not configured on server (service role)")
 
 @router.get("/records")
-def list_records(user = Depends(get_user_context)):
+async def list_records(user = Depends(get_user_context)):
     _require_admin()
     try:
         q = admin.table("records").select("*").order("created_at", desc=True)
-        # хотим показывать записи конкретного пользователя
         if user.get("id"):
             q = q.eq("owner_id", user["id"])
         res = q.limit(50).execute()
@@ -28,14 +27,13 @@ def list_records(user = Depends(get_user_context)):
         raise HTTPException(500, f"records/list failed: {e}")
 
 @router.post("/records")
-def create_record(payload: dict, user = Depends(get_user_context)):
+async def create_record(payload: dict, user = Depends(get_user_context)):
     _require_admin()
     try:
         data = {
             "title": payload.get("title") or "Untitled",
             "meta": payload.get("meta") or {},
         }
-        # проставим владельца — пригодится и для RLS в будущем
         if user.get("id"):
             data["owner_id"] = user["id"]
         res = admin.table("records").insert(data).execute()
