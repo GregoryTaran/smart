@@ -14,7 +14,6 @@
   <!-- Локальные стили логина -->
   <link rel="stylesheet" href="login/login.css" />
 
-  <!-- Мелкий локальный стиль для табов/подсказок; дизайн не менял -->
   <style>
     .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 12px; }
     .tablink {
@@ -22,10 +21,7 @@
       border-radius:10px; border:1px solid var(--sv-iris-line, #e5e7eb);
       background: var(--sv-iris-50, #f8f9ff); color: var(--sv-text-strong, #111);
     }
-    .tablink[aria-selected="true"] {
-      background: var(--sv-iris-70, #eef0ff);
-      box-shadow: 0 0 0 3px rgba(120,100,255,.22);
-    }
+    .tablink[aria-selected="true"] { background: var(--sv-iris-70, #eef0ff); box-shadow: 0 0 0 3px rgba(120,100,255,.22); }
     .hidden { display:none; }
     .micro-hint { font-size:.82rem; color:#475569; margin-top:8px; }
   </style>
@@ -85,8 +81,7 @@
 
 <div id="overlay" hidden></div>
 
-<!-- Общие загрузчики -->
-<script defer src="js/fragment-load.js"></script>
+<!-- ==== ОСТАВЛЯЕМ ТВОИ НИЖНИЕ СКРИПТЫ (как были) ==== -->
 <script defer src="js/footer.js?v=2"></script>
 <script defer src="js/register-sw.js"></script>
 
@@ -96,5 +91,23 @@
 
 <!-- Вся логика — в login.js -->
 <script defer src="login/login.js"></script>
+
+<!-- ==== НАШ МОДУЛЬ: грузим ТОЛЬКО меню и рисуем топ-бар ==== -->
+<script type="module">
+  import { initPage } from "./js/topbar.module.js";
+  initPage({
+    fragments: [
+      ["menu.html", "#sidebar"]  // футер HTML не грузим
+    ],
+    cacheBust: false,
+    topbar: {
+      state: {
+        logoHref: "index.html",
+        logoSrc:  "assets/logo400.jpg",
+        auth:     { user: null }
+      }
+    }
+  });
+</script>
 </body>
 </html>

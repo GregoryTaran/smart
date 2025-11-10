@@ -19,7 +19,7 @@
     // Подгружаем фрагменты параллельно
     await Promise.all([
       loadFragment("menu.html", "#sidebar"),
-      loadFragment("topbar.html", "#topbar"),
+       // loadFragment("topbar.html", "#topbar"),
        // loadFragment("footer.html", "#footer"),
     ]);
 

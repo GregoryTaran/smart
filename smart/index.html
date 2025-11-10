@@ -1,131 +1,116 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SMART VISION</title>
 
-    <!-- base: ссылки работают корректно и локально, и на сервере -->
-    <base href="./" />
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+  <base href="./" />
 
-    <title>Главная страница</title>
+  <!-- Внешние стили, как у тебя -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="index/index.css" />
+</head>
+<body>
+  <div id="page">
+    <!-- Меню (подтянется из menu.html) -->
+    <aside id="sidebar" aria-label="Основное меню"></aside>
 
-    <!-- фавикон -->
-    <link rel="icon" href="assets/logo400.jpg" />
+    <div id="app">
+      <!-- Топ-бар теперь рисует модуль -->
+      <header id="topbar" role="banner"></header>
 
-    <!-- PWA -->
-    <link rel="manifest" href="manifest.json" />
+      <main id="main" role="main">
+        <section class="hero">
+          <h1>SMART VISION</h1>
+          <p>Топ-бар — модулем. Меню грузим из menu.html. Футер-фрагмент не используем.</p>
+        </section>
 
-    <!-- Стили -->
-    <link rel="stylesheet" href="css/main.css" />
-    <link rel="stylesheet" href="index/index.css" />
+        <!-- Панель разрешений, как в первичном индексе -->
+        <section class="perm-card" aria-label="Разрешения приложения">
+          <h3>Разрешения</h3>
+          <div class="perm-row">
+            <button id="btnMic">Разрешить микрофон</button>
+            <button id="btnCam">Разрешить камеру</button>
+            <button id="btnNoti">Разрешить уведомления</button>
+          </div>
+          <div id="permStatus" class="perm-status">status: idle</div>
+        </section>
+      </main>
 
-    <style>
-      /* маленькая панель разрешений (минимальная стилизация, чтобы не мешать твоим стилям) */
-      .perm-card {
-        margin: 16px 0; padding: 16px;
-        border-radius: 12px; border:1px solid #2b3b51;
-        background: #0f1622; color:#e8eef6;
-      }
-      .perm-card h3 { margin: 0 0 8px; font-size: 18px; }
-      .perm-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-      .perm-row button {
-        padding:10px 14px; border-radius:10px; border:1px solid #2b3b51; background:#152033; color:#e8eef6; cursor:pointer;
-      }
-      .perm-status { margin-top:8px; opacity:.85; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-    </style>
-  </head>
+      <!-- Домашний гео-виджет (как было) -->
+      <div id="home-geo-footer"></div>
 
-  <body>
-    <!-- Вся страница: слева меню, справа враппер -->
-    <div id="page">
-      <aside id="sidebar" aria-label="Основное меню"></aside>
-
-      <div id="app">
-        <header id="topbar" role="banner"></header>
-
-        <main id="main" role="main">
-          <section class="hero">
-            <h1>SMART VISION</h1>
-            <p>Место, где визия превращается в реализацию.</p>
-          </section>
-
-          <section class="welcome">
-            <h2>Добро пожаловать!</h2>
-            <p>
-              Это стартовая страница проекта SMART VISION. Здесь можно подключать
-              микромодули (HTML+JS) с префиксами классов <code>mod-*</code>.
-            </p>
-          </section>
-
-          <!-- Новая панель: единые разрешения -->
-          <section class="perm-card" aria-label="Разрешения приложения">
-            <h3>Разрешения</h3>
-            <div class="perm-row">
-              <button id="btnMic">Разрешить микрофон</button>
-              <button id="btnCam">Разрешить камеру</button>
-              <button id="btnNoti">Разрешить уведомления</button>
-            </div>
-            <div id="permStatus" class="perm-status">status: idle</div>
-          </section>
-        </main>
-
-        <!-- Домашний гео-виджет (только на главной) -->
-<div id="home-geo-footer"></div>
-
-<footer id="footer" role="contentinfo"></footer>
-      </div>
+      <!-- Сам тег футера остаётся для твоих скриптов -->
+      <footer id="footer" role="contentinfo"></footer>
     </div>
+  </div>
 
-    <!-- Мобильный оверлей -->
-    <div id="overlay" hidden></div>
+  <!-- Оверлей для мобильного меню -->
+  <div id="overlay" hidden></div>
 
-    <!-- Скрипты (важен порядок) -->
-    <!-- 1) Фрагменты (вставляет топбар/сайдбар/футер) -->
-    <script defer src="js/fragment-load.js?v=2"></script>
-    <script defer src="js/footer.js?v=2"></script>
-<!-- 2) Наш стейт меню/хедера -->
-<script defer src="js/menu-state.js"></script>
+  <!-- ===== Ниже — твои скрипты, как в исходнике. Оставляем. ===== -->
+  <!-- footer.js / menu-state.js / index.js / geo.bundle / SW / supabase / identity-guard -->
+  <script defer src="js/footer.js?v=2"></script>
+  <script defer src="js/menu-state.js"></script>
 
+  <!-- Универсальный модуль разрешений (как у тебя было — inline module) -->
+  <script type="module">
+    import {
+      setStatusEl,
+      bindMicPermissionButton,
+      bindCameraPermissionButton,
+      bindNotificationsButton,
+    } from "./js/mic-permission.js";
 
-    <!-- 3) Твой универсальный модуль разрешений (временный inline-скрипт оставляем) -->
-    <script type="module">
-      import {
-        setStatusEl,
-        bindMicPermissionButton,
-        bindCameraPermissionButton,
-        bindNotificationsButton,
-      } from "./js/mic-permission.js";
+    const statusEl = document.getElementById('permStatus');
+    if (statusEl) setStatusEl(statusEl);
 
-      const statusEl = document.getElementById('permStatus');
-      if (statusEl) setStatusEl(statusEl);
+    const btnMic  = document.getElementById('btnMic');
+    const btnCam  = document.getElementById('btnCam');
+    const btnNoti = document.getElementById('btnNoti');
 
-      const btnMic  = document.getElementById('btnMic');
-      const btnCam  = document.getElementById('btnCam');
-      const btnNoti = document.getElementById('btnNoti');
+    if (btnMic)  bindMicPermissionButton(btnMic, statusEl);
+    if (btnCam)  bindCameraPermissionButton(btnCam, statusEl);
+    if (btnNoti) bindNotificationsButton(btnNoti, statusEl);
+  </script>
 
-      if (btnMic)  bindMicPermissionButton(btnMic, statusEl);
-      if (btnCam)  bindCameraPermissionButton(btnCam, statusEl);
-      if (btnNoti) bindNotificationsButton(btnNoti, statusEl);
-    </script>
+  <script defer src="index/index.js?v=2"></script>
+  <script defer src="js/footer.geo.bundle.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function () {
+      var targetId = 'home-geo-footer';
+      if (window.SVFooter && document.getElementById(targetId)) {
+        try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
+      }
+    });
+  </script>
 
-    <!-- 4) Твой индексный скрипт как был -->
-    <script defer src="index/index.js?v=2"></script>
+  <script defer src="js/register-sw.js?v=2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/identity-guard.js"></script>
 
-    <!-- 4.1) Гео-виджет (только на главной) -->
-    <script defer src="js/footer.geo.bundle.js"></script>
-    <script>
-      window.addEventListener('DOMContentLoaded', function () {
-        var targetId = 'home-geo-footer';
-        if (window.SVFooter && document.getElementById(targetId)) {
-          try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
+  <!-- Наш модуль: и подгрузка меню, и топ-бар, и управление меню -->
+  <script type="module">
+    import { initPage } from './js/topbar.module.js';
+
+    // Важно: грузим ТОЛЬКО menu.html. Футер-фрагмент не используем.
+    initPage({
+      fragments: [
+        ["menu.html", "#sidebar"]
+      ],
+      cacheBust: false,
+      topbar: {
+        state: {
+          logoHref: "index.html",
+          logoSrc:  "assets/logo400.jpg",
+          auth:     { user: null }
         }
-      });
-    </script>
-
-
-    <!-- 5) Сервис-воркер -->
-    <script defer src="js/register-sw.js?v=2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="js/identity-guard.js"></script>
-  </body>
+        // handlers по умолчанию: openMenu/close по overlay/Escape уже в модуле
+      }
+    });
+  </script>
+</body>
 </html>
