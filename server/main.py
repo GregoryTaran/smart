@@ -66,10 +66,11 @@ except Exception as e:
 
 # identity/visitor API
 try:
-    from server.identity.visitor import router as visitor_router
-    app.include_router(visitor_router, prefix="", tags=["identity"])
+    from identity.visitor import router as visitor_router
+    app.include_router(visitor_router)          # router уже с prefix="/identity"
+    log.info("identity.visitor mounted")
 except Exception as e:
-    log.warning(f"Identity VISITOR not loaded: {e}")
+    log.warning(f"Identity VISITOR not mounted: {e}")
 
 
 # --- Health endpoints ---
