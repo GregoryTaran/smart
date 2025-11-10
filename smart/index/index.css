@@ -22,3 +22,77 @@
   margin: 0 0 8px;
   font-size: 16px;
 }
+/* ===== Permission Card ===== */
+.perm-card {
+  margin: 24px 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  .perm-card {
+    background: #151515;
+    border-color: rgba(255,255,255,.08);
+    box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  }
+}
+
+.perm-card > h3 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Ряд с кнопками */
+.perm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.perm-row > button {
+  appearance: none;
+  border: 1px solid #d0d0d0;
+  background: #fafafa;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color .15s ease, transform .04s ease;
+}
+
+.perm-row > button:active { transform: translateY(1px); }
+
+.perm-row > button:hover {
+  border-color: #9c9c9c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .perm-row > button {
+    background: #1f1f1f;
+    border-color: #333;
+    color: #e8e8e8;
+  }
+  .perm-row > button:hover {
+    border-color: #555;
+  }
+}
+
+/* Статус под кнопками */
+.perm-status {
+  font-size: .95rem;
+  color: #555;
+}
+
+@media (prefers-color-scheme: dark) {
+  .perm-status { color: #bfbfbf; }
+}
+
+/* Необязательные состояния (если захочешь подсветку) */
+.perm-status.is-ok     { color: #198754; }  /* зелёный */
+.perm-status.is-warn   { color: #d39e00; }  /* жёлтый */
+.perm-status.is-error  { color: #dc3545; }  /* красный */
