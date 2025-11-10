@@ -10,7 +10,12 @@ pydub>=0.25.1
 openai>=1.0.0
 email-validator==2.2.0
 
-# server/requirements.txt (добавить)
-supabase>=2.6.0
-python-dotenv>=1.0.1
-httpx>=0.27.0
+# Supabase / infra
+httpx>=0.27.0          # мы шлём запросы в Supabase REST API
+python-dotenv>=1.0.1   # .env конфиги
+
+# (опционально, если решим напрямую в Postgres)
+# asyncpg>=0.29.0
+
+# (опционально, для чистого парсинга user-agent)
+# device-detector==5.0.1
