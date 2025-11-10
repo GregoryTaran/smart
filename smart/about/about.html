@@ -9,7 +9,6 @@
 <link rel="icon" href="assets/logo400.jpg" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="css/main.css" />
-<!-- локальный стиль лежит рядом -->
 <link rel="stylesheet" href="about/about.css" />
 </head>
 <body>
@@ -30,7 +29,6 @@
 <div id="overlay" hidden></div>
 
 <!-- общие скрипты -->
-<script defer src="js/fragment-load.js"></script>
 <script defer src="js/footer.js?v=2"></script>
 <script defer src="js/register-sw.js"></script>
 
@@ -40,5 +38,17 @@
 <!-- идентификация (единый гард) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="js/identity-guard.js"></script>
+
+<!-- наш модуль: грузим ТОЛЬКО меню и рисуем топ-бар -->
+<script type="module">
+  import { initPage } from "./js/topbar.module.js";
+  initPage({
+    fragments: [["menu.html", "#sidebar"]],
+    cacheBust: false,
+    topbar: {
+      state: { logoHref: "index.html", logoSrc: "assets/logo400.jpg", auth: { user: null } }
+    }
+  });
+</script>
 </body>
 </html>
