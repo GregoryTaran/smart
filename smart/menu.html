@@ -1,13 +1,23 @@
-<!-- Навигация. Порядок пунктов фиксированный. Активный определяется по URL. -->
-<nav class="menu" aria-label="Навигация по сайту">
+<nav class="menu">
   <ul>
-    <li><a href="index.html" data-id="index">Главная страница</a></li>
-    <li><a href="about/about.html" data-id="about">О проекте</a></li>
-    <li><a href="login/login.html" data-id="login">Вход/регистрация</a></li>
-    <li><a href="privacy/privacy.html" data-id="privacy">Политика конфиденциальности</a></li>
-    <li><a href="terms/terms.html" data-id="terms">Условия использования</a></li>
-    <li><a href="testserver/testserver.html" data-id="testserver">Проверка сервера</a></li>
-    <li><a href="voicerecorder/voicerecorder.html" data-id="voicerecorder">Диктофон</a></li>
-    <li><a href="app/app.html" data-id="app">Мобильное приложение</a></li>
+    <!-- общие -->
+    <li data-show="all"><a href="index.html">Главная</a></li>
+    <li data-show="all"><a href="about/about.html">О проекте</a></li>
+    <li data-show="all"><a href="privacy/privacy.html" data-id="privacy">Политика конфиденциальности</a></li>
+    <li data-show="all"><a href="terms/terms.html" data-id="terms">Условия использования</a></li>
+
+    <!-- только гостю -->
+    <li data-show="guest"><a href="login/login.html">Вход/регистрация</a></li>
+
+    <!-- только залогиненному -->
+    <li data-show="auth"><a href="profile/profile.html">Профиль</a></li>
+    <li data-show="auth"><a href="dashboard.html">Мой кабинет</a></li>
+    <li data-show="auth"><a href="testserver/testserver.html" data-id="testserver">Проверка сервера</a></li>
+    <li data-show="auth"><a href="voicerecorder/voicerecorder.html" data-id="voicerecorder">Диктофон</a></li>
+    <li data-show="auth"><a href="app/app.html" data-id="app">Мобильное приложение</a></li>
+    <li data-show="auth"><a href="#logout" data-action="logout">Выйти</a></li>
+
+    <!-- пример для ролей (по желанию) -->
+    <li data-show="auth" data-role="admin"><a href="admin.html">Админка</a></li>
   </ul>
 </nav>
