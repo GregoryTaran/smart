@@ -64,6 +64,13 @@ try:
 except Exception as e:
     log.warning(f"TestServer API not loaded: {e}")
 
+# identity/visitor API
+try:
+    from server.identity.visitor import router as visitor_router
+    app.include_router(visitor_router, prefix="", tags=["identity"])
+except Exception as e:
+    log.warning(f"Identity VISITOR not loaded: {e}")
+
 
 # --- Health endpoints ---
 @app.get("/health")
