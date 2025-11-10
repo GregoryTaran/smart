@@ -1,27 +1,17 @@
-/* SMART VISION — menu-state.js (fresh)
-   Единый менеджер авторизации и меню.
-
-   LocalStorage:
-     sv_auth     : "loggedIn" | (нет)
-     sv_user     : JSON res.user_merged
-     sv_user_raw : JSON res.user_auth
-     sv_profile  : JSON res.user_profile | null
-
-   Разметка:
-     - Хедер: <a id="auth-link" class="login-link" href="login/login.html#login">Логин</a>
-     - Меню:  <nav class="menu"><ul> <li data-show="guest, auth, admin" data-role="admin?">...</li> ... </ul></nav>
-       data-show перечисляет, кому видно (через запятую): guest | auth | admin | user | * (всем)
-       data-role (опц.) — требует точного совпадения роли (admin, user и т.п.)
-*/
+// /smart/js/menu-state.js (fresh, unified)
+// - Syncs auth with server: GET /api/auth/me, POST /api/auth/logout
+// - Controls topbar auth-link (Login/Logout)
+// - Shows/hides menu items by roles via data-show="guest, auth, admin" and optional data-role="admin"
+// - Works even if menu fragment loads later
 
 (function () {
-  // ======= Storage keys
+  // ===== Storage keys =====
   const LS_AUTH     = "sv_auth";
   const LS_USER     = "sv_user";
   const LS_USER_RAW = "sv_user_raw";
   const LS_PROFILE  = "sv_profile";
 
-  // ======= Helpers
+  // ===== Helpers =====
   const ls = {
     get(k){ try { return localStorage.getItem(k); } catch { return null; } },
     set(k,v){ try { localStorage.setItem(k,v); } catch {} },
@@ -30,35 +20,32 @@
   const parseJSON = (s, d=null)=>{ try { return s?JSON.parse(s):d; } catch { return d; } };
   const isLoggedIn = ()=> ls.get(LS_AUTH) === "loggedIn";
   const getUser    = ()=> parseJSON(ls.get(LS_USER), null);
-
   const q  = (sel, root=document)=> root.querySelector(sel);
   const qa = (sel, root=document)=> Array.from(root.querySelectorAll(sel));
 
-  // ======= Roles
-  // user_merged формируется на сервере; поле role берём оттуда. :contentReference[oaicite:3]{index=3}
+  // ===== Roles =====
   function currentRoles(user) {
     const set = new Set();
     if (user && user.id) {
       set.add("auth");
-      // допускаем single role или массив roles
-      if (user.role)  set.add(String(user.role).toLowerCase());
-      if (Array.isArray(user.roles)) {
-        user.roles.forEach(r => r && set.add(String(r).toLowerCase()));
+      if (user.role) {
+        if (Array.isArray(user.role)) user.role.forEach(r => r && set.add(String(r).toLowerCase()));
+        else set.add(String(user.role).toLowerCase());
       }
+      if (Array.isArray(user.roles)) user.roles.forEach(r => r && set.add(String(r).toLowerCase()));
     } else {
       set.add("guest");
     }
     return set;
   }
-
   function parseAllowedRoles(attr) {
-    if (!attr) return null;            // null => показывать всем
+    if (!attr) return null;
     const list = String(attr).split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
     if (!list.length) return null;
     return new Set(list);
   }
 
-  // ======= Topbar auth-link
+  // ===== Topbar auth-link =====
   function applyTopbarAuthLink(loggedIn) {
     const a = document.getElementById("auth-link") || q(".login-link");
     if (!a) return;
@@ -75,52 +62,47 @@
     }
   }
 
-  // ======= Menu visibility by data attrs
+  // ===== Menu visibility by attributes =====
   function applyMenuVisibilityByAttrs(user) {
     const sidebar = document.getElementById("sidebar");
     const menuRoot = q("nav.menu", sidebar || document);
-    if (!menuRoot) return false; // меню не найдено
-
+    if (!menuRoot) return false;
     const roles = currentRoles(user);
-    let hadDirectives = false;
+    let had = false;
 
     qa("[data-show]", menuRoot).forEach(el => {
-      const allowed = parseAllowedRoles(el.getAttribute("data-show")); // Set | null
+      const allowed = parseAllowedRoles(el.getAttribute("data-show"));
       const needRole = (el.getAttribute("data-role") || "").toLowerCase() || null;
-
-      if (allowed) hadDirectives = true;
+      if (allowed) had = true;
 
       let visible = true;
       if (allowed && !allowed.has("*")) {
-        // Нужна хотя бы одна роль из allowed
         visible = [...allowed].some(r => roles.has(r));
       }
       if (visible && needRole) {
         visible = roles.has(needRole);
       }
-      // Используем hidden (семантика), можно заменить на classList.toggle('is-hidden', !visible)
-      el.hidden = !visible;
+      el.hidden = !visible; // semantic & accessible
     });
 
-    return hadDirectives;
+    return had;
   }
 
-  // ======= Fallback (если в menu.html нет data-show)
+  // ===== Fallback if no data-show present in menu =====
   function applyMenuFallback(loggedIn, user) {
     const menuList = q("nav.menu ul");
     if (!menuList) return;
 
-    // скрыть пункт «Вход/регистрация»
+    // hide login item
     const loginLink = q('nav.menu a[href="login/login.html"], nav.menu a[data-id="login"]');
     if (loginLink && loginLink.closest("li")) {
       loginLink.closest("li").style.display = loggedIn ? "none" : "";
     }
 
-    // убрать ранее добавленные динамические
+    // remove previously added dynamic nodes
     qa("li[data-dynamic='1']", menuList).forEach(li => li.remove());
 
     if (loggedIn) {
-      // Профиль
       const liProfile = document.createElement("li");
       liProfile.dataset.dynamic = "1";
       const aProfile = document.createElement("a");
@@ -129,7 +111,6 @@
       liProfile.appendChild(aProfile);
       menuList.appendChild(liProfile);
 
-      // Выйти
       const liLogout = document.createElement("li");
       liLogout.dataset.dynamic = "1";
       const aLogout = document.createElement("a");
@@ -141,11 +122,10 @@
     }
   }
 
-  // ======= Apply full UI
+  // ===== Apply full UI =====
   function applyUI() {
     const loggedIn = isLoggedIn();
     const user = getUser();
-
     applyTopbarAuthLink(loggedIn);
 
     const directivesApplied = applyMenuVisibilityByAttrs(user);
@@ -154,7 +134,7 @@
     }
   }
 
-  // ======= Server sync
+  // ===== Server sync =====
   async function fetchMeAndSync() {
     try {
       const res = await fetch("/api/auth/me", { method: "GET", credentials: "include" });
@@ -170,8 +150,8 @@
         ls.remove(LS_AUTH); ls.remove(LS_USER); ls.remove(LS_USER_RAW); ls.remove(LS_PROFILE);
       }
       applyUI();
-    } catch {
-      // Сервер не ответил — остаёмся на локальном стейте
+    } catch (e) {
+      // stay with local state
       applyUI();
     }
   }
@@ -184,53 +164,49 @@
     applyUI();
   }
 
-  // ======= Bindings
+  // ===== Bindings =====
   function bindGlobal() {
-    // logout по data-action
     document.addEventListener("click", (ev) => {
       const a = ev.target.closest("[data-action='logout']");
       if (a) { ev.preventDefault(); doLogout(); }
     }, { passive: false });
 
-    // синк между вкладками
     window.addEventListener("storage", (e) => {
       if (!e || ![LS_AUTH, LS_USER, LS_USER_RAW, LS_PROFILE].includes(e.key)) return;
       applyUI();
     });
   }
 
-  // Ждём подгрузки меню (menu.html) и топбара
   function whenMenuReady(cb) {
-    const ready = !!(q("#topbar") && q("nav.menu"));
+    const ready = !!(q("#topbar") && (q("nav.menu") || q("#sidebar")));
     if (ready) { cb(); return; }
 
     const obs = new MutationObserver(() => {
-      if (q("#topbar") && q("nav.menu")) {
+      if (q("#topbar") && (q("nav.menu") || q("#sidebar"))) {
         obs.disconnect(); cb();
       }
     });
     obs.observe(document.documentElement, { childList: true, subtree: true });
 
-    // страховка — через 5с применить всё равно
-    setTimeout(() => { try { cb(); } catch {} }, 5000);
+    setTimeout(() => { try { cb(); } catch {} }, 5000); // fallback
   }
 
-  // ======= Init
+  // ===== Init =====
   function init() {
     bindGlobal();
-    applyUI();            // мгновенно по локалу
-    whenMenuReady(applyUI); // повторить, когда меню реально появится
-    fetchMeAndSync();     // подтянуть истину с сервера (/api/auth/me)
+    applyUI();              // fast local paint
+    whenMenuReady(applyUI); // re-apply when menu fragment appears
+    fetchMeAndSync();       // fetch truth from server
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
-  // debug API (опц.)
+  // Debug helpers
   window.SVAuth = {
     get user() { return getUser(); },
     get loggedIn() { return isLoggedIn(); },
     refresh: fetchMeAndSync,
-    logout: doLogout
+    logout: doLogout,
   };
 })();
