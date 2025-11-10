@@ -1,139 +1,83 @@
 // SMART/js/svid.js
-// Минимальный клиентский модуль SVID (без cookies). Работает только с localStorage.
-// События: 'svid:ready', 'svid:levelChanged', 'svid:loggedIn', 'svid:loggedOut'
+(async function() {
+  const API = '/identity/svid/init';
+  const LS_ID = 'svid.visitor_id';
+  const LS_LEVEL = 'svid.level';
 
-const LS = window.localStorage;
-
-// Ключи хранилища
-const K = {
-  VISITOR_ID: "svid.visitor_id",
-  LEVEL: "svid.level",       // 1..5
-  USER_ID: "svid.user_id",   // опц.
-  MENU_CACHE: "svid.menu_cache", // опц. для кэша меню
-  FLAGS: "svid.flags"        // опц.
-};
-
-const API = {
-  INIT: "/identity/visitor/init",
-  MENU: "/identity/menu",
-  ME:   "/identity/me",
-  HB:   "/identity/visitor/heartbeat"
-};
-
-// Утилиты
-function getLevel() {
-  const lvl = parseInt(LS.getItem(K.LEVEL) || "1", 10);
-  return Number.isFinite(lvl) ? lvl : 1;
-}
-
-function setLevel(level) {
-  const prev = getLevel();
-  LS.setItem(K.LEVEL, String(level));
-  if (prev !== level) {
-    document.dispatchEvent(new CustomEvent("svid:levelChanged", { detail: { from: prev, to: level } }));
-  }
-}
-
-function ensureVisitorId() {
-  return LS.getItem(K.VISITOR_ID);
-}
-
-async function initVisitor() {
-  const r = await fetch(API.INIT, { method: "POST" });
-  if (!r.ok) throw new Error(`visitor.init failed: ${r.status}`);
-  const j = await r.json();
-  if (j.visitor_id) LS.setItem(K.VISITOR_ID, j.visitor_id);
-  setLevel(j.level ?? 1);
-  document.dispatchEvent(new CustomEvent("svid:ready", { detail: j }));
-  return j;
-}
-
-async function fetchMenu() {
-  const r = await fetch(API.MENU);
-  if (!r.ok) throw new Error(`menu fetch failed: ${r.status}`);
-  const j = await r.json(); // { items: [...] }
-  try { LS.setItem(K.MENU_CACHE, JSON.stringify(j)); } catch {}
-  return j;
-}
-
-// Простейший рендер меню (если на странице есть контейнер с data-svid-menu)
-function renderMenu(menu) {
-  const el = document.querySelector("[data-svid-menu]");
-  if (!el || !menu?.items) return;
-
-  const level = getLevel();
-  el.innerHTML = ""; // очистка
-  const ul = document.createElement("ul");
-
-  menu.items
-    .filter(it => (it.req_level ?? 1) <= level)
-    .forEach(it => {
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.href = it.href || "#";
-      a.textContent = it.title || it.id || "item";
-      li.appendChild(a);
-      ul.appendChild(li);
-    });
-
-  el.appendChild(ul);
-  document.dispatchEvent(new CustomEvent("svid:menuRendered", { detail: { level, items: menu.items.length } }));
-}
-
-// Публичное API для интеграции с Supabase-логином
-window.SVID = {
-  get state() {
+  function getDeviceInfo() {
+    const ua = navigator.userAgent;
     return {
-      visitor_id: LS.getItem(K.VISITOR_ID),
-      user_id: LS.getItem(K.USER_ID),
-      level: getLevel(),
-      flags: safeJsonGet(K.FLAGS, {})
+      device_type: /Mobile/i.test(ua) ? 'mobile' : 'desktop',
+      device_class: /Tablet/i.test(ua) ? 'tablet' : (/Mobile/i.test(ua) ? 'phone' : 'desktop'),
+      os_name: navigator.platform,
+      browser_name: navigator.userAgent,
+      screen_width: screen.width,
+      screen_height: screen.height,
+      touch_support: 'ontouchstart' in window,
+      app_platform: 'browser',
+      timezone_guess: Intl.DateTimeFormat().resolvedOptions().timeZone,
     };
-  },
-
-  // Вызови это после удачной аутентификации Supabase
-  // Пример: SVID.setUser({ user_id: supa.user.id, level: 2, flags: {...}, supabase: {...} })
-  setUser({ user_id, level = 2, flags, supabase } = {}) {
-    if (user_id) LS.setItem(K.USER_ID, user_id);
-    if (flags)   safeJsonSet(K.FLAGS, flags);
-    if (supabase) safeJsonSet("svid.supabase", supabase); // «всё то, что даёт супабейз»
-    setLevel(level);
-    document.dispatchEvent(new CustomEvent("svid:loggedIn", { detail: { user_id, level } }));
-    // Обновим меню под новый уровень
-    fetchMenu().then(renderMenu).catch(console.warn);
-  },
-
-  // Полный выход до гостя (level=1). visitor_id оставляем, чтобы не терять аналитику.
-  logout() {
-    LS.removeItem(K.USER_ID);
-    LS.removeItem(K.FLAGS);
-    safeJsonSet("svid.supabase", null);
-    setLevel(1);
-    document.dispatchEvent(new CustomEvent("svid:loggedOut"));
-    fetchMenu().then(renderMenu).catch(console.warn);
   }
-};
 
-// Безопасные JSON-хелперы
-function safeJsonGet(key, fallback) {
-  try { const v = LS.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
-}
-function safeJsonSet(key, obj) {
-  try {
-    if (obj === null || obj === undefined) { LS.removeItem(key); return; }
-    LS.setItem(key, JSON.stringify(obj));
-  } catch {}
-}
-
-// Автозапуск
-(async function boot() {
-  try {
-    if (!ensureVisitorId()) await initVisitor();
-    // На старте подтянем меню (даже если пользователь уже авторизован и level>1 — фронт это знает)
-    const menu = await fetchMenu();
-    renderMenu(menu);
-  } catch (e) {
-    console.warn("[SVID] boot error:", e);
+  function getUTM() {
+    const p = new URLSearchParams(location.search);
+    const f = (k) => p.get(k) || null;
+    return {
+      utm_source: f('utm_source'),
+      utm_medium: f('utm_medium'),
+      utm_campaign: f('utm_campaign'),
+      utm_term: f('utm_term'),
+      utm_content: f('utm_content'),
+    };
   }
+
+  async function initVisitor() {
+    const existing = localStorage.getItem(LS_ID);
+    if (existing) {
+      showInfo(existing, localStorage.getItem(LS_LEVEL) || 1);
+      return;
+    }
+
+    const payload = {
+      landing_url: location.href,
+      referrer_host: document.referrer ? new URL(document.referrer).host : '',
+      ...getDeviceInfo(),
+      ...getUTM(),
+    };
+
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      localStorage.setItem(LS_ID, data.visitor_id);
+      localStorage.setItem(LS_LEVEL, data.level);
+      showInfo(data.visitor_id, data.level);
+    } catch (err) {
+      console.error('[SVID] init error', err);
+      showInfo('error', 'n/a');
+    }
+  }
+
+  function showInfo(id, level) {
+    let box = document.getElementById('svid-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'svid-box';
+      box.style.cssText = `
+        position:fixed;bottom:10px;right:10px;
+        background:#111;color:#fff;padding:10px 14px;
+        border-radius:8px;font:14px/1.4 system-ui;
+        z-index:9999;opacity:.9;`;
+      document.body.appendChild(box);
+    }
+    box.innerHTML = `Visitor: <b>${id}</b><br>Level: <b>${level}</b>`;
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', initVisitor);
+  else
+    initVisitor();
 })();
-
