@@ -154,6 +154,7 @@ def _get_user_by_id(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
 
 def _store_password_hash(sb: Client, user_id: str, spec: HashSpec) -> None:
     _safe_execute(sb.table(T_VAULT).insert({
+        "artifact_id": str(uuid.uuid4()),           # ← фикс: обязателен в твоей схеме
         "user_id": user_id,
         "payload": {"hash": spec.model_dump()},
         "created_at": _now_iso(),
