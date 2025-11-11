@@ -1,10 +1,6 @@
 /* topbar.module.js
-   Проект: SMART VISION
-   Философия: топбар и сайдбар-меню реагируют на уровень SVID (гость=1, пользователь=2)
-   Интеграция: фронт слушает кастомные события от SVID (window "svid:level") и читает localStorage('svid.level').
-
-   БЭКЕНД: модуль svid на сервере, роуты под /api/svid/*
-   (например POST /api/svid/login, POST /api/svid/logout и т.д.)
+   Мини-патч: добавлен диагностический бейдж "level N" (низ справа).
+   БЭКЕНД: /api/svid/* ; UI слушает событие window "svid:level" и читает localStorage('svid.level')
 */
 
 const MENU = [
@@ -32,6 +28,25 @@ function setLevel(n) {
   localStorage.setItem(LVL_KEY, String(n));
   window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: n }}));
 }
+
+/* === NEW: диагностический бейдж уровня (угол экрана) === */
+function ensureLevelDebugBadge() {
+  let el = document.getElementById('svid-level-badge');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'svid-level-badge';
+    el.style.cssText = [
+      'position:fixed','right:12px','bottom:12px','z-index:2147483647',
+      'padding:6px 10px','border-radius:8px','background:rgba(0,0,0,.75)',
+      'color:#fff','font:12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
+      'box-shadow:0 2px 6px rgba(0,0,0,.3)','pointer-events:none','user-select:none'
+    ].join(';');
+    document.body.appendChild(el);
+  }
+  const lvl = Number(localStorage.getItem(LVL_KEY)) || 1;
+  el.textContent = `level ${lvl}`;
+}
+/* === /NEW === */
 
 function toggleMenu() {
   const body = document.body;
@@ -84,9 +99,8 @@ function bindAuthLink() {
       e.preventDefault();
       try {
         if (window.SVID?.logout) {
-          await window.SVID.logout(); // серверный /api/svid/logout
+          await window.SVID.logout(); // /api/svid/logout
         } else {
-          // фоллбэк
           localStorage.removeItem('svid.user_id');
           localStorage.removeItem('svid.user_level');
           localStorage.removeItem('svid.jwt');
@@ -186,13 +200,12 @@ export async function initPage({
 } = {}) {
   renderTopbar(topbar.state);
 
-  // --- NEW: если уровень ещё не установлен, попробуем бустануть его из SVID.getState()
+  // если ещё нет svid.level, но уже есть SVID — проставим для UI
   if (!localStorage.getItem(LVL_KEY) && window.SVID?.getState) {
     const st = window.SVID.getState();
     const lvl = Number(st.user_level) || Number(st.visitor_level) || 1;
     localStorage.setItem(LVL_KEY, String(lvl));
     window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
-    console.log('[TOPBAR] bootstrap UI level ->', lvl);
   }
 
   for (const [url, sel] of fragments) {
@@ -205,6 +218,7 @@ export async function initPage({
     syncAuthLink(level);
     renderMenu(level);
     highlightActive();
+    ensureLevelDebugBadge(); // NEW: показать бейдж
   });
 
   window.addEventListener('svid:level', e => {
@@ -212,31 +226,25 @@ export async function initPage({
     syncAuthLink(lvl);
     renderMenu(lvl);
     highlightActive();
+    ensureLevelDebugBadge(); // NEW
   });
+
   window.addEventListener('storage', e => {
     if (e.key === LVL_KEY) {
       const lvl = parseInt(e.newValue || '1',10);
       syncAuthLink(lvl);
       renderMenu(lvl);
       highlightActive();
+      ensureLevelDebugBadge(); // NEW
     }
   });
 
-  // --- NEW: при возврате страницы из истории (bfcache) переинициализируем меню
+  // при возврате страницы из истории (bfcache) — обновим бейдж
   window.addEventListener('pageshow', (e) => {
     if (e.persisted) {
       const cur = Number(localStorage.getItem(LVL_KEY)) || 1;
-      // если почему-то ключа нет — спросим у SVID
-      if (!localStorage.getItem(LVL_KEY) && window.SVID?.getState) {
-        const st = window.SVID.getState();
-        const lvl = Number(st.user_level) || Number(st.visitor_level) || 1;
-        localStorage.setItem(LVL_KEY, String(lvl));
-        window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
-        console.log('[TOPBAR] pageshow: restored UI level ->', lvl);
-        return;
-      }
       window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: cur } }));
-      console.log('[TOPBAR] pageshow: re-render with level ->', cur);
+      ensureLevelDebugBadge(); // NEW
     }
   });
 }
