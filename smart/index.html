@@ -5,28 +5,30 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SMART VISION</title>
 
-  <link rel="icon" href="/smart/assets/logo400.jpg" />
-  <link rel="manifest" href="/smart/manifest.json" />
+  <!-- БАЗА: все относительные пути ведут в /smart/ -->
+  <base href="/smart/" />
 
-  <link rel="stylesheet" href="/smart/css/main.css" />
-  <link rel="stylesheet" href="/smart/index/index.css" />
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="index/index.css" />
 </head>
 <body>
   <div id="page">
-    <!-- Сайдбар для меню (фрагмент menu.html подгружается в него хедером) -->
+    <!-- Сайдбар: сюда подгрузим menu.html (пустой контейнер-приёмник data-svid-menu) -->
     <aside id="sidebar" aria-label="Основное меню"></aside>
 
     <div id="app">
-      <!-- Хедер рендерится topbar.module.js -->
+      <!-- Хедер рисует topbar.module.js (лого + каркас) -->
       <header id="topbar" role="banner"></header>
 
       <main id="main" role="main">
         <section class="hero">
           <h1>SMART VISION</h1>
-          <p>Меню и хедер управляются модулем. SVID сообщает уровень.</p>
+          <p>Меню рендерится по уровню из SVID. Хедер — один владелец.</p>
         </section>
 
-        <!-- Инфо-блок про визитора -->
+        <!-- Информационный блок (не обязателен, но удобен для теста) -->
         <div id="svid-box" class="visitor-badge">Loading visitor…</div>
       </main>
 
@@ -35,63 +37,24 @@
     </div>
   </div>
 
+  <!-- Оверлей для мобильного меню (управляется topbar.module.js) -->
   <div id="overlay" hidden></div>
 
   <!-- 1) SVID: состояние/level + события -->
-  <script defer src="/smart/svid/svid.js"></script>
+  <script defer src="svid/svid.js"></script>
 
-  <!-- 2) Хедер/меню: владелец DOM меню, слушает SVID -->
-  <script defer src="/smart/js/topbar.module.js"></script>
-
-  <!-- Остальные нужные скрипты (оставляем по минимуму) -->
+  <!-- 2) Точка входа: хедер/меню (модуль) -->
   <script type="module">
-    import {
-      setStatusEl,
-      bindMicPermissionButton,
-      bindCameraPermissionButton,
-      bindNotificationsButton,
-    } from "/smart/js/mic-permission.js";
+    import { initPage } from './js/topbar.module.js';
 
-    const statusEl = document.getElementById('permStatus');
-    if (statusEl) setStatusEl(statusEl);
-
-    const btnMic  = document.getElementById('btnMic');
-    const btnCam  = document.getElementById('btnCam');
-    const btnNoti = document.getElementById('btnNoti');
-
-    if (btnMic)  bindMicPermissionButton(btnMic, statusEl);
-    if (btnCam)  bindCameraPermissionButton(btnCam, statusEl);
-    if (btnNoti) bindNotificationsButton(btnNoti, statusEl);
-  </script>
-
-  <script defer src="/smart/index/index.js?v=2"></script>
-  <script defer src="js/footer.js?v=2"></script>
-  <script defer src="/smart/js/footer.geo.bundle.js"></script>
-  <script>
-    // Инициализация гео-футера (как было)
-    window.addEventListener('DOMContentLoaded', function () {
-      const targetId = 'home-geo-footer';
-      if (window.SVFooter && document.getElementById(targetId)) {
-        try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
-      }
-    });
-  </script>
-
-  <script defer src="/smart/js/register-sw.js?v=2"></script>
-
-  <!-- Инициализация топ-бара + загрузка фрагмента меню -->
-  <script type="module">
-    import { initPage } from '/smart/js/topbar.module.js';
+    // Запуск: подгружаем menu.html в сайдбар и рисуем топбар
     initPage({
-      fragments: [
-        ["/smart/menu.html", "#sidebar"]   // грузим меню-фрагмент в сайдбар
-      ],
+      fragments: [['menu.html', '#sidebar']],      // menu.html содержит: <nav class="menu" data-svid-menu></nav>
       cacheBust: false,
       topbar: {
         state: {
-          logoHref: "/smart/index.html",
-          logoSrc:  "/smart/assets/logo400.jpg",
-          auth:     { user: null }
+          logoHref: 'index.html',
+          logoSrc:  'assets/logo400.jpg'
         }
       }
     });

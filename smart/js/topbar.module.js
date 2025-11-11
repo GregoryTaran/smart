@@ -1,255 +1,211 @@
-// /js/topbar.module.js
-// ===== Назначение =====
-// - Подгружает HTML-фрагменты (меню и др., по желанию).
-// - Рендерит топ-бар (без логики "Логин/Выйти": это делает menu-state.js).
-// - Управляет меню: open/close, overlay, Escape, popstate, клик по оверлею/ссылкам.
-// - Подсвечивает активный пункт меню.
-// - Экспортирует initPage(...) для быстрой инициализации на каждой странице.
+// /smart/js/topbar.module.js
+// Хедер: бургер + логотип + справа "Логин/Выйти" (без верхнего меню).
+// Меню рендерится ТОЛЬКО в сайдбаре из menu.html и фильтруется по уровню.
 
-//// ==================== Утилиты фрагментов ====================
+const MENU = [
+  { id:'home',  title:'Главная',                 href:'index.html',                       allow:[1,2,3,4,5] },
+  { id:'about', title:'О проекте',               href:'about/about.html',                 allow:[1,2,3,4,5] },
+  { id:'priv',  title:'Политика конфиденциальности', href:'privacy/privacy.html',       allow:[1,2,3,4,5] },
+  { id:'terms', title:'Условия использования',   href:'terms/terms.html',                 allow:[1,2,3,4,5] },
 
-/**
- * Загружает HTML-файл в целевой контейнер.
- * @param {string} url
- * @param {string} targetSelector
- * @param {{cacheBust?: boolean}} opts
- */
-export async function loadFragment(url, targetSelector, { cacheBust = false } = {}) {
-  const target = document.querySelector(targetSelector);
-  if (!target) return;
+  { id:'login', title:'Вход/регистрация',        href:'login/login.html',                 allow:[1] },
 
-  const src = cacheBust ? `${url}${url.includes('?') ? '&' : '?'}_=${Date.now()}` : url;
+  { id:'ts',    title:'Проверка сервера',        href:'testserver/testserver.html',       allow:[2,3,4,5] },
+  { id:'rec',   title:'Диктофон',                href:'voicerecorder/voicerecorder.html', allow:[2,3,4,5] },
+  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[2,3,4,5] },
+  { id:'logout',title:'Выйти',                   href:'#logout', action:'logout',         allow:[2,3,4,5] },
 
-  try {
-    const resp = await fetch(src, { credentials: "same-origin", cache: "no-cache" });
-    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
-    target.innerHTML = await resp.text();
-  } catch (err) {
-    console.warn(`[loadFragment] ${url} -> ${targetSelector} failed`, err);
-    target.innerHTML = `<div class="fragment-error" role="status">Не удалось загрузить ${url}</div>`;
-  }
+  { id:'admin', title:'Админка',                 href:'admin.html',                       allow:[5] },
+];
+
+// ===== Уровень / события SVID =====
+const LVL_KEY = 'svid.level';
+function level() {
+  const v = parseInt(localStorage.getItem(LVL_KEY) || '1', 10);
+  return Number.isFinite(v) ? v : 1;
+}
+function setLevel(n) {
+  if (window.SVID?.setLevel) return window.SVID.setLevel(n);
+  localStorage.setItem(LVL_KEY, String(n));
+  window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: n }}));
 }
 
-/**
- * Пакетная загрузка нескольких фрагментов.
- * @param {Array<[string,string]>} jobs [ [url, selector], ... ]
- * @param {{cacheBust?: boolean}} opts
- */
-export async function loadFragments(jobs = [], opts = {}) {
-  await Promise.all(jobs.map(([url, sel]) => loadFragment(url, sel, opts)));
-}
+// ===== ХЕДЕР (без верхнего меню) =====
+function renderTopbar(state = {}) {
+  const topbar = document.getElementById('topbar');
+  if (!topbar) return;
+  const logoHref = state.logoHref || 'index.html';
+  const logoSrc  = state.logoSrc  || 'assets/logo400.jpg';
 
-//// ==================== Топ-бар ====================
+  topbar.innerHTML = `
+    <div class="topbar-inner"
+         style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #eee;background:#fff;">
+      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false"
+              aria-label="Открыть меню"
+              style="font-size:20px;background:none;border:0;cursor:pointer;line-height:1">☰</button>
 
-/**
- * Рендерит топ-бар.
- * ВАЖНО: ссылка авторизации изначально ВСЕГДА "Логин".
- * menu-state.js сам переключит её на "Выйти" и повесит нужные атрибуты.
- * @param {HTMLElement} targetEl
- * @param {{logoHref?:string, logoSrc?:string}} state
- * @param {{onToggleMenu?:Function}} handlers
- */
-export function renderTopbar(targetEl, state = {}, handlers = {}) {
-  if (!targetEl) return;
-
-  const {
-    logoHref = "index.html",
-    logoSrc  = "assets/logo400.jpg",
-  } = state;
-
-  targetEl.innerHTML = `
-    <div class="topbar-inner">
-      <button class="menu-toggle"
-              aria-controls="sidebar"
-              aria-expanded="false"
-              aria-label="Открыть меню">☰</button>
-
-      <a class="logo" href="${logoHref}">
-        <img src="${logoSrc}" alt="SMART VISION" />
+      <a class="logo" href="${logoHref}" style="display:inline-flex;align-items:center;text-decoration:none">
+        <img src="${logoSrc}" alt="SMART VISION" style="height:36px;width:auto;display:block" />
       </a>
 
-      <!-- auth-link изначально «Логин». menu-state.js переключит при наличии сессии -->
-      <a id="auth-link" class="login-link" href="login/login.html#login">Логин</a>
+      <div style="flex:1"></div>
+
+      <a id="auth-link" class="login-link" href="login/login.html#login"
+         style="white-space:nowrap;text-decoration:none;color:#222">Логин</a>
     </div>
   `;
 
-  const btn = targetEl.querySelector('.menu-toggle');
-  btn?.addEventListener('click', () => {
-    if (typeof handlers.onToggleMenu === 'function') handlers.onToggleMenu();
-    else openMenu();
-  });
+  // бургер
+  const btn = topbar.querySelector('.menu-toggle');
+  btn?.addEventListener('click', toggleMenu);
+
+  // правый “Логин/Выйти”
+  bindAuthLink();
+  syncAuthLink(level());
 }
 
-/**
- * Точечные апдейты топ-бара (логотип/ссылка).
- * НЕ меняем "Логин/Выйти" — за это отвечает menu-state.js.
- * @param {HTMLElement} targetEl
- * @param {{logoHref?:string, logoSrc?:string}} patch
- */
-export function updateTopbar(targetEl, patch = {}) {
-  if (!targetEl) return;
-
-  if (patch.logoHref) {
-    const a = targetEl.querySelector('.logo');
-    if (a) a.setAttribute('href', patch.logoHref);
-  }
-  if (patch.logoSrc) {
-    const img = targetEl.querySelector('.logo img');
-    if (img) img.setAttribute('src', patch.logoSrc);
-  }
-}
-
-//// ==================== Меню (open/close, overlay, Escape, popstate) ====================
-
-const BODY_MENU_OPEN_CLASS = 'menu-open';
-
-function qs(sel) { return document.querySelector(sel); }
-
-/** Открыть меню (мобильное) */
-export function openMenu() {
+// ===== Меню: сайдбар/оверлей =====
+function toggleMenu() {
   const body = document.body;
-  const overlay = qs('#overlay');
-  const btn = qs('#topbar .menu-toggle');
+  const overlay = document.querySelector('#overlay');
+  const btn = document.querySelector('#topbar .menu-toggle');
 
-  if (!body.classList.contains(BODY_MENU_OPEN_CLASS)) {
-    body.classList.add(BODY_MENU_OPEN_CLASS);
-    btn?.setAttribute('aria-expanded', 'true');
-    if (overlay) overlay.hidden = false;
-    // заблокировать скролл body (мягко)
+  const opened = !body.classList.contains('menu-open');
+  body.classList.toggle('menu-open', opened);
+  btn?.setAttribute('aria-expanded', opened ? 'true' : 'false');
+  if (overlay) overlay.hidden = !opened;
+
+  if (opened) {
     body.dataset.prevOverflow = body.style.overflow || '';
     body.style.overflow = 'hidden';
-  }
-
-  // Сообщим миру (если кому надо)
-  window.dispatchEvent(new CustomEvent('sv:menu:open'));
-}
-
-/** Закрыть меню */
-export function closeMenu() {
-  const body = document.body;
-  const overlay = qs('#overlay');
-  const btn = qs('#topbar .menu-toggle');
-
-  if (body.classList.contains(BODY_MENU_OPEN_CLASS)) {
-    body.classList.remove(BODY_MENU_OPEN_CLASS);
-    btn?.setAttribute('aria-expanded', 'false');
-    if (overlay) overlay.hidden = true;
-    // вернуть скролл
+  } else {
     body.style.overflow = body.dataset.prevOverflow || '';
     delete body.dataset.prevOverflow;
   }
-
-  window.dispatchEvent(new CustomEvent('sv:menu:close'));
+}
+function closeMenu() {
+  const body = document.body;
+  if (!body.classList.contains('menu-open')) return;
+  const overlay = document.querySelector('#overlay');
+  const btn = document.querySelector('#topbar .menu-toggle');
+  body.classList.remove('menu-open');
+  btn?.setAttribute('aria-expanded', 'false');
+  if (overlay) overlay.hidden = true;
+  body.style.overflow = body.dataset.prevOverflow || '';
+  delete body.dataset.prevOverflow;
+}
+function initMenuControls() {
+  document.querySelector('#overlay')?.addEventListener('click', closeMenu);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  window.addEventListener('popstate', closeMenu);
+  document.querySelector('#sidebar')?.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    if (!href.startsWith('#')) closeMenu();
+  });
 }
 
-/** Инициализировать управление меню и общие UX-хуки */
-export function initMenuControls() {
-  const overlay = qs('#overlay');
-
-  // Клик по оверлею закрывает меню
-  overlay?.addEventListener('click', () => closeMenu());
-
-  // ESC закрывает меню
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeMenu();
+// ===== Правый “Логин/Выйти” =====
+function bindAuthLink() {
+  const a = document.getElementById('auth-link');
+  if (!a) return;
+  a.addEventListener('click', (e) => {
+    if (level() >= 2) {
+      e.preventDefault();
+      // TODO: серверный logout при необходимости
+      localStorage.removeItem('svid.user_id');
+      localStorage.removeItem('svid.flags');
+      localStorage.removeItem('svid.supabase');
+      setLevel(1);
+      closeMenu();
+    }
   });
+}
+function syncAuthLink(lvl) {
+  const a = document.getElementById('auth-link');
+  if (!a) return;
+  if (lvl >= 2) {
+    a.textContent = 'Выйти';
+    a.setAttribute('href', '#logout');
+  } else {
+    a.textContent = 'Логин';
+    a.setAttribute('href', 'login/login.html#login');
+  }
+}
 
-  // Навигация назад/вперёд закрывает меню
-  window.addEventListener('popstate', () => closeMenu());
+// ===== Рендер меню ТОЛЬКО в сайдбар (как было) =====
+function renderMenu(currentLevel = level()) {
+  const host = document.querySelector('[data-svid-menu]');
+  if (!host) return;
+  const items = MENU.filter(i => i.allow.includes(currentLevel));
+  host.innerHTML = `<ul>${
+    items.map(i => `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`).join('')
+  }</ul>`;
 
-  // Клик по ссылке в меню закрывает меню (если это переход)
-  const sidebar = qs('#sidebar');
-  if (sidebar) {
-    sidebar.addEventListener('click', (e) => {
-      const a = e.target.closest('a[href]');
-      if (!a) return;
-      const href = a.getAttribute('href') || '';
-      if (!href.startsWith('#')) closeMenu();
+  // logout по пункту меню (если есть)
+  (host.querySelectorAll?.('[data-action="logout"]') || []).forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('svid.user_id');
+      localStorage.removeItem('svid.flags');
+      localStorage.removeItem('svid.supabase');
+      setLevel(1);
+      closeMenu();
     });
-  }
+  });
 }
 
-//// ==================== Подсветка активного пункта меню ====================
-
-/**
- * Подсветка активного пункта.
- * 1) Если у ссылок есть data-id: сверяем с именем страницы (about, terms, index...)
- * 2) Иначе — грубая проверка по href (в пределах menu.html).
- */
-export function highlightActiveMenuItem() {
-  const sidebar = document.getElementById('sidebar');
-  if (!sidebar) return;
-
-  // Текущее имя файла без .html
-  const path = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-  const pageId = path.replace(/\.html$/, '') || 'index';
-
-  // Сначала пробуем data-id
-  let found = false;
-  const links = sidebar.querySelectorAll('a');
-  links.forEach((a) => {
+// ===== Подсветка активного =====
+function highlightActive() {
+  const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+  const pageId = page.replace(/\.html$/, '') || 'index';
+  document.querySelectorAll('[data-svid-menu] a').forEach(a => {
     const id = (a.getAttribute('data-id') || '').toLowerCase();
-    if (id && id === pageId) {
-      a.classList.add('is-active');
-      found = true;
-    } else {
-      a.classList.remove('is-active');
-    }
-  });
-
-  if (found) return;
-
-  // Фоллбек: по href (если в меню нет data-id)
-  links.forEach((a) => {
     const href = (a.getAttribute('href') || '').toLowerCase();
-    // простая эвристика: index → index.html, about → about.html, и т.п.
-    if (href.endsWith(`${pageId}.html`) || (pageId === 'index' && (href === '' || href.endsWith('index.html')))) {
-      a.classList.add('is-active');
-    } else {
-      a.classList.remove('is-active');
-    }
+    const ok = (id && id === pageId) ||
+               href.endsWith(`${pageId}.html`) ||
+               (pageId === 'index' && (href === '' || href.endsWith('index.html')));
+    a.classList.toggle('is-active', ok);
   });
 }
 
-//// ==================== Единая инициализация страницы ====================
+// ===== Загрузка фрагмента сайдбара (если используешь menu.html) =====
+async function loadFragment(url, sel) {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  const html = await (await fetch(url, { cache: 'no-cache' })).text();
+  el.innerHTML = html;
+}
 
-/**
- * Универсальный запуск страницы.
- * 1) Грузит фрагменты (по умолчанию: ТОЛЬКО меню).
- * 2) Рисует топ-бар.
- * 3) Включает управление меню и подсветку активного пункта.
- *
- * @param {{
- *   fragments?: Array<[string,string]>,
- *   cacheBust?: boolean,
- *   topbar?: {
- *     state?: {logoHref?:string, logoSrc?:string},
- *     handlers?: {onToggleMenu?:Function}
- *   }
- * }} config
- */
+// ===== Точка входа =====
 export async function initPage({
-  fragments = [
-    ["menu.html", "#sidebar"], // футер HTML больше не грузим
-  ],
+  fragments = [['menu.html', '#sidebar']],   // menu.html: <nav class="menu" data-svid-menu></nav>
   cacheBust = false,
-  topbar = {
-    state:   { logoHref: "index.html", logoSrc: "assets/logo400.jpg" },
-    handlers: {
-      onToggleMenu: () => openMenu(),
-    }
-  }
+  topbar = { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
 } = {}) {
-  // 1) Подгрузим фрагменты (например, меню)
-  if (Array.isArray(fragments) && fragments.length > 0) {
-    await loadFragments(fragments, { cacheBust });
+  // 1) хедер
+  renderTopbar(topbar.state);
+
+  // 2) фрагмент меню (сайдбар)
+  for (const [url, sel] of fragments) {
+    await loadFragment(cacheBust ? `${url}?_=${Date.now()}` : url, sel);
   }
 
-  // 2) Рендер топ-бара (без логики логина/логаута)
-  const topbarEl = document.getElementById('topbar');
-  renderTopbar(topbarEl, topbar.state, topbar.handlers);
-
-  // 3) Управление меню и подсветка
+  // 3) UX
   initMenuControls();
-  highlightActiveMenuItem();
+
+  // 4) первый проход
+  const ready = window.SVID?.ready || Promise.resolve({ level: level() });
+  await ready.then(({ level }) => {
+    syncAuthLink(level);
+    renderMenu(level);
+    highlightActive();
+  });
+
+  // 5) реакции
+  window.addEventListener('svid:level', e => { const lvl = e.detail.level; syncAuthLink(lvl); renderMenu(lvl); highlightActive(); });
+  window.addEventListener('storage', e => {
+    if (e.key === LVL_KEY) { const lvl = parseInt(e.newValue || '1',10); syncAuthLink(lvl); renderMenu(lvl); highlightActive(); }
+  });
 }
