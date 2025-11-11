@@ -37,43 +37,36 @@
 
   <p id="permStatus">status: idle</p>
 </section>
+  <br>
+ <div id="home-geo-footer"></div>
+  <br>
+<section class="card stack-16" aria-label="Информер">
+  <h2>Информер</h2>
 
-<br>
+  <!-- ВАЖНО: informer.js ищет #footer -->
+  <div id="footer" class="informer-root"></div>
+
+  <!-- просто подключаем скрипт -->
+  <script defer src="js/informer.js"></script>
+</section>
+</main>
+
+ <!-- <footer id="footer" role="contentinfo"></footer>  -->
 
 
-
-<div id="home-geo-footer"></div>
-    </main>
-          <!-- Домашний гео-виджет (как было) -->
-      <div id="home-geo-footer"></div>
-    <footer id="footer" role="contentinfo"></footer>
   </div>
 </div>
 
 <div id="overlay" hidden></div>
 
 <!-- общие скрипты -->
-<script defer src="js/footer.js?v=2"></script>
+<!-- <script defer src="js/footer.js?v=2"></script>  -->
 <script defer src="js/register-sw.js"></script>
-  <script defer src="/smart/js/footer.geo.bundle.js"></script>
-  <script>
-    // Инициализация гео-футера (как было)
-    window.addEventListener('DOMContentLoaded', function () {
-      const targetId = 'home-geo-footer';
-      if (window.SVFooter && document.getElementById(targetId)) {
-        try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
-      }
-    });
-  </script>
-
-<!-- локальная логика страницы -->
 <script defer src="about/about.js"></script>
-
-<!-- идентификация (единый гард) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="js/identity-guard.js"></script>
-  
-
+<script defer src="svid/svid.js"></script>
+<script defer src="js/zaprosrazreshenijbrauzera.js"></script>
 <script defer src="js/footer.geo.bundle.js"></script>
   <script>
     window.addEventListener('DOMContentLoaded', function () {
@@ -84,9 +77,6 @@
     });
   </script>
 
-
-  <!-- 1) SVID -->
-  <script defer src="svid/svid.js"></script>
 
 
 <!-- наш модуль: грузим ТОЛЬКО меню и рисуем топ-бар -->
@@ -100,10 +90,6 @@
     }
   });
 </script>
-
-
-<script defer src="js/zaprosrazreshenijbrauzera.js"></script>
-
 
 
 </body>
