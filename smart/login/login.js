@@ -1,7 +1,6 @@
 // /smart/login/login.js
-// Минимальный аутентификатор: register / login / reset
-// Требование: после УСПЕШНОГО сабмита поля формы очищаются.
-// Плюс добавлены кнопки "Очистить поля" на каждую форму.
+// Реальный аутентификатор страницы (register / login / reset) поверх SVID API.
+// Требование: после успешного сабмита поля очищаются; email подставляется во вход.
 // Валидация email: только наличие '@'.
 
 (function () {
@@ -43,7 +42,7 @@
   function showStatus(message, type = 'info') {
     if (!statusBox) return;
     statusBox.textContent = message || '';
-    statusBox.dataset.type = type; // стилизуем через [data-type]
+    statusBox.dataset.type = type; // можно стилизовать [data-type="error|success|info"]
   }
 
   function showResetResult(message) {
@@ -66,11 +65,6 @@
     return form.querySelector('button[type="submit"]');
   }
 
-  function dispatch(name, detail) {
-    document.dispatchEvent(new CustomEvent(name, { detail }));
-  }
-
-  // Очистка полей формы
   function clearForm(form) {
     if (!form) return;
     const fields = form.querySelectorAll('input, textarea, select');
@@ -86,10 +80,8 @@
     });
   }
 
-  // Впрыскиваем кнопку "Очистить поля" в каждую форму
   function injectClearButton(form) {
     if (!form) return;
-    // Ищем контейнер ссылок, если есть — добавляем туда; иначе в конец формы
     const wrap = form.querySelector('.login__links') || form;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -109,21 +101,18 @@
     setHidden(formLogin,    state !== 'login');
     setHidden(formReset,    state !== 'reset');
 
-    // Сброс локальных сообщений при смене состояния
     showStatus('');
     showResetResult('');
 
-    // Автофокус на первый инпут активной формы — ощущение “окна”
+    // автофокус на первый инпут активной формы
     const activeForm =
       state === 'register' ? formRegister :
       state === 'login'    ? formLogin :
                              formReset;
-
-    const firstInput = activeForm?.querySelector('input, select, textarea');
-    firstInput?.focus();
+    activeForm?.querySelector('input, select, textarea')?.focus();
   }
 
-  // --------- Обработчики форм (пока моки без бэкенда) ---------
+  // --------- Обработчики форм (ТЕПЕРЬ РЕАЛЬНЫЕ ВЫЗОВЫ SVID) ---------
 
   formRegister?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -133,7 +122,6 @@
     const email = (regEmail?.value || '').trim();
     const pass = regPass?.value || '';
 
-    // Простейшая проверка по ТЗ
     if (!name) { showStatus('Введите имя.', 'error'); return; }
     if (!email || !hasAtSymbol(email)) { showStatus('Email должен содержать "@".', 'error'); return; }
     if (!pass) { showStatus('Введите пароль.', 'error'); return; }
@@ -141,25 +129,18 @@
     const btn = findSubmitButton(formRegister);
     disableButton(btn, true);
     try {
-      // TODO: реальный вызов /api/svid/register
-      // const res = await fetch('/api/svid/register', { ... });
-      // const data = await res.json();
+      // ВАЖНО: svid.js должен быть подключен раньше этого файла
+      const data = await window.SVID.register({ name, email, password: pass });
+      showStatus('Регистрация успешна. Добро пожаловать!', 'success');
 
-      // Мок-успех:
-      showStatus('Регистрация успешна (мок). Теперь можно войти.', 'success');
-
-      // ОЧИСТКА текущей формы после успеха
+      // очистка текущей формы
       clearForm(formRegister);
 
-      // Подставим email во вход (как удобный автозаполнитель)
+      // подставим email во вход и переключим окно
       if (email && loginEmail) loginEmail.value = email;
-
-      dispatch('svid:registered', { name, email });
-
-      // Автопереход во "Вход"
-      setTimeout(() => setState('login'), 300);
+      setTimeout(() => setState('login'), 250);
     } catch (err) {
-      showStatus('Ошибка регистрации. Попробуйте позже.', 'error');
+      showStatus(err?.message || 'Ошибка регистрации.', 'error');
     } finally {
       disableButton(btn, false);
     }
@@ -178,20 +159,16 @@
     const btn = findSubmitButton(formLogin);
     disableButton(btn, true);
     try {
-      // TODO: реальный вызов /api/svid/login
-      // const res = await fetch('/api/svid/login', { ... });
-      // const data = await res.json();
+      const data = await window.SVID.login({ email, password: pass });
+      showStatus('Вход выполнен. Добро пожаловать!', 'success');
 
-      // Мок-успех:
-      showStatus('Вход выполнен (мок). Добро пожаловать!', 'success');
-
-      // ОЧИСТКА текущей формы после успеха
+      // очистка формы входа
       clearForm(formLogin);
 
-      dispatch('svid:login', { email });
-      // при необходимости: location.href = '/smart/index.html';
+      // тут можно редиректнуть, если хочешь:
+      // location.href = '/smart/index.html';
     } catch (err) {
-      showStatus('Ошибка входа. Проверьте данные.', 'error');
+      showStatus(err?.message || 'Ошибка входа. Проверьте данные.', 'error');
     } finally {
       disableButton(btn, false);
     }
@@ -208,38 +185,21 @@
     const btn = findSubmitButton(formReset);
     disableButton(btn, true);
     try {
-      // TODO: реальный вызов /api/svid/reset -> сервер генерирует пароль и возвращает его
-      // const res = await fetch('/api/svid/reset', { ... });
-      // const { new_password } = await res.json();
+      const { new_password } = await window.SVID.resetPassword({ email });
+      showStatus('Пароль сгенерирован. Смотрите ниже 👇', 'success');
+      showResetResult(new_password ? `Новый пароль: ${new_password}` : 'Инструкция отправлена на почту.');
 
-      // Мок: сгенерируем пароль локально
-      const new_password = generatePassword(10);
-      showStatus('Пароль сгенерирован (мок). Смотрите ниже 👇', 'success');
-      showResetResult(`Новый пароль: ${new_password}`);
-
-      // ОЧИСТКА текущей формы после успеха
+      // очистка формы сброса
       clearForm(formReset);
-
-      dispatch('svid:password_reset', { email, password: new_password });
     } catch (err) {
-      showStatus('Ошибка сброса пароля. Попробуйте позже.', 'error');
+      showStatus(err?.message || 'Ошибка сброса пароля.', 'error');
     } finally {
       disableButton(btn, false);
     }
   });
 
-  // Генерация простого пароля (мок)
-  function generatePassword(length = 10) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*';
-    let out = '';
-    for (let i = 0; i < length; i++) {
-      out += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return out;
-  }
-
   // Переключатели состояний
-  switches.forEach((el) => {
+  qa('[data-action]').forEach((el) => {
     el.addEventListener('click', () => {
       const action = el.getAttribute('data-action');
       if (action === 'to-login') setState('login');
@@ -250,15 +210,9 @@
 
   // Инициализация
   document.addEventListener('DOMContentLoaded', () => {
-    // По умолчанию показываем регистрацию
     setState('register');
-
-    // Впрыснем кнопки "Очистить поля" во все формы
     injectClearButton(formRegister);
     injectClearButton(formLogin);
     injectClearButton(formReset);
-
-    // На всякий: лог загрузки
-    // console.log('[SVID] login.js ready');
   });
 })();

@@ -65,12 +65,15 @@ try:
 except Exception as e:
     log.warning(f"Identity VISITOR not mounted: {e}")
 
+
+# --- SVID router (новая структура /server/svid/svid.py) ---
 try:
-    from identity.svid import router as svid_router
-    app.include_router(svid_router)
-    log.info("identity.svid mounted")
+    from svid.svid import router as svid_router
+    app.include_router(svid_router)  # prefix уже задан внутри роутера (/api/svid)
+    log.info("svid.svid mounted")
 except Exception as e:
-    log.error(f"Failed to mount SVID: {e}")
+    log.error(f"Failed to mount svid.svid: {e}")
+
 
 # ------------------------ Health (как было) ----------------------
 @app.get("/health")
