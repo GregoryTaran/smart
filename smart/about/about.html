@@ -21,6 +21,7 @@
         <h1>О проекте</h1>
         <p>SMART VISION — коллекция микросервисов и страниц проекта.</p>
       </section>
+      <div id="home-geo-footer"></div>
     </main>
     <footer id="footer" role="contentinfo"></footer>
   </div>
@@ -31,6 +32,16 @@
 <!-- общие скрипты -->
 <script defer src="js/footer.js?v=2"></script>
 <script defer src="js/register-sw.js"></script>
+  <script defer src="/smart/js/footer.geo.bundle.js"></script>
+  <script>
+    // Инициализация гео-футера (как было)
+    window.addEventListener('DOMContentLoaded', function () {
+      const targetId = 'home-geo-footer';
+      if (window.SVFooter && document.getElementById(targetId)) {
+        try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
+      }
+    });
+  </script>
 
 <!-- локальная логика страницы -->
 <script defer src="about/about.js"></script>
