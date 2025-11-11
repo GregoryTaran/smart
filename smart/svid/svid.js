@@ -170,8 +170,15 @@
       const res = await http('/login', { method: 'POST', body: payload });
       if (res?.visitor) setVisitor(res.visitor);
       setUser({ user_id: res.user_id, level: res.level ?? 2, jwt: res.jwt });
+
+     try {
+     const isLoginPage = /\/login\/?/.test(location.pathname);
+     if (isLoginPage) location.href = `${location.origin}/index.html`;
+     } catch (e) { /* no-op */ }
+
       return res;
     },
+
 
     async reset({ email, password }) {
       const res = await http('/reset', { method: 'POST', body: { email, password } });
