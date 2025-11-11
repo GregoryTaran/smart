@@ -99,38 +99,44 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-# -------------------- ФРОНТ СТАТИКА (CWD-based) -----------------
-# Раздаём фронт из папки smart/ по префиксу /smart
+# --- ФРОНТЕНД СТАТИКА (CWD-based) ---
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
+from pathlib import Path
+import os
 
-# 1) Абсолютный путь через ENV (опционально)
-env_root = os.environ.get("SMART_FRONT_ROOT", "").strip()
+# Можно переопределить абсолютным путём, если нужно:
+#   SMART_FRONT_ROOT=/abs/path/to/smart
+SMART_FRONT_ROOT = os.environ.get("SMART_FRONT_ROOT", "").strip()
 
-# 2) По умолчанию берём CWD/smart (если запускаем из корня репо)
+# Где монтировать ("/" или "/smart"), по умолчанию корень:
+#   SMART_MOUNT_PATH=/smart
+MOUNT_PATH = os.environ.get("SMART_MOUNT_PATH", "/").strip() or "/"
+
+# 1) Основной вариант: CWD/smart (запускаем uvicorn из корня репо)
 cwd_root = (Path(os.getcwd()).resolve() / "smart")
 
-# 3) Фолбэки на случай запуска из server/
-fallback_parent_smart = (Path(__file__).resolve().parents[1] / "smart")
-fallback_parent_Smart = (Path(__file__).resolve().parents[1] / "Smart")
+# 2) Фолбэки на случай, если процесс стартуют из server/
+fallback1 = (Path(__file__).resolve().parents[1] / "smart")
+fallback2 = (Path(__file__).resolve().parents[1] / "Smart")  # на случай регистра
 
 candidates = [
-    Path(env_root) if env_root else None,
+    Path(SMART_FRONT_ROOT) if SMART_FRONT_ROOT else None,
     cwd_root,
-    fallback_parent_smart,
-    fallback_parent_Smart,
+    fallback1,
+    fallback2,
 ]
 STATIC_ROOT = next((p.resolve() for p in candidates if p and p.exists()), None)
 
-MOUNT_PATH = "/smart"  # публичный префикс фронта
-
 if STATIC_ROOT and STATIC_ROOT.exists():
-    app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
+    # ВАЖНО: этот блок должен идти ПОСЛЕ include_router(...) с /api, /data, WS и т.д.
+    app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="frontend")
     log.info(f"[static] Mounted {MOUNT_PATH} from: {STATIC_ROOT}")
 else:
     tried = [str(p) for p in candidates if p]
     log.warning("[static] Front root not found. Tried: %s", tried)
 
-@app.get(f"{MOUNT_PATH}/.static-check", response_class=JSONResponse)
+@app.get(f"{MOUNT_PATH.rstrip('/')}/.static-check", response_class=JSONResponse)
 def static_check():
     return {
         "mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
@@ -138,3 +144,4 @@ def static_check():
         "base_path": MOUNT_PATH,
         "cwd": os.getcwd(),
     }
+
