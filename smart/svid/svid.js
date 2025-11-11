@@ -1,12 +1,11 @@
 /* svid/svid.js — фронтовой клиент идентификации/аутентификации
    БЭКЕНД: модуль svid на сервере (папка server/svid), маршруты /api/svid/*
-   Эндпоинты, с которыми работаем:
+   Эндпоинты:
      POST /api/svid/identify
      POST /api/svid/register
      POST /api/svid/login
      POST /api/svid/reset
      POST /api/svid/logout
-   (и т.п., если добавим /me)
 
    Хранение на фронте (localStorage, только для UI):
      svid.visitor_id, svid.visitor_level
@@ -16,7 +15,7 @@
 */
 
 ;(function () {
-  const API_BASE = '/api/svid'; // важно: относительный путь, чтобы прокси/домен не мешал
+  const API_BASE = '/api/svid'; // относительный путь
 
   const LS = {
     VISITOR_ID:  'svid.visitor_id',
@@ -42,6 +41,21 @@
     window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
   }
 
+  // --- NEW: страховка уровня UI из текущего стораджа SVID (в т.ч. после bfcache)
+  function ensureUILvlFromState() {
+    try {
+      const s = SVID?.getState?.() || {};
+      const lvl = Number(s.user_level) || Number(s.visitor_level) || 1;
+      if (String(localStorage.getItem(LVL_KEY)) !== String(lvl)) {
+        localStorage.setItem(LVL_KEY, String(lvl));
+        window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
+        console.log('[SVID] ensureUILvlFromState ->', lvl);
+      }
+    } catch (e) {
+      console.warn('[SVID] ensureUILvlFromState error', e);
+    }
+  }
+
   async function http(path, { method = 'GET', body, token } = {}) {
     const headers = { 'Content-Type': 'application/json' };
     const jwt = token || storage.get(LS.JWT);
@@ -51,10 +65,9 @@
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
-      credentials: 'include', // если позже перейдем на HttpOnly-куки — всё готово
+      credentials: 'include',
     });
 
-    // поддержим JSON и пустой 204
     if (res.status === 204) return { ok: true };
     const ct = res.headers.get('content-type') || '';
     const data = ct.includes('application/json') ? await res.json() : await res.text();
@@ -90,7 +103,7 @@
   }
 
   const SVID = {
-    ready: null, // Promise<{ level:number }>
+    ready: null, // Promise<{ level:number }>,
 
     async init() {
       // 1) ensure visitor
@@ -103,7 +116,6 @@
           setLevel(1);
         }
       } else {
-        // поднять локальное состояние для UI
         const v = {
           visitor_id: storage.get(LS.VISITOR_ID),
           level: parseInt(storage.get(LS.VISITOR_LVL) || '1', 10),
@@ -127,6 +139,9 @@
       if (!this.ready) {
         this.ready = Promise.resolve({ level: parseInt(localStorage.getItem(LVL_KEY) || '1', 10) });
       }
+
+      // --- NEW: сразу синхронизировать UI-уровень из состояния
+      ensureUILvlFromState();
     },
 
     // -------- API методы к /api/svid/* --------
@@ -138,7 +153,6 @@
         visitor_id: storage.get(LS.VISITOR_ID) || null,
       };
       const res = await http('/identify', { method: 'POST', body: payload });
-      // ожидаем как минимум { visitor_id, level?:1 }
       setVisitor({ visitor_id: res.visitor_id, level: res.level ?? 1 });
       return res;
     },
@@ -195,6 +209,13 @@
   };
 
   window.SVID = SVID;
+
+  // --- NEW: после возврата страницы из bfcache переустановить уровень
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      ensureUILvlFromState();
+    }
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => SVID.init());

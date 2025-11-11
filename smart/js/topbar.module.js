@@ -186,6 +186,15 @@ export async function initPage({
 } = {}) {
   renderTopbar(topbar.state);
 
+  // --- NEW: если уровень ещё не установлен, попробуем бустануть его из SVID.getState()
+  if (!localStorage.getItem(LVL_KEY) && window.SVID?.getState) {
+    const st = window.SVID.getState();
+    const lvl = Number(st.user_level) || Number(st.visitor_level) || 1;
+    localStorage.setItem(LVL_KEY, String(lvl));
+    window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
+    console.log('[TOPBAR] bootstrap UI level ->', lvl);
+  }
+
   for (const [url, sel] of fragments) {
     await loadFragment(cacheBust ? `${url}?_=${Date.now()}` : url, sel);
   }
@@ -210,6 +219,24 @@ export async function initPage({
       syncAuthLink(lvl);
       renderMenu(lvl);
       highlightActive();
+    }
+  });
+
+  // --- NEW: при возврате страницы из истории (bfcache) переинициализируем меню
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      const cur = Number(localStorage.getItem(LVL_KEY)) || 1;
+      // если почему-то ключа нет — спросим у SVID
+      if (!localStorage.getItem(LVL_KEY) && window.SVID?.getState) {
+        const st = window.SVID.getState();
+        const lvl = Number(st.user_level) || Number(st.visitor_level) || 1;
+        localStorage.setItem(LVL_KEY, String(lvl));
+        window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
+        console.log('[TOPBAR] pageshow: restored UI level ->', lvl);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: cur } }));
+      console.log('[TOPBAR] pageshow: re-render with level ->', cur);
     }
   });
 }
