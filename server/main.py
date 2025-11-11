@@ -114,14 +114,20 @@ CANDIDATES = [
 ]
 STATIC_ROOT = next((p.resolve() for p in CANDIDATES if p.exists()), None)
 
+MOUNT_PATH = "/smart"  # фиксированная точка выдачи фронта
+
 if STATIC_ROOT and STATIC_ROOT.exists():
-    app.mount("/", StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
-    log.info(f"Mounted static from: {STATIC_ROOT}")
+    app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
+    log.info(f"Mounted static at {MOUNT_PATH} from: {STATIC_ROOT}")
 else:
     log.warning("Static directory not found: expected ../Smart or ../smart")
 
-@app.get("/.static-check", response_class=JSONResponse)
+@app.get(f"{MOUNT_PATH}/.static-check", response_class=JSONResponse)
 def static_check():
-    return {"mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
-            "static_root": str(STATIC_ROOT) if STATIC_ROOT else None}
+    return {
+        "mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
+        "static_root": str(STATIC_ROOT) if STATIC_ROOT else None,
+        "base_path": MOUNT_PATH,
+    }
+
 
