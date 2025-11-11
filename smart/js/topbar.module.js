@@ -104,15 +104,22 @@ function initMenuControls() {
 function bindAuthLink() {
   const a = document.getElementById('auth-link');
   if (!a) return;
-  a.addEventListener('click', (e) => {
+  a.addEventListener('click', async (e) => {
     if (level() >= 2) {
       e.preventDefault();
-      // TODO: серверный logout при необходимости
-      localStorage.removeItem('svid.user_id');
-      localStorage.removeItem('svid.flags');
-      localStorage.removeItem('svid.supabase');
-      setLevel(1);
-      closeMenu();
+      try {
+        if (window.SVID?.logout) {
+          await window.SVID.logout();    // <<< теперь реальный logout на сервере
+        } else {
+          // фоллбэк (на всякий)
+          localStorage.removeItem('svid.user_id');
+          localStorage.removeItem('svid.flags');
+          localStorage.removeItem('svid.supabase');
+          setLevel(1);
+        }
+      } finally {
+        closeMenu();
+      }
     }
   });
 }
@@ -137,15 +144,22 @@ function renderMenu(currentLevel = level()) {
     items.map(i => `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`).join('')
   }</ul>`;
 
-  // logout по пункту меню (если есть)
+  // logout по пункту меню
   (host.querySelectorAll?.('[data-action="logout"]') || []).forEach(a => {
-    a.addEventListener('click', (e) => {
+    a.addEventListener('click', async (e) => {
       e.preventDefault();
-      localStorage.removeItem('svid.user_id');
-      localStorage.removeItem('svid.flags');
-      localStorage.removeItem('svid.supabase');
-      setLevel(1);
-      closeMenu();
+      try {
+        if (window.SVID?.logout) {
+          await window.SVID.logout();    // <<< реальный logout
+        } else {
+          localStorage.removeItem('svid.user_id');
+          localStorage.removeItem('svid.flags');
+          localStorage.removeItem('svid.supabase');
+          setLevel(1);
+        }
+      } finally {
+        closeMenu();
+      }
     });
   });
 }
@@ -198,8 +212,18 @@ export async function initPage({
   });
 
   // 5) реакции
-  window.addEventListener('svid:level', e => { const lvl = e.detail.level; syncAuthLink(lvl); renderMenu(lvl); highlightActive(); });
+  window.addEventListener('svid:level', e => {
+    const lvl = e.detail.level;
+    syncAuthLink(lvl);
+    renderMenu(lvl);
+    highlightActive();
+  });
   window.addEventListener('storage', e => {
-    if (e.key === LVL_KEY) { const lvl = parseInt(e.newValue || '1',10); syncAuthLink(lvl); renderMenu(lvl); highlightActive(); }
+    if (e.key === LVL_KEY) {
+      const lvl = parseInt(e.newValue || '1',10);
+      syncAuthLink(lvl);
+      renderMenu(lvl);
+      highlightActive();
+    }
   });
 }
