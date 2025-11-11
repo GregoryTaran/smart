@@ -17,11 +17,28 @@
   <div id="app">
     <header id="topbar" role="banner"></header>
     <main id="main" role="main">
+      
+      
       <section class="about">
         <h1>О проекте</h1>
         <p>SMART VISION — коллекция микросервисов и страниц проекта..</p>
       </section>
-      <div id="home-geo-footer"></div>
+
+<br>
+<section class="about" aria-label="Разрешения приложения">
+  <h2>Разрешения</h2>
+  <div>
+    <button class="login__btn" id="btnMic" type="button">Разрешить микрофон</button>
+    <button class="login__btn" id="btnCam" type="button">Разрешить камеру</button>
+    <button class="login__btn" id="btnNoti" type="button">Разрешить уведомления</button>
+  </div>
+  <p id="permStatus">status: idle</p>
+</section>
+<br>
+
+
+
+<div id="home-geo-footer"></div>
     </main>
           <!-- Домашний гео-виджет (как было) -->
       <div id="home-geo-footer"></div>
@@ -79,5 +96,11 @@
     }
   });
 </script>
+
+
+<script defer src="js/zaprosrazreshenijbrauzera.js"></script>
+
+
+
 </body>
 </html>
