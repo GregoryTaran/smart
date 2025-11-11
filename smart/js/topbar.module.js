@@ -1,25 +1,28 @@
-// /smart/js/topbar.module.js
-// Хедер: бургер + логотип + справа "Логин/Выйти" (без верхнего меню).
-// Меню рендерится ТОЛЬКО в сайдбаре из menu.html и фильтруется по уровню.
+/* topbar.module.js
+   Проект: SMART VISION
+   Философия: топбар и сайдбар-меню реагируют на уровень SVID (гость=1, пользователь=2)
+   Интеграция: фронт слушает кастомные события от SVID (window "svid:level") и читает localStorage('svid.level').
+
+   БЭКЕНД: модуль svid на сервере, роуты под /api/svid/*
+   (например POST /api/svid/login, POST /api/svid/logout и т.д.)
+*/
 
 const MENU = [
-  { id:'home',  title:'Главная',                 href:'index.html',                       allow:[1,2,3,4,5] },
-  { id:'about', title:'О проекте',               href:'about/about.html',                 allow:[1,2,3,4,5] },
-  { id:'priv',  title:'Политика конфиденциальности', href:'privacy/privacy.html',       allow:[1,2,3,4,5] },
-  { id:'terms', title:'Условия использования',   href:'terms/terms.html',                 allow:[1,2,3,4,5] },
+  { id:'home',  title:'Главная',                 href:'index.html',                       allow:[1,2] },
+  { id:'about', title:'О проекте',               href:'about/about.html',                 allow:[1,2] },
+  { id:'priv',  title:'Политика конфиденциальности', href:'privacy/privacy.html',       allow:[1,2] },
+  { id:'terms', title:'Условия использования',   href:'terms/terms.html',                 allow:[1,2] },
 
   { id:'login', title:'Вход/регистрация',        href:'login/login.html',                 allow:[1] },
 
-  { id:'ts',    title:'Проверка сервера',        href:'testserver/testserver.html',       allow:[2,3,4,5] },
-  { id:'rec',   title:'Диктофон',                href:'voicerecorder/voicerecorder.html', allow:[2,3,4,5] },
-  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[1,2,3,4,5] },
-  { id:'logout',title:'Выйти',                   href:'#logout', action:'logout',         allow:[2,3,4,5] },
-
-  { id:'admin', title:'Админка',                 href:'admin.html',                       allow:[5] },
+  { id:'ts',    title:'Проверка сервера',        href:'testserver/testserver.html',       allow:[2] },
+  { id:'rec',   title:'Диктофон',                href:'voicerecorder/voicerecorder.html', allow:[2] },
+  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[1,2] },
+  { id:'logout',title:'Выйти',                   href:'#logout', action:'logout',         allow:[2] },
 ];
 
-// ===== Уровень / события SVID =====
 const LVL_KEY = 'svid.level';
+
 function level() {
   const v = parseInt(localStorage.getItem(LVL_KEY) || '1', 10);
   return Number.isFinite(v) ? v : 1;
@@ -30,35 +33,6 @@ function setLevel(n) {
   window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: n }}));
 }
 
-// ===== ХЕДЕР (без верхнего меню) =====
-function renderTopbar(state = {}) {
-  const topbar = document.getElementById('topbar');
-  if (!topbar) return;
-
-  const logoHref = state.logoHref || 'index.html';
-  const logoSrc  = state.logoSrc  || 'assets/logo400.jpg';
-
-  topbar.innerHTML = `
-    <div class="topbar-inner">
-      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="Открыть меню">☰</button>
-
-      <a class="logo" href="${logoHref}">
-        <img src="${logoSrc}" alt="SMART VISION" />
-      </a>
-
-      <a id="auth-link" class="login-link" href="login/login.html#login">Логин</a>
-    </div>
-  `;
-
-  const btn = topbar.querySelector('.menu-toggle');
-  btn?.addEventListener('click', toggleMenu);
-
-  bindAuthLink();
-  syncAuthLink(level());
-}
-
-
-// ===== Меню: сайдбар/оверлей =====
 function toggleMenu() {
   const body = document.body;
   const overlay = document.querySelector('#overlay');
@@ -88,6 +62,7 @@ function closeMenu() {
   body.style.overflow = body.dataset.prevOverflow || '';
   delete body.dataset.prevOverflow;
 }
+
 function initMenuControls() {
   document.querySelector('#overlay')?.addEventListener('click', closeMenu);
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
@@ -100,7 +75,7 @@ function initMenuControls() {
   });
 }
 
-// ===== Правый “Логин/Выйти” =====
+// Правый “Логин/Выйти”
 function bindAuthLink() {
   const a = document.getElementById('auth-link');
   if (!a) return;
@@ -109,12 +84,12 @@ function bindAuthLink() {
       e.preventDefault();
       try {
         if (window.SVID?.logout) {
-          await window.SVID.logout();    // <<< теперь реальный logout на сервере
+          await window.SVID.logout(); // серверный /api/svid/logout
         } else {
-          // фоллбэк (на всякий)
+          // фоллбэк
           localStorage.removeItem('svid.user_id');
-          localStorage.removeItem('svid.flags');
-          localStorage.removeItem('svid.supabase');
+          localStorage.removeItem('svid.user_level');
+          localStorage.removeItem('svid.jwt');
           setLevel(1);
         }
       } finally {
@@ -135,7 +110,6 @@ function syncAuthLink(lvl) {
   }
 }
 
-// ===== Рендер меню ТОЛЬКО в сайдбар (как было) =====
 function renderMenu(currentLevel = level()) {
   const host = document.querySelector('[data-svid-menu]');
   if (!host) return;
@@ -144,17 +118,16 @@ function renderMenu(currentLevel = level()) {
     items.map(i => `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`).join('')
   }</ul>`;
 
-  // logout по пункту меню
   (host.querySelectorAll?.('[data-action="logout"]') || []).forEach(a => {
     a.addEventListener('click', async (e) => {
       e.preventDefault();
       try {
         if (window.SVID?.logout) {
-          await window.SVID.logout();    // <<< реальный logout
+          await window.SVID.logout();
         } else {
           localStorage.removeItem('svid.user_id');
-          localStorage.removeItem('svid.flags');
-          localStorage.removeItem('svid.supabase');
+          localStorage.removeItem('svid.user_level');
+          localStorage.removeItem('svid.jwt');
           setLevel(1);
         }
       } finally {
@@ -164,7 +137,6 @@ function renderMenu(currentLevel = level()) {
   });
 }
 
-// ===== Подсветка активного =====
 function highlightActive() {
   const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
   const pageId = page.replace(/\.html$/, '') || 'index';
@@ -178,7 +150,6 @@ function highlightActive() {
   });
 }
 
-// ===== Загрузка фрагмента сайдбара (если используешь menu.html) =====
 async function loadFragment(url, sel) {
   const el = document.querySelector(sel);
   if (!el) return;
@@ -186,24 +157,40 @@ async function loadFragment(url, sel) {
   el.innerHTML = html;
 }
 
-// ===== Точка входа =====
+function renderTopbar(state = {}) {
+  const topbar = document.getElementById('topbar');
+  if (!topbar) return;
+
+  const logoHref = state.logoHref || 'index.html';
+  const logoSrc  = state.logoSrc  || 'assets/logo400.jpg';
+
+  topbar.innerHTML = `
+    <div class="topbar-inner">
+      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="Открыть меню">☰</button>
+      <a class="logo" href="${logoHref}">
+        <img src="${logoSrc}" alt="SMART VISION" />
+      </a>
+      <a id="auth-link" class="login-link" href="login/login.html#login">Логин</a>
+    </div>
+  `;
+
+  topbar.querySelector('.menu-toggle')?.addEventListener('click', toggleMenu);
+  bindAuthLink();
+  syncAuthLink(level());
+}
+
 export async function initPage({
-  fragments = [['menu.html', '#sidebar']],   // menu.html: <nav class="menu" data-svid-menu></nav>
+  fragments = [['menu.html', '#sidebar']],
   cacheBust = false,
   topbar = { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
 } = {}) {
-  // 1) хедер
   renderTopbar(topbar.state);
 
-  // 2) фрагмент меню (сайдбар)
   for (const [url, sel] of fragments) {
     await loadFragment(cacheBust ? `${url}?_=${Date.now()}` : url, sel);
   }
-
-  // 3) UX
   initMenuControls();
 
-  // 4) первый проход
   const ready = window.SVID?.ready || Promise.resolve({ level: level() });
   await ready.then(({ level }) => {
     syncAuthLink(level);
@@ -211,7 +198,6 @@ export async function initPage({
     highlightActive();
   });
 
-  // 5) реакции
   window.addEventListener('svid:level', e => {
     const lvl = e.detail.level;
     syncAuthLink(lvl);
