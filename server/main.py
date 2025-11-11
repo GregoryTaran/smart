@@ -11,7 +11,7 @@ log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.1.0")
 
-# CORS (как было)
+# ------------------------ CORS (как было) ------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- API/WS роуты (как было) ---
+# ------------------------ API/WS (как было) ----------------------
 try:
     from core.api_testserver import router as testserver_router
     app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
@@ -72,7 +72,7 @@ try:
 except Exception as e:
     log.error(f"Failed to mount SVID: {e}")
 
-# --- Health (как было)
+# ------------------------ Health (как было) ----------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -89,8 +89,7 @@ def info():
         "env": os.environ.get("ENV", "dev"),
     })
 
-# ---------------------------------------------------------------------
-# /data — как было
+# ------------------------ /data (как было) -----------------------
 DATA_DIR = Path(os.getcwd()).resolve() / "data"
 VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
 try:
@@ -100,8 +99,10 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-# ---------------------------------------------------------------------
-# ФРОНТЕНД СТАТИКА (CWD-based) — МОНТИРУЕМ НА /smart
+# -------------------- ФРОНТ СТАТИКА (CWD-based) -----------------
+# Раздаём фронт из папки smart/ по префиксу /smart
+from fastapi.staticfiles import StaticFiles
+
 # 1) Абсолютный путь через ENV (опционально)
 env_root = os.environ.get("SMART_FRONT_ROOT", "").strip()
 
@@ -120,7 +121,7 @@ candidates = [
 ]
 STATIC_ROOT = next((p.resolve() for p in candidates if p and p.exists()), None)
 
-MOUNT_PATH = "/smart"  # ← фиксируем публичный префикс фронта
+MOUNT_PATH = "/smart"  # публичный префикс фронта
 
 if STATIC_ROOT and STATIC_ROOT.exists():
     app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
