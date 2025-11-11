@@ -1,6 +1,9 @@
 # /server/svid/svid.py
-# SVID API под схему: visitor(visitor_id,...), users(user_id,...), auth_vault(...)
-# Пароли: PBKDF2-HMAC (sha256) на stdlib, без внешних зависимостей.
+# Под твою схему БД:
+# visitor(visitor_id uuid pk, level int2, first_seen_at timestamptz default now(),
+#         landing_url text, referrer_host text, ...),
+# users(user_id uuid pk, display_name text, email text unique, level int2),
+# auth_vault(artifact_id uuid pk, user_id uuid, provider text, kind text, payload jsonb, status text, created_at timestamptz default now())
 
 import os, time, uuid, secrets, base64, hashlib, hmac
 from typing import Optional, Any, Dict
@@ -23,15 +26,15 @@ router = APIRouter(prefix="/api/svid", tags=["svid"])
 
 # ---------- Модели ----------
 class IdentifyIn(BaseModel):
-    fingerprint: Optional[str] = None
-    tz: Optional[str] = None
+    fingerprint: Optional[str] = None     # пока не пишем
+    tz: Optional[str] = None              # пока не пишем
     visitor_id: Optional[str] = None
     landing_url: Optional[str] = None
     referrer_host: Optional[str] = None
 
 class IdentifyOut(BaseModel):
     visitor_id: str
-    level: int = 1  # 1 = guest (см. справочник levels)
+    level: int = 1  # 1 = guest
 
 class RegisterIn(BaseModel):
     name: str
@@ -56,14 +59,13 @@ class UserOut(BaseModel):
 class OkOut(BaseModel):
     ok: bool = True
 
-# ---------- Константы / таблицы ----------
-T_VISITOR = "visitor"      # PK: visitor_id (uuid)
-T_USERS   = "users"        # PK: user_id (uuid)
-T_VAULT   = "auth_vault"   # artifact_id (uuid), user_id, provider, kind, payload JSONB
+# ---------- Таблицы ----------
+T_VISITOR = "visitor"
+T_USERS   = "users"
+T_VAULT   = "auth_vault"
 
-# ---------- Хэш пароля (PBKDF2-HMAC/sha256, 100k итераций) ----------
+# ---------- PBKDF2 (stdlib) ----------
 def _hash_password(pw: str) -> str:
-    """Храним base64(salt||dk)."""
     salt = secrets.token_bytes(16)
     dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
     return base64.b64encode(salt + dk).decode("utf-8")
@@ -73,9 +75,9 @@ def _check_password(pw: str, stored: str) -> bool:
         raw = base64.b64decode(stored.encode("utf-8"))
         salt, dk = raw[:16], raw[16:]
         new_dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
+        return hmac.compare_digest(dk, new_dk)
     except Exception:
         return False
-    return hmac.compare_digest(dk, new_dk)
 
 # ---------- Утилиты ----------
 def _client_ip(req: Request) -> str:
@@ -83,17 +85,15 @@ def _client_ip(req: Request) -> str:
     return xff.split(",")[0].strip() if xff else (req.client.host if req.client else "0.0.0.0")
 
 def _dev_jwt(user_id: str) -> str:
-    # простой DEV-JWT для фронта (не для прода)
     return f"svid.{user_id}.{int(time.time())}"
 
-# ---------- DB-хелперы (с твоими именами полей) ----------
+# ---------- DB-хелперы ----------
 def _get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     res = sb.table(T_USERS).select("*").eq("email", email).limit(1).execute()
     rows = res.data or []
     return rows[0] if rows else None
 
 def _get_password_hash_artifact(user_id: str) -> Optional[str]:
-    # Берём последний артефакт с паролем
     res = (
         sb.table(T_VAULT)
         .select("payload")
@@ -115,11 +115,7 @@ def _put_password_hash_artifact(user_id: str, hash_str: str):
         "user_id": user_id,
         "provider": "email",
         "kind": "password_hash",
-        "payload": {
-            "algo": "pbkdf2_sha256",
-            "iter": 100_000,
-            "hash": hash_str
-        },
+        "payload": {"algo": "pbkdf2_sha256", "iter": 100_000, "hash": hash_str},
         "status": "active"
     }).execute()
 
@@ -128,25 +124,30 @@ def _get_visitor(visitor_id: str) -> Optional[Dict[str, Any]]:
     rows = res.data or []
     return rows[0] if rows else None
 
-def _create_visitor(data: IdentifyIn, ip: str) -> str:
+def _create_visitor(data: IdentifyIn) -> str:
+    """Вставляем только реально существующие колонки, без экзотики."""
     vid = str(uuid.uuid4())
-    sb.table(T_VISITOR).insert({
+    payload = {
         "visitor_id": vid,
         "level": 1,  # guest
-        "first_seen_at": None,         # default now() если настроено; иначе можно убрать
-        "landing_url": data.landing_url or None,
-        "referrer_host": data.referrer_host or None,
-        "ip_address": ip,
-        "timezone_guess": data.tz or None,
-        "user_agent_hash": None,       # при желании добавим
-    }).execute()
+    }
+    # эти поля ты точно показывал на скрине
+    if data.landing_url is not None:
+        payload["landing_url"] = data.landing_url
+    if data.referrer_host is not None:
+        payload["referrer_host"] = data.referrer_host
+
+    # first_seen_at пусть ставится дефолтом (now()) на стороне БД
+    sb.table(T_VISITOR).insert(payload).execute()
     return vid
 
 def _link_visitor_to_user(visitor_id: Optional[str], user_id: str):
-    if not visitor_id: 
+    if not visitor_id:
         return
+    # best-effort: если таких колонок нет, молча игнорируем
     try:
         sb.table(T_VISITOR).update({
+            # если у тебя есть эти поля — отлично; если нет — запрос всё равно проигнорим
             "user_id": user_id,
             "linked_to_user": True,
             "linked_at": "now()"
@@ -154,25 +155,20 @@ def _link_visitor_to_user(visitor_id: Optional[str], user_id: str):
     except Exception:
         pass
 
-# ---------- Ручки ----------
+# ---------- Роуты ----------
 @router.post("/identify", response_model=IdentifyOut)
 def identify(body: IdentifyIn, request: Request):
-    """Шаг 1: любой посетитель получает visitor_id и уровень=1 (guest)."""
-    ip = _client_ip(request)
-
-    # Если визитор уже есть в localStorage — вернём его (если существует в БД)
+    """Шаг 1: любой посетитель получает visitor_id и level=1 (guest)."""
     if body.visitor_id:
         row = _get_visitor(body.visitor_id)
         if row:
             return IdentifyOut(visitor_id=row["visitor_id"], level=row.get("level") or 1)
-
-    # Иначе создаём нового
-    new_id = _create_visitor(body, ip)
+    # создаём нового
+    new_id = _create_visitor(body)
     return IdentifyOut(visitor_id=new_id, level=1)
 
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterIn, request: Request):
-    """Шаг 2a: регистрируем пользователя, сохраняем хэш пароля в auth_vault."""
     email = body.email.strip().lower()
     if not email or "@" not in email:
         raise HTTPException(http.HTTP_400_BAD_REQUEST, detail="Invalid email")
@@ -183,7 +179,6 @@ def register(body: RegisterIn, request: Request):
 
     user_id = str(uuid.uuid4())
     try:
-        # users: user_id / display_name / email / level(int2=2=user)
         sb.table(T_USERS).insert({
             "user_id": user_id,
             "display_name": body.name.strip(),
@@ -191,9 +186,7 @@ def register(body: RegisterIn, request: Request):
             "level": 2
         }).execute()
 
-        # пароль: как артефакт в auth_vault
         _put_password_hash_artifact(user_id, _hash_password(body.password))
-
         _link_visitor_to_user(body.visitor_id, user_id)
     except Exception as e:
         raise HTTPException(http.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB error: {e}")
@@ -204,7 +197,6 @@ def register(body: RegisterIn, request: Request):
 
 @router.post("/login", response_model=UserOut)
 def login(body: LoginIn, request: Request):
-    """Шаг 2б: вход по email+паролю (проверяем артефакт с паролем)."""
     email = body.email.strip().lower()
     if not email or "@" not in email:
         raise HTTPException(http.HTTP_400_BAD_REQUEST, detail="Invalid email")
@@ -221,16 +213,10 @@ def login(body: LoginIn, request: Request):
 
     jwt = _dev_jwt(user["user_id"])
     visitor_out = IdentifyOut(visitor_id=body.visitor_id, level=1) if body.visitor_id else None
-    return UserOut(
-        user_id=user["user_id"],
-        level=user.get("level") or 2,
-        jwt=jwt,
-        visitor=visitor_out
-    )
+    return UserOut(user_id=user["user_id"], level=user.get("level") or 2, jwt=jwt, visitor=visitor_out)
 
 @router.post("/reset")
 def reset_password(body: ResetIn):
-    """Шаг 2в: dev-режим — генерим новый пароль, сохраняем как артефакт и возвращаем."""
     email = body.email.strip().lower()
     user = _get_user_by_email(email)
     if not user:
