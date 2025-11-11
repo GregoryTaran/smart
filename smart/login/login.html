@@ -3,114 +3,142 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- БАЗА ДЛЯ ВСЕХ ПУТЕЙ ВНУТРИ /smart -->
   <base href="../" />
-  <title>Вход/регистрация</title>
+
+  <title>SMART VISION — Вход (SVID)</title>
 
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
-
-  <!-- Общий стиль сайта -->
   <link rel="stylesheet" href="css/main.css" />
-  <!-- Локальные стили логина -->
   <link rel="stylesheet" href="login/login.css" />
-
-  <style>
-    .tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0 12px; }
-    .tablink {
-      display:inline-block; text-align:center; padding:10px 12px; text-decoration:none;
-      border-radius:10px; border:1px solid var(--sv-iris-line, #e5e7eb);
-      background: var(--sv-iris-50, #f8f9ff); color: var(--sv-text-strong, #111);
-    }
-    .tablink[aria-selected="true"] { background: var(--sv-iris-70, #eef0ff); box-shadow: 0 0 0 3px rgba(120,100,255,.22); }
-    .hidden { display:none; }
-    .micro-hint { font-size:.82rem; color:#475569; margin-top:8px; }
-  </style>
 </head>
 <body>
-<div id="page">
-  <aside id="sidebar" aria-label="Основное меню"></aside>
-  <div id="app">
-    <header id="topbar" role="banner"></header>
-    <main id="main" role="main">
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
+    <div id="app">
+      <header id="topbar" role="banner"></header>
 
-      <section class="login">
-        <div class="login__box sv-center-700">
-          <h1 class="login__title">Вход в SMART VISION</h1>
-          <p class="login__lead">Войдите или зарегистрируйтесь, чтобы сохранить записи и настройки.</p>
+      <main id="main" role="main">
+        <section class="login">
+          <div class="login__box sv-center-700">
+            <h1 class="login__title">SMART VISION — SVID</h1>
+            <p class="login__lead">Единая идентификация: регистрация, вход, сброс — всё на одной странице.</p>
 
-          <!-- Форма входа -->
-          <form class="login__form" id="login-form" novalidate>
-            <label class="login__label">
-              Email
-              <input class="login__input" type="email" id="email" name="email" required autocomplete="email" />
-            </label>
-            <label class="login__label">
-              Пароль
-              <input class="login__input" type="password" id="password" name="password" required minlength="8" autocomplete="current-password" />
-            </label>
-            <button type="submit" class="login__btn">Войти</button>
-            <button type="button" class="login__btn login__btn--ghost" id="signup-btn">Создать аккаунт</button>
-            <div class="login__status" id="login-status" role="status" aria-live="polite"></div>
-          </form>
+            <!-- Общий статус -->
+            <div class="login__status" id="svid-status" role="status" aria-live="polite"></div>
 
-          <!-- Форма регистрации -->
-          <form class="login__form hidden" id="register-form" novalidate>
-            <label class="login__label">
-              Имя
-              <input class="login__input" type="text" id="reg-name" name="name" required autocomplete="name" />
-            </label>
-            <label class="login__label">
-              Email
-              <input class="login__input" type="email" id="reg-email" name="email" required autocomplete="email" />
-            </label>
-            <label class="login__label">
-              Пароль
-              <input class="login__input" type="password" id="reg-password" name="password" required minlength="8" autocomplete="new-password" />
-            </label>
-            <button type="submit" class="login__btn">Зарегистрироваться</button>
-            <div class="login__status" id="register-status" role="status" aria-live="polite"></div>
-            <p class="micro-hint">Уже есть аккаунт? <a href="login/login.html#login">Войти</a></p>
-          </form>
-        </div>
-      </section>
+            <!-- ===== Состояние: РЕГИСТРАЦИЯ ===== -->
+            <form class="login__form" id="svid-form-register" data-svid-form="register" novalidate>
+              <label class="login__label" for="reg-name">
+                Имя
+                <input class="login__input" id="reg-name" name="name" type="text"
+                       placeholder="Ваше имя" required />
+              </label>
 
-    </main>
-    <footer id="footer" role="contentinfo"></footer>
+              <label class="login__label" for="reg-email">
+                Email
+                <!-- type=text: проверяем только наличие @ в login.js -->
+                <input class="login__input" id="reg-email" name="email" type="text"
+                       placeholder="you@example.com" required />
+              </label>
+
+              <label class="login__label" for="reg-pass">
+                Пароль
+                <input class="login__input" id="reg-pass" name="password" type="password"
+                       placeholder="Пароль" required />
+              </label>
+
+              <button class="login__btn" id="btn-register" type="submit">Зарегистрироваться</button>
+
+              <div class="login__links">
+                <button class="login__link" id="switch-to-login" type="button" data-action="to-login">Войти</button>
+                <button class="login__link" id="switch-to-reset" type="button" data-action="to-reset">Сбросить пароль</button>
+              </div>
+            </form>
+
+            <!-- ===== Состояние: ВХОД ===== -->
+            <form class="login__form" id="svid-form-login" data-svid-form="login" hidden novalidate>
+              <label class="login__label" for="login-email">
+                Email
+                <input class="login__input" id="login-email" name="email" type="text"
+                       placeholder="you@example.com" required />
+              </label>
+
+              <label class="login__label" for="login-pass">
+                Пароль
+                <input class="login__input" id="login-pass" name="password" type="password"
+                       placeholder="Пароль" required />
+              </label>
+
+              <button class="login__btn" id="btn-login" type="submit">Войти</button>
+
+              <div class="login__links">
+                <button class="login__link" id="switch-to-register-1" type="button" data-action="to-register">Назад к регистрации</button>
+                <button class="login__link" id="switch-to-reset-1" type="button" data-action="to-reset">Сбросить пароль</button>
+              </div>
+            </form>
+
+            <!-- ===== Состояние: СБРОС ПАРОЛЯ ===== -->
+            <form class="login__form" id="svid-form-reset" data-svid-form="reset" hidden novalidate>
+              <label class="login__label" for="reset-email">
+                Email
+                <input class="login__input" id="reset-email" name="email" type="text"
+                       placeholder="you@example.com" required />
+              </label>
+
+              <button class="login__btn" id="btn-reset-password" type="submit">Получить пароль</button>
+              <p class="micro-hint">После нажатия ниже на этой странице покажем новый пароль.</p>
+
+              <div class="login__links">
+                <button class="login__link" id="switch-to-register-2" type="button" data-action="to-register">Назад к регистрации</button>
+              </div>
+
+              <!-- сюда выводим сгенерированный пароль -->
+              <div class="login__status" id="reset-result" role="status" aria-live="polite"></div>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer id="footer" role="contentinfo"></footer>
+    </div>
   </div>
-</div>
 
-<div id="overlay" hidden></div>
+  <!-- Оверлей для мобильного меню -->
+  <div id="overlay" hidden></div>
 
-<!-- ==== ОСТАВЛЯЕМ ТВОИ НИЖНИЕ СКРИПТЫ (как были) ==== -->
-<script defer src="js/footer.js?v=2"></script>
-<script defer src="js/register-sw.js"></script>
+  <!-- ==== Нижние общие скрипты ==== -->
+  <script defer src="js/footer.js?v=2"></script>
+  <script defer src="js/register-sw.js"></script>
 
-<!-- Библиотека Supabase (обязательно до login.js) -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="js/identity-guard.js"></script>
+  <!-- Supabase и guard (как в шаблоне) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="js/identity-guard.js"></script>
 
-<!-- Вся логика — в login.js -->
-<script defer src="login/login.js"></script>
-
-  <!-- 1) SVID -->
+  <!-- 1) SVID ядро -->
   <script defer src="svid/svid.js"></script>
 
-<!-- ==== НАШ МОДУЛЬ: грузим ТОЛЬКО меню и рисуем топ-бар ==== -->
-<script type="module">
-  import { initPage } from "./js/topbar.module.js";
-  initPage({
-    fragments: [
-      ["menu.html", "#sidebar"]  // футер HTML не грузим
-    ],
-    cacheBust: false,
-    topbar: {
-      state: {
-        logoHref: "index.html",
-        logoSrc:  "assets/logo400.jpg",
-        auth:     { user: null }
+  <!-- 2) Наш аутентификатор страницы -->
+  <script defer src="login/login.js"></script>
+
+  <!-- ==== Модуль: грузим меню и рисуем топ-бар ==== -->
+  <script type="module">
+    import { initPage } from "./js/topbar.module.js";
+    initPage({
+      fragments: [
+        ["menu.html", "#sidebar"]
+      ],
+      cacheBust: false,
+      topbar: {
+        state: {
+          logoHref: "index.html",
+          logoSrc:  "assets/logo400.jpg",
+          auth:     { user: null }
+        }
       }
-    }
-  });
-</script>
+    });
+  </script>
 </body>
 </html>
