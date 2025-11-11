@@ -1,83 +1,164 @@
-// SMART/js/svid.js
-(async function() {
-  const API = '/identity/svid/init';
-  const LS_ID = 'svid.visitor_id';
-  const LS_LEVEL = 'svid.level';
+// /smart/svid/svid.js
+// SVID — фронтовое ядро: identify / register / login / reset / logout
+// Хранит visitor_id, user_id, уровни и (опц.) jwt в localStorage.
+// Никаких фреймворков, только fetch + события для интеграции c UI.
+// Автор: Greg & Bro, SMART VISION 🤝
 
-  function getDeviceInfo() {
-    const ua = navigator.userAgent;
-    return {
-      device_type: /Mobile/i.test(ua) ? 'mobile' : 'desktop',
-      device_class: /Tablet/i.test(ua) ? 'tablet' : (/Mobile/i.test(ua) ? 'phone' : 'desktop'),
-      os_name: navigator.platform,
-      browser_name: navigator.userAgent,
-      screen_width: screen.width,
-      screen_height: screen.height,
-      touch_support: 'ontouchstart' in window,
-      app_platform: 'browser',
-      timezone_guess: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    };
-  }
+;(function () {
+  const API_BASE = `${location.origin}/api/svid`;
 
-  function getUTM() {
-    const p = new URLSearchParams(location.search);
-    const f = (k) => p.get(k) || null;
-    return {
-      utm_source: f('utm_source'),
-      utm_medium: f('utm_medium'),
-      utm_campaign: f('utm_campaign'),
-      utm_term: f('utm_term'),
-      utm_content: f('utm_content'),
-    };
-  }
+  // ключи стораджа
+  const LS = {
+    VISITOR_ID:   'svid.visitor_id',
+    VISITOR_LVL:  'svid.visitor_level',
+    USER_ID:      'svid.user_id',
+    USER_LVL:     'svid.user_level',
+    JWT:          'svid.jwt',
+  };
 
-  async function initVisitor() {
-    const existing = localStorage.getItem(LS_ID);
-    if (existing) {
-      showInfo(existing, localStorage.getItem(LS_LEVEL) || 1);
-      return;
+  // утилиты стораджа
+  const storage = {
+    get(k)   { return localStorage.getItem(k); },
+    set(k,v) { localStorage.setItem(k, v); },
+    del(k)   { localStorage.removeItem(k); },
+  };
+
+  // безопасный fetch
+  async function api(path, { method = 'GET', body, headers = {} } = {}) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = json?.error || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
-
-    const payload = {
-      landing_url: location.href,
-      referrer_host: document.referrer ? new URL(document.referrer).host : '',
-      ...getDeviceInfo(),
-      ...getUTM(),
-    };
-
-    try {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      localStorage.setItem(LS_ID, data.visitor_id);
-      localStorage.setItem(LS_LEVEL, data.level);
-      showInfo(data.visitor_id, data.level);
-    } catch (err) {
-      console.error('[SVID] init error', err);
-      showInfo('error', 'n/a');
-    }
+    return json;
   }
 
-  function showInfo(id, level) {
-    let box = document.getElementById('svid-box');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'svid-box';
-      box.style.cssText = `
-        position:fixed;bottom:10px;right:10px;
-        background:#111;color:#fff;padding:10px 14px;
-        border-radius:8px;font:14px/1.4 system-ui;
-        z-index:9999;opacity:.9;`;
-      document.body.appendChild(box);
-    }
-    box.innerHTML = `Visitor: <b>${id}</b><br>Level: <b>${level}</b>`;
+  // эмит событий для внешнего UI
+  function emit(name, detail) {
+    document.dispatchEvent(new CustomEvent(name, { detail }));
   }
 
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', initVisitor);
-  else
-    initVisitor();
+  function setVisitor({ visitor_id, level }) {
+    if (visitor_id) storage.set(LS.VISITOR_ID, visitor_id);
+    if (level)      storage.set(LS.VISITOR_LVL, level);
+    emit('svid:visitor', { visitor_id, level });
+  }
+
+  function setUser({ user_id, level, jwt }) {
+    if (user_id) storage.set(LS.USER_ID, user_id);
+    if (level)   storage.set(LS.USER_LVL, level);
+    if (jwt)     storage.set(LS.JWT, jwt);
+    emit('svid:user', { user_id, level, jwt });
+  }
+
+  function clearUserKeepVisitor() {
+    storage.del(LS.USER_ID);
+    storage.del(LS.USER_LVL);
+    storage.del(LS.JWT);
+    emit('svid:logout', {});
+  }
+
+  // ---------- Публичное API ----------
+  const SVID = {
+    // Инициализация на любой странице
+    async init() {
+      // 1) есть визитор? — ок; нет — идентифицируем
+      if (!storage.get(LS.VISITOR_ID)) {
+        await this.identify();
+      } else {
+        emit('svid:visitor', {
+          visitor_id: storage.get(LS.VISITOR_ID),
+          level:      storage.get(LS.VISITOR_LVL) || 'guest',
+        });
+      }
+      // 2) если есть юзер — сообщим UI об этом
+      const user_id = storage.get(LS.USER_ID);
+      if (user_id) {
+        emit('svid:user', {
+          user_id,
+          level: storage.get(LS.USER_LVL) || 'user',
+          jwt:   storage.get(LS.JWT) || null,
+        });
+      }
+    },
+
+    // Шаг 1 — Идентификация визитора
+    async identify() {
+      const payload = {
+        fingerprint: navigator.userAgent,
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        visitor_id: storage.get(LS.VISITOR_ID) || null, // если уже есть, бэк может обновить/вернуть
+      };
+      const data = await api('/identify', { method: 'POST', body: payload });
+      setVisitor(data); // { visitor_id, level }
+      return data;
+    },
+
+    // Шаг 2а — Регистрация
+    async register({ name, email, password }) {
+      const payload = {
+        name, email, password,
+        visitor_id: storage.get(LS.VISITOR_ID) || null,
+      };
+      const data = await api('/register', { method: 'POST', body: payload });
+      // ожидаем: { user_id, level, jwt? , visitor: { visitor_id, level }? }
+      if (data?.visitor) setVisitor(data.visitor);
+      setUser(data);
+      return data;
+    },
+
+    // Шаг 2б — Вход
+    async login({ email, password }) {
+      const payload = { email, password, visitor_id: storage.get(LS.VISITOR_ID) || null };
+      const data = await api('/login', { method: 'POST', body: payload });
+      if (data?.visitor) setVisitor(data.visitor);
+      setUser(data);
+      return data;
+    },
+
+    // Шаг 2в — Сброс пароля (dev: отдаёт пароль; prod: отправляет на почту)
+    async resetPassword({ email }) {
+      const data = await api('/reset', { method: 'POST', body: { email } });
+      // { new_password? } — в деве есть
+      emit('svid:password_reset', data);
+      return data;
+    },
+
+    // Шаг 4 — Выход
+    async logout() {
+      await api('/logout', { method: 'POST', body: { user_id: storage.get(LS.USER_ID) } });
+      clearUserKeepVisitor(); // visitor остаётся, user очищаем
+      return { ok: true };
+    },
+
+    // Вспомогательное
+    getState() {
+      return {
+        visitor_id: storage.get(LS.VISITOR_ID),
+        visitor_level: storage.get(LS.VISITOR_LVL),
+        user_id: storage.get(LS.USER_ID),
+        user_level: storage.get(LS.USER_LVL),
+        jwt: storage.get(LS.JWT),
+      };
+    },
+
+    // Жёстко очистить всё (включая визитора)
+    nukeAll() {
+      Object.values(LS).forEach((k) => storage.del(k));
+      emit('svid:nuked', {});
+    }
+  };
+
+  // Экспорт в глобал
+  window.SVID = SVID;
+
+  // Автоинициализация (можно отключить, если не нужно)
+  document.addEventListener('DOMContentLoaded', () => {
+    SVID.init().catch((e) => {
+      console.warn('[SVID] init failed:', e.message);
+    });
+  });
 })();
