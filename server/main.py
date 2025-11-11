@@ -11,7 +11,7 @@ log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.1.0")
 
-# CORS (relaxed for dev; tighten in prod)
+# CORS (как было)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,38 +20,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- API routes (обновили импорты под плоские папки) ---
+# --- API/WS роуты (как было) ---
 try:
-    # было: from api_testserver import router as testserver_router
     from core.api_testserver import router as testserver_router
     app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
 except Exception as e:
     log.warning(f"API module not loaded: {e}")
 
 try:
-    # было: from api_auth import router as auth_router
     from auth.api_auth import router as auth_router
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 except Exception as e:
     log.warning(f"Auth module not loaded: {e}")
 
-# --- Voicerecorder WS (подключаем ДО статики)
 try:
-    # было: from ws_voicerecorder import router as voicerecorder_router
     from voicerecorder.ws_voicerecorder import router as voicerecorder_router
     app.include_router(voicerecorder_router, prefix="", tags=["voicerecorder"])
     log.info("voicerecorder router mounted (registered before static root)")
 except Exception as e:
     log.info("voicerecorder router not mounted (module missing or import error): %s", e)
 
-# server/main.py (добавить рядом с остальными include_router)
 try:
     from database.api_db import router as db_router
     app.include_router(db_router, prefix="/api/db", tags=["db"])
 except Exception as e:
     log.warning(f"DB API not loaded: {e}")
 
-# server/main.py — добавить блок
 try:
     from database.api_records import router as records_router
     app.include_router(records_router, prefix="/api/db", tags=["records"])
@@ -59,15 +53,14 @@ except Exception as e:
     log.warning(f"Records API not loaded: {e}")
 
 try:
-    from database.api_testserver import router as testserver_router
-    app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
+    from database.api_testserver import router as testserver_router2
+    app.include_router(testserver_router2, prefix="/api/testserver", tags=["testserver"])
 except Exception as e:
     log.warning(f"TestServer API not loaded: {e}")
 
-# identity/visitor API
 try:
     from identity.visitor import router as visitor_router
-    app.include_router(visitor_router)          # router уже с prefix="/identity"
+    app.include_router(visitor_router)  # prefix внутри модуля
     log.info("identity.visitor mounted")
 except Exception as e:
     log.warning(f"Identity VISITOR not mounted: {e}")
@@ -79,7 +72,7 @@ try:
 except Exception as e:
     log.error(f"Failed to mount SVID: {e}")
 
-# --- Health endpoints ---
+# --- Health (как было)
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -97,7 +90,7 @@ def info():
     })
 
 # ---------------------------------------------------------------------
-# /data — раздаём серверные файлы (mp3/транскрипты и т.п.)
+# /data — как было
 DATA_DIR = Path(os.getcwd()).resolve() / "data"
 VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
 try:
@@ -107,20 +100,34 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-# --- Статика фронта (ищем ../Smart или ../smart). Монтируем ПОСЛЕ WS.
-CANDIDATES = [
-    Path(__file__).resolve().parents[1] / "Smart",
-    Path(__file__).resolve().parents[1] / "smart",
-]
-STATIC_ROOT = next((p.resolve() for p in CANDIDATES if p.exists()), None)
+# ---------------------------------------------------------------------
+# ФРОНТЕНД СТАТИКА (CWD-based) — МОНТИРУЕМ НА /smart
+# 1) Абсолютный путь через ENV (опционально)
+env_root = os.environ.get("SMART_FRONT_ROOT", "").strip()
 
-MOUNT_PATH = "/smart"  # фиксированная точка выдачи фронта
+# 2) По умолчанию берём CWD/smart (если запускаем из корня репо)
+cwd_root = (Path(os.getcwd()).resolve() / "smart")
+
+# 3) Фолбэки на случай запуска из server/
+fallback_parent_smart = (Path(__file__).resolve().parents[1] / "smart")
+fallback_parent_Smart = (Path(__file__).resolve().parents[1] / "Smart")
+
+candidates = [
+    Path(env_root) if env_root else None,
+    cwd_root,
+    fallback_parent_smart,
+    fallback_parent_Smart,
+]
+STATIC_ROOT = next((p.resolve() for p in candidates if p and p.exists()), None)
+
+MOUNT_PATH = "/smart"  # ← фиксируем публичный префикс фронта
 
 if STATIC_ROOT and STATIC_ROOT.exists():
     app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="static")
-    log.info(f"Mounted static at {MOUNT_PATH} from: {STATIC_ROOT}")
+    log.info(f"[static] Mounted {MOUNT_PATH} from: {STATIC_ROOT}")
 else:
-    log.warning("Static directory not found: expected ../Smart or ../smart")
+    tried = [str(p) for p in candidates if p]
+    log.warning("[static] Front root not found. Tried: %s", tried)
 
 @app.get(f"{MOUNT_PATH}/.static-check", response_class=JSONResponse)
 def static_check():
@@ -128,6 +135,5 @@ def static_check():
         "mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
         "static_root": str(STATIC_ROOT) if STATIC_ROOT else None,
         "base_path": MOUNT_PATH,
+        "cwd": os.getcwd(),
     }
-
-
