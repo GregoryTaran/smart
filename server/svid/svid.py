@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import uuid  # NEW: генерим UUID сами
 
 # --- Supabase client ---------------------------------------------------------
 # supabase-py v2
@@ -22,7 +23,6 @@ except Exception:  # pragma: no cover
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", os.getenv("SUPABASE_SERVICE_KEY", "")).strip()
 if not SUPABASE_URL or not SUPABASE_KEY:
-    # Не падаем на импорте — дадим внятную ошибку при первом запросе
     _SB_ERR = "Supabase credentials are not configured (SUPABASE_URL / SUPABASE_ANON_KEY)."
 else:
     _SB_ERR = None
@@ -67,14 +67,9 @@ def _verify_password(password: str, spec: HashSpec) -> bool:
 
 # --- Dev JWT (простой токен) -------------------------------------------------
 def _dev_jwt(user_id: str) -> str:
-    # Формат: svid.<user_id>.<unix>
     return f"svid.{user_id}.{int(datetime.now(tz=timezone.utc).timestamp())}"
 
 def _extract_user_id_from_dev_jwt(auth_header: Optional[str]) -> Optional[str]:
-    """
-    Ждем Authorization: Bearer svid.<user_id>.<ts>
-    Возвращаем user_id или None.
-    """
     if not auth_header:
         return None
     try:
@@ -135,26 +130,19 @@ def _now_iso() -> str:
 
 def _ensure_visitor(sb: Client, visitor_id: Optional[str], fp: Optional[str], tz: Optional[str]) -> str:
     """
-    Если visitor_id нет — создаём, если есть — возвращаем.
+    Если visitor_id нет — генерим сами и вставляем.
     """
     if visitor_id:
         return visitor_id
+    vid = str(uuid.uuid4())  # NEW
     payload = {
+        "visitor_id": vid,    # NEW — кладём наш UUID явно
         "fingerprint": fp or None,
         "tz": tz or None,
         "created_at": _now_iso(),
     }
-    res = sb.table(T_VISITOR).insert(payload).execute()
-    data = (res.data or [{}])[0]
-    vid = data.get("visitor_id") or data.get("id")
-    if not vid:
-        # fallback: перечитать последний созданный
-        q = sb.table(T_VISITOR).select("visitor_id").order("created_at", desc=True).limit(1).execute()
-        rows = q.data or []
-        if not rows:
-            raise HTTPException(500, detail="cannot create visitor")
-        vid = rows[0].get("visitor_id") or rows[0].get("id")
-    return str(vid)
+    sb.table(T_VISITOR).insert(payload).execute()
+    return vid
 
 def _get_user_by_email(sb: Client, email: str) -> Optional[Dict[str, Any]]:
     q = sb.table(T_USERS).select("*").eq("email", email).limit(1).execute()
@@ -192,53 +180,36 @@ def _get_password_hash(sb: Client, user_id: str) -> Optional[HashSpec]:
 
 @router.post("/identify", response_model=IdentifyOut)
 def identify(body: IdentifyIn):
-    """
-    Создает (или подтверждает) сущность visitor и возвращает базовый уровень 1.
-    """
     sb = _sb()
     vid = _ensure_visitor(sb, body.visitor_id, body.fingerprint, body.tz)
     return IdentifyOut(visitor_id=vid, level=1)
 
-
 @router.post("/register", response_model=UserOut)
 def register(body: RegisterIn):
-    """
-    Создает пользователя уровня 2 и сохраняет хэш пароля в auth_vault.
-    """
     sb = _sb()
 
-    # Нормализуем имя
     display_name = body.display_name or body.name
 
-    # Email уникален
     existing = _get_user_by_email(sb, body.email)
     if existing:
         raise HTTPException(409, detail="User already exists")
 
-    # Создаём пользователя
+    # NEW: генерим user_id сами и сразу вставляем
+    user_id = str(uuid.uuid4())  # NEW
     payload_user = {
+        "user_id": user_id,       # NEW — кладём наш UUID явно
         "display_name": display_name,
         "email": body.email,
         "level": 2,
         "created_at": _now_iso(),
     }
-    ins = sb.table(T_USERS).insert(payload_user).execute()
-    row = (ins.data or [{}])[0]
-    user_id = row.get("user_id") or row.get("id")
-    if not user_id:
-        # fallback перечитать
-        q = sb.table(T_USERS).select("user_id").eq("email", body.email).limit(1).execute()
-        rows = q.data or []
-        if not rows:
-            raise HTTPException(500, detail="cannot create user")
-        user_id = rows[0].get("user_id") or rows[0].get("id")
-    user_id = str(user_id)
+    sb.table(T_USERS).insert(payload_user).execute()
 
-    # Сохраняем хэш
+    # хэш пароля
     spec = _hash_password(body.password)
     _store_password_hash(sb, user_id, spec)
 
-    # Привязываем визитора (опционально — достаточно вернуть его)
+    # привязываем визитора (если не был)
     vid = _ensure_visitor(sb, body.visitor_id, None, None)
 
     return UserOut(
@@ -248,12 +219,8 @@ def register(body: RegisterIn):
         visitor=IdentifyOut(visitor_id=vid, level=1),
     )
 
-
 @router.post("/login", response_model=UserOut)
 def login(body: LoginIn):
-    """
-    Валидирует пароль, возвращает user_id, level=2 и dev-JWT.
-    """
     sb = _sb()
     user = _get_user_by_email(sb, body.email)
     if not user:
@@ -273,57 +240,36 @@ def login(body: LoginIn):
         visitor=IdentifyOut(visitor_id=vid, level=1),
     )
 
-
 @router.post("/reset", response_model=OkOut)
 def reset(body: ResetIn):
-    """
-    Простейший reset: перезаписать пароль на новый.
-    (в проде — email-поток, подтверждения и т.д.)
-    """
     sb = _sb()
     user = _get_user_by_email(sb, body.email)
     if not user:
-        # Не раскрываем существование email
         return OkOut(ok=True)
-
     user_id = str(user.get("user_id") or user.get("id"))
     spec = _hash_password(body.password)
     _store_password_hash(sb, user_id, spec)
     return OkOut(ok=True)
 
-
 @router.post("/logout", response_model=OkOut)
 def logout():
-    """
-    В dev-версии просто возвращаем OK — фронт сам чистит localStorage,
-    визитор остается.
-    """
     return OkOut(ok=True)
-
-
-# --- NEW: /me ---------------------------------------------------------------
 
 @router.get("/me", response_model=MeOut)
 def me(request: Request):
-    """
-    Возвращает профиль текущего пользователя по dev-JWT (Authorization: Bearer svid.<user_id>.<ts>).
-    """
     sb = _sb()
     user_id = _extract_user_id_from_dev_jwt(request.headers.get("authorization"))
     if not user_id:
         raise HTTPException(401, detail="Unauthorized")
-
     user = _get_user_by_id(sb, user_id)
     if not user:
         raise HTTPException(404, detail="User not found")
-
     return MeOut(
         user_id=str(user.get("user_id") or user.get("id")),
         display_name=user.get("display_name"),
         email=user.get("email"),
         level=int(user.get("level") or 2),
     )
-
 
 @router.get("/health")
 def health():
