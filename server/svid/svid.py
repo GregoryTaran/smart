@@ -1,6 +1,6 @@
 # /server/svid/svid.py
 # SVID — FastAPI-роутер: identify / register / login / reset / logout
-# Работа с Supabase через сервисный ключ. Пароли — bcrypt.
+# Пароли: PBKDF2-HMAC (sha256) на стандартной библиотеке, БЕЗ внешних зависимостей.
 # Таблицы (минимум):
 # - VISITOR: { id(uuid) PK, fingerprint(text), tz(text), ip(text), user_id(uuid|null), created_at, updated_at }
 # - USER:    { id(uuid) PK, email(text) unique, name(text), level(text), created_at, updated_at }
@@ -14,18 +14,19 @@ import time
 import uuid
 from typing import Optional, Any, Dict
 
-from fastapi import APIRouter, Depends, Request, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Request, HTTPException
+from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-
 from fastapi import status as http
-from fastapi.middleware.cors import CORSMiddleware
 
 # Supabase client (v2)
 from supabase import create_client, Client
 
-# bcrypt
-import bcrypt
+# --- password hashing: stdlib PBKDF2-HMAC (sha256) ---
+import secrets
+import base64
+import hashlib
+import hmac
 
 # --- Supabase init ---
 def get_supabase() -> Client:
@@ -72,18 +73,25 @@ class UserOut(BaseModel):
 class OkOut(BaseModel):
     ok: bool = True
 
-# --- Helpers ---
+# --- Password helpers (PBKDF2-HMAC/sha256, 100k iters, salt=16B) ---
 def _hash_password(pw: str) -> str:
-    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    """Возвращает base64(salt||dk)."""
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
+    return base64.b64encode(salt + dk).decode("utf-8")
 
-def _check_password(pw: str, hash_str: str) -> bool:
+def _check_password(pw: str, stored: str) -> bool:
+    """Сравнивает с хранимым base64(salt||dk) — безопасно через hmac.compare_digest."""
     try:
-        return bcrypt.checkpw(pw.encode("utf-8"), hash_str.encode("utf-8"))
+        raw = base64.b64decode(stored.encode("utf-8"))
+        salt, dk = raw[:16], raw[16:]
+        new_dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
+        return hmac.compare_digest(dk, new_dk)
     except Exception:
         return False
 
+# --- Misc helpers ---
 def _client_ip(req: Request) -> str:
-    # учитываем прокси
     xff = req.headers.get("x-forwarded-for")
     if xff:
         return xff.split(",")[0].strip()
@@ -150,12 +158,10 @@ def register(body: RegisterIn, request: Request):
     if not email or "@" not in email:
         raise HTTPException(http.HTTP_400_BAD_REQUEST, detail="Invalid email")
 
-    # уже существует?
     existed = _get_user_by_email(email)
     if existed:
         raise HTTPException(http.HTTP_409_CONFLICT, detail="Email already registered")
 
-    # создаём пользователя
     user_id = str(uuid.uuid4())
     sb.table("USER").insert({
         "id": user_id,
@@ -164,17 +170,14 @@ def register(body: RegisterIn, request: Request):
         "level": "user"
     }).execute()
 
-    # кладём хэш пароля
     pw_hash = _hash_password(body.password)
     sb.table("AUTH_VAULT").insert({
         "user_id": user_id,
         "password_hash": pw_hash
     }).execute()
 
-    # линкуем визитора (если прислан)
     _link_visitor_to_user(body.visitor_id, user_id)
 
-    # dev jwt для фронта (опц.)
     jwt = _gen_dev_jwt(user_id, email)
 
     visitor_out = None
@@ -209,30 +212,24 @@ def login(body: LoginIn, request: Request):
 
 @router.post("/reset")
 def reset_password(body: ResetIn):
-    """Шаг 2в. Сброс пароля.
-       DEV-режим: генерим пароль и возвращаем его в ответе.
-       PROD-режим (когда подключим email): будем слать на почту и 200 без пароля.
-    """
+    """Шаг 2в. Сброс пароля (DEV-режим возвращает пароль в ответе)."""
     email = body.email.strip().lower()
     user = _get_user_by_email(email)
     if not user:
         raise HTTPException(http.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # генерим простой пароль
     new_password = _gen_dev_password(10)
     new_hash = _hash_password(new_password)
 
-    # апдейт vault
     sb.table("AUTH_VAULT").upsert({
         "user_id": user["id"],
         "password_hash": new_hash
     }, on_conflict="user_id").execute()
 
-    # DEV: показываем пароль прямо в ответе
     return JSONResponse({"new_password": new_password})
 
 def _gen_dev_password(length: int = 10) -> str:
-    import random, string
+    import random
     pool = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*"
     return "".join(random.choice(pool) for _ in range(length))
 
@@ -241,7 +238,6 @@ def logout():
     """Шаг 4. Выход. Если были серверные сессии — чистили бы их здесь."""
     return OkOut(ok=True)
 
-# (опционально) health
 @router.get("/health")
 def health():
     return {"ok": True, "service": "svid"}
