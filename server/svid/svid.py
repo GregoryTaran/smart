@@ -11,11 +11,11 @@ import hmac
 import secrets
 import uuid
 
-# ловим детальные ошибки от PostgREST
+# детальные ошибки PostgREST
 try:
     from postgrest.exceptions import APIError as PgAPIError  # type: ignore
 except Exception:
-    PgAPIError = Exception  # fallback, если модуль не импортируется
+    PgAPIError = Exception
 
 try:
     from supabase import create_client, Client  # type: ignore
@@ -40,7 +40,7 @@ T_VAULT   = "auth_vault"
 
 router = APIRouter(prefix="/api/svid", tags=["svid"])
 
-# ---------------- Passwords ----------------
+# -------- passwords --------
 class HashSpec(BaseModel):
     algo: str = "pbkdf2_sha256"
     salt: str
@@ -64,7 +64,7 @@ def _verify_password(password: str, spec: HashSpec) -> bool:
     got = _pbkdf2(password, salt, spec.iters)
     return hmac.compare_digest(got, need)
 
-# ---------------- Dev JWT ------------------
+# -------- dev jwt --------
 def _dev_jwt(user_id: str) -> str:
     return f"svid.{user_id}.{int(datetime.now(tz=timezone.utc).timestamp())}"
 
@@ -79,7 +79,7 @@ def _extract_user_id_from_dev_jwt(auth_header: Optional[str]) -> Optional[str]:
     except Exception:
         return None
 
-# ---------------- Schemas ------------------
+# -------- schemas --------
 class IdentifyIn(BaseModel):
     fingerprint: Optional[str] = None
     tz: Optional[str] = None
@@ -120,7 +120,7 @@ class MeOut(BaseModel):
     email: Optional[str] = None
     level: int = 2
 
-# ---------------- Helpers ------------------
+# -------- helpers --------
 def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat()
 
@@ -128,7 +128,6 @@ def _safe_execute(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
     except PgAPIError as e:
-        # вернём понятный текст, чтобы видеть точную причину (NOT NULL, FK и т.п.)
         msg = getattr(e, "message", None) or str(e)
         raise HTTPException(400, detail=msg)
 
@@ -138,7 +137,7 @@ def _ensure_visitor(sb: Client, body: IdentifyIn) -> str:
     vid = str(uuid.uuid4())
     payload: Dict[str, Any] = {"visitor_id": vid, "level": 1}
     if body.tz:
-        payload["timezone_guess"] = body.tz  # поле из твоей схемы
+        payload["timezone_guess"] = body.tz
     _safe_execute(sb.table(T_VISITOR).insert(payload).execute)
     return vid
 
@@ -154,13 +153,27 @@ def _get_user_by_id(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
 
 def _store_password_hash(sb: Client, user_id: str, spec: HashSpec) -> None:
     _safe_execute(sb.table(T_VAULT).insert({
-        "artifact_id": str(uuid.uuid4()),           # ← фикс: обязателен в твоей схеме
+        "artifact_id": str(uuid.uuid4()),   # фикс NOT NULL
         "user_id": user_id,
         "payload": {"hash": spec.model_dump()},
         "created_at": _now_iso(),
     }).execute)
 
-# ---------------- Routes -------------------
+def _get_password_hash(sb: Client, user_id: str) -> Optional[HashSpec]:
+    q = _safe_execute(sb.table(T_VAULT).select("payload").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute)
+    rows = q.data or []
+    if not rows:
+        return None
+    payload = rows[0].get("payload") or {}
+    spec = payload.get("hash")
+    if not spec:
+        return None
+    try:
+        return HashSpec(**spec)
+    except Exception:
+        return None
+
+# -------- routes --------
 @router.post("/identify", response_model=IdentifyOut)
 def identify(body: IdentifyIn):
     sb = _sb()
@@ -177,22 +190,32 @@ def register(body: RegisterIn):
 
     user_id = str(uuid.uuid4())
 
-    # ВСТАВКА ТОЛЬКО С ГАРАНТИРОВАННЫМИ ПОЛЯМИ + безопасные дефолты
+    # УЛЬТРА-РОБАСТНАЯ ВСТАВКА В users:
     _safe_execute(sb.table(T_USERS).insert({
         "user_id": user_id,
         "email": body.email,
         "display_name": display_name,
         "level": 2,
-        "state": "active",          # часто NOT NULL
-        "email_verified": False,    # часто NOT NULL
-        "phone_verified": False,    # часто NOT NULL
+        "state": "active",
+        # безопасные дефолты для возможных NOT NULL
+        "email_verified": False,
+        "phone_verified": False,
+        "created_at": _now_iso(),
+        "feature_flags": [],        # TEXT[] (пустой список)
+        "tags": [],                 # TEXT[] (пустой список)
+        "passkeys": [],             # JSONB (пустой список)
+        "limits": {},               # JSONB (пустой объект)
+        "trusted_devices": {},      # JSONB
+        "linked_visitor_ids": [],   # JSONB
+        "consents": {},             # JSONB
+        # остальные поля — по умолчанию NULL (если у них NOT NULL — скажет detail)
     }).execute)
 
     # пароль
     spec = _hash_password(body.password)
     _store_password_hash(sb, user_id, spec)
 
-    # визитор (минималка)
+    # визитор (минимум)
     vid = _ensure_visitor(sb, IdentifyIn(visitor_id=body.visitor_id, tz=None, fingerprint=None))
 
     return UserOut(
@@ -253,18 +276,3 @@ def me(request: Request):
 @router.get("/health")
 def health():
     return {"ok": True, "ts": int(datetime.now(tz=timezone.utc).timestamp())}
-
-# вспомогательный геттер для /login
-def _get_password_hash(sb: Client, user_id: str) -> Optional[HashSpec]:
-    q = _safe_execute(sb.table(T_VAULT).select("payload").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute)
-    rows = q.data or []
-    if not rows:
-        return None
-    payload = rows[0].get("payload") or {}
-    spec = payload.get("hash")
-    if not spec:
-        return None
-    try:
-        return HashSpec(**spec)
-    except Exception:
-        return None
