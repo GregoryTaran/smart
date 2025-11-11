@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SMART VISION</title>
 
-  <!-- БАЗА: все относительные пути ведут в /smart/ -->
+  <!-- ЕДИНЫЙ базовый путь для прод/дева -->
   <base href="/smart/" />
 
   <link rel="icon" href="assets/logo400.jpg" />
@@ -15,11 +15,9 @@
 </head>
 <body>
   <div id="page">
-    <!-- Сайдбар: сюда подгрузим menu.html (пустой контейнер-приёмник data-svid-menu) -->
     <aside id="sidebar" aria-label="Основное меню"></aside>
 
     <div id="app">
-      <!-- Хедер рисует topbar.module.js (лого + каркас) -->
       <header id="topbar" role="banner"></header>
 
       <main id="main" role="main">
@@ -28,7 +26,6 @@
           <p>Меню рендерится по уровню из SVID. Хедер — один владелец.</p>
         </section>
 
-        <!-- Информационный блок (не обязателен, но удобен для теста) -->
         <div id="svid-box" class="visitor-badge">Loading visitor…</div>
       </main>
 
@@ -37,19 +34,16 @@
     </div>
   </div>
 
-  <!-- Оверлей для мобильного меню (управляется topbar.module.js) -->
   <div id="overlay" hidden></div>
 
-  <!-- 1) SVID: состояние/level + события -->
+  <!-- 1) SVID -->
   <script defer src="svid/svid.js"></script>
 
   <!-- 2) Точка входа: хедер/меню (модуль) -->
   <script type="module">
     import { initPage } from './js/topbar.module.js';
-
-    // Запуск: подгружаем menu.html в сайдбар и рисуем топбар
     initPage({
-      fragments: [['menu.html', '#sidebar']],      // menu.html содержит: <nav class="menu" data-svid-menu></nav>
+      fragments: [['menu.html', '#sidebar']],
       cacheBust: false,
       topbar: {
         state: {
