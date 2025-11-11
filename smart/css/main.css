@@ -291,5 +291,57 @@ body.menu-open #overlay { display: block; }
   flex-wrap:wrap;
 }
 
+/* === TOKENS (минимум) === */
+:root{
+  --sv-radius: 12px;
+  --sv-card-shadow: 0 1px 4px rgba(0,0,0,.05);
+  --sv-purple: #8d82ff;
+  --sv-purple-10: rgba(120,100,255,.10);
+  --sv-purple-22: rgba(120,100,255,.22);
+  --sv-text-strong: #0b1220;
+}
 
+/* === COMPONENTS === */
+/* 1) Card — универсальная «карточка» как на about */
+.card{
+  background:#fff;
+  border-radius:var(--sv-radius);
+  box-shadow:var(--sv-card-shadow);
+  padding:24px;
+}
+.card + .card{ margin-top:16px; }      /* базовый вертикальный ритм карточек */
 
+/* 2) Сиреневая кнопка (белая по дефолту) */
+.btn-purple{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:12px 14px;
+  border-radius:10px;
+  border:1px solid var(--sv-purple);
+  background:#fff;                     /* по умолчанию белая */
+  color:var(--sv-text-strong);
+  font-weight:700; cursor:pointer;
+  transition:background .2s, box-shadow .2s, border-color .2s, transform .06s;
+  margin:0;
+}
+.btn-purple + .btn-purple{ margin-top:8px; }           /* вертикальный зазор кнопок */
+.btn-purple:hover{ background:var(--sv-purple-10); }
+.btn-purple:active,
+.btn-purple[aria-pressed="true"],
+.btn-purple.is-active{
+  background:var(--sv-purple-22);
+  border-color:var(--sv-purple);
+  box-shadow:0 0 0 2px rgba(120,100,255,.18);
+}
+.btn-purple:focus-visible{
+  outline:none;
+  background:var(--sv-purple-10);
+  border-color:var(--sv-purple);
+  box-shadow:0 0 0 3px rgba(120,100,255,.25);
+}
+.btn-purple:disabled{ opacity:.55; cursor:not-allowed; box-shadow:none; }
+
+/* === LAYOUT UTILS (минимум) === */
+/* Вертикальная колонка с контролируемым шагом */
+.stack-16 > * + *{ margin-top:16px; }
+/* Горизонтальный ряд кнопок/контролов с gap (по желанию) */
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
