@@ -5,86 +5,52 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SMART VISION</title>
 
-  <link rel="icon" href="assets/logo400.jpg" />
-  <link rel="manifest" href="manifest.json" />
-  <base href="./" />
+  <link rel="icon" href="/smart/assets/logo400.jpg" />
+  <link rel="manifest" href="/smart/manifest.json" />
 
-  <!-- Внешние стили, как у тебя -->
-  <link rel="stylesheet" href="css/main.css" />
-  <link rel="stylesheet" href="index/index.css" />
+  <link rel="stylesheet" href="/smart/css/main.css" />
+  <link rel="stylesheet" href="/smart/index/index.css" />
 </head>
 <body>
   <div id="page">
-    <!-- Меню (подтянется из menu.html) -->
+    <!-- Сайдбар для меню (фрагмент menu.html подгружается в него хедером) -->
     <aside id="sidebar" aria-label="Основное меню"></aside>
 
     <div id="app">
-      <!-- Топ-бар теперь рисует модуль -->
+      <!-- Хедер рендерится topbar.module.js -->
       <header id="topbar" role="banner"></header>
 
       <main id="main" role="main">
         <section class="hero">
           <h1>SMART VISION</h1>
-          <p>Топ-бар — модулем. Меню грузим из menu.html. Футер-фрагмент не используем.</p>
-        </section>
-<!-- Панель визитора -->
-
-<div id="visitor-id" class="visitor-badge">Loading visitor…</div>
-<style>
-  .visitor-badge{
-    display:inline-block;padding:8px 12px;border-radius:8px;
-    background:#111;color:#fff;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto
-  }
-</style>
-
-
-
-
-        <!-- Панель разрешений, как в первичном индексе -->
-        <section class="perm-card" aria-label="Разрешения приложения">
-          <h3>Разрешения</h3>
-          <div class="perm-row">
-            <button id="btnMic">Разрешить микрофон</button>
-            <button id="btnCam">Разрешить камеру</button>
-            <button id="btnNoti">Разрешить уведомления</button>
-          </div>
-          <div id="permStatus" class="perm-status">status: idle</div>
+          <p>Меню и хедер управляются модулем. SVID сообщает уровень.</p>
         </section>
 
-
-
-        <div id="svid-box">Loading visitor…</div>
-
-
-
-
-
+        <!-- Инфо-блок про визитора -->
+        <div id="svid-box" class="visitor-badge">Loading visitor…</div>
       </main>
 
-      <!-- Домашний гео-виджет (как было) -->
       <div id="home-geo-footer"></div>
-
-      <!-- Сам тег футера остаётся для твоих скриптов -->
       <footer id="footer" role="contentinfo"></footer>
     </div>
   </div>
 
-  <!-- Оверлей для мобильного меню -->
   <div id="overlay" hidden></div>
 
-  <!-- ===== Ниже — твои скрипты, как в исходнике. Оставляем. ===== -->
-  <!-- footer.js / menu-state.js / index.js / geo.bundle / SW / supabase / identity-guard -->
-  <script defer src="js/footer.js?v=2"></script>
-  <script defer src="js/menu-state.js"></script>
+  <!-- 1) SVID: состояние/level + события -->
+  <script defer src="/smart/svid/svid.js"></script>
 
-  <!-- Универсальный модуль разрешений (как у тебя было — inline module) -->
+  <!-- 2) Хедер/меню: владелец DOM меню, слушает SVID -->
+  <script defer src="/smart/js/topbar.module.js"></script>
+
+  <!-- Остальные нужные скрипты (оставляем по минимуму) -->
   <script type="module">
     import {
       setStatusEl,
       bindMicPermissionButton,
       bindCameraPermissionButton,
       bindNotificationsButton,
-    } from "./js/mic-permission.js";
+    } from "/smart/js/mic-permission.js";
 
     const statusEl = document.getElementById('permStatus');
     if (statusEl) setStatusEl(statusEl);
@@ -98,42 +64,37 @@
     if (btnNoti) bindNotificationsButton(btnNoti, statusEl);
   </script>
 
-  <script defer src="index/index.js?v=2"></script>
-  <script defer src="js/footer.geo.bundle.js"></script>
+  <script defer src="/smart/index/index.js?v=2"></script>
+  <script defer src="js/footer.js?v=2"></script>
+  <script defer src="/smart/js/footer.geo.bundle.js"></script>
   <script>
+    // Инициализация гео-футера (как было)
     window.addEventListener('DOMContentLoaded', function () {
-      var targetId = 'home-geo-footer';
+      const targetId = 'home-geo-footer';
       if (window.SVFooter && document.getElementById(targetId)) {
         try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
       }
     });
   </script>
 
-  <script defer src="js/register-sw.js?v=2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="js/identity-guard.js"></script>
+  <script defer src="/smart/js/register-sw.js?v=2"></script>
 
-  <!-- Наш модуль: и подгрузка меню, и топ-бар, и управление меню -->
+  <!-- Инициализация топ-бара + загрузка фрагмента меню -->
   <script type="module">
-    import { initPage } from './js/topbar.module.js';
-
-    // Важно: грузим ТОЛЬКО menu.html. Футер-фрагмент не используем.
+    import { initPage } from '/smart/js/topbar.module.js';
     initPage({
       fragments: [
-        ["menu.html", "#sidebar"]
+        ["/smart/menu.html", "#sidebar"]   // грузим меню-фрагмент в сайдбар
       ],
       cacheBust: false,
       topbar: {
         state: {
-          logoHref: "index.html",
-          logoSrc:  "assets/logo400.jpg",
+          logoHref: "/smart/index.html",
+          logoSrc:  "/smart/assets/logo400.jpg",
           auth:     { user: null }
         }
-        // handlers по умолчанию: openMenu/close по overlay/Escape уже в модуле
       }
     });
   </script>
-  <script src="svid/visitor.js"></script>
-  <script defer src="js/svid.js"></script>
 </body>
 </html>
