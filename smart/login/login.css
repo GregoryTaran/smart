@@ -132,3 +132,6 @@
 }
 .login .micro-hint { font-size: .82rem; color: #475569; }
 .hidden { display: none; } /* на случай, если в файле нет */
+
+/* Гарантированно скрывает любые элементы с атрибутом hidden */
+[hidden] { display: none !important; }
