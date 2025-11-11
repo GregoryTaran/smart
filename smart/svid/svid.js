@@ -1,64 +1,54 @@
 /* svid/svid.js — фронтовой клиент идентификации/аутентификации
-   БЭКЕНД: модуль svid на сервере (папка server/svid), маршруты /api/svid/*
-   Эндпоинты:
-     POST /api/svid/identify
-     POST /api/svid/register
-     POST /api/svid/login
-     POST /api/svid/reset
-     POST /api/svid/logout
+   Бэкенд: модуль svid, маршруты /api/svid/*
+   Эндпоинты: POST /identify | /register | /login | /reset | /logout, GET /me
 
-   Хранение на фронте (localStorage, только для UI):
+   Фронт-стояние (только для UI):
      svid.visitor_id, svid.visitor_level
      svid.user_id,    svid.user_level
-     svid.jwt         (dev-режим)
-     svid.level       (единый текущий уровень для всего UI)
+     svid.jwt
+     svid.level       // единый текущий уровень для меню/страниц
 */
 
 ;(function () {
-  const API_BASE = '/api/svid'; // относительный путь
+  const API_BASE = '/api/svid';
 
   const LS = {
     VISITOR_ID:  'svid.visitor_id',
-    VISITOR_LVL: 'svid.visitor_level', // 1
+    VISITOR_LVL: 'svid.visitor_level',
     USER_ID:     'svid.user_id',
-    USER_LVL:    'svid.user_level',    // 2
+    USER_LVL:    'svid.user_level',
     JWT:         'svid.jwt',
   };
   const LVL_KEY = 'svid.level';
 
+  // ---------------- utils ----------------
   const storage = {
     get(k)   { return localStorage.getItem(k); },
     set(k,v) { localStorage.setItem(k, v); },
     del(k)   { localStorage.removeItem(k); },
   };
-
   function emit(name, detail) {
     window.dispatchEvent(new CustomEvent(name, { detail }));
   }
   function setLevel(n) {
     const lvl = Number.isFinite(+n) ? +n : 1;
     localStorage.setItem(LVL_KEY, String(lvl));
-    window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
+    emit('svid:level', { level: lvl });
   }
-
-  // --- NEW: страховка уровня UI из текущего стораджа SVID (в т.ч. после bfcache)
   function ensureUILvlFromState() {
     try {
       const s = SVID?.getState?.() || {};
       const lvl = Number(s.user_level) || Number(s.visitor_level) || 1;
       if (String(localStorage.getItem(LVL_KEY)) !== String(lvl)) {
         localStorage.setItem(LVL_KEY, String(lvl));
-        window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
-        console.log('[SVID] ensureUILvlFromState ->', lvl);
+        emit('svid:level', { level: lvl });
       }
-    } catch (e) {
-      console.warn('[SVID] ensureUILvlFromState error', e);
-    }
+    } catch { /* no-op */ }
   }
 
-  async function http(path, { method = 'GET', body, token } = {}) {
+  async function http(path, { method = 'GET', body } = {}) {
     const headers = { 'Content-Type': 'application/json' };
-    const jwt = token || storage.get(LS.JWT);
+    const jwt = storage.get(LS.JWT);
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
 
     const res = await fetch(`${API_BASE}${path}`, {
@@ -71,20 +61,17 @@
     if (res.status === 204) return { ok: true };
     const ct = res.headers.get('content-type') || '';
     const data = ct.includes('application/json') ? await res.json() : await res.text();
-    if (!res.ok) {
-      const msg = (data && data.error) ? data.error : `HTTP ${res.status}`;
-      throw new Error(msg);
-    }
+    if (!res.ok) throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
     return data;
   }
 
+  // ---------------- state setters ----------------
   function setVisitor({ visitor_id, level }) {
     if (visitor_id) storage.set(LS.VISITOR_ID, visitor_id);
     if (Number.isFinite(+level)) storage.set(LS.VISITOR_LVL, String(+level));
     setLevel(Number.isFinite(+level) ? +level : 1);
     emit('svid:visitor', { visitor_id, level: Number.isFinite(+level) ? +level : 1 });
   }
-
   function setUser({ user_id, level, jwt }) {
     if (user_id) storage.set(LS.USER_ID, user_id);
     if (Number.isFinite(+level)) storage.set(LS.USER_LVL, String(+level));
@@ -92,7 +79,6 @@
     setLevel(Number.isFinite(+level) ? +level : 2);
     emit('svid:user', { user_id, level: Number.isFinite(+level) ? +level : 2, jwt: jwt || null });
   }
-
   function clearUserKeepVisitor() {
     storage.del(LS.USER_ID);
     storage.del(LS.USER_LVL);
@@ -102,8 +88,9 @@
     emit('svid:logout', {});
   }
 
+  // ---------------- public API ----------------
   const SVID = {
-    ready: null, // Promise<{ level:number }>,
+    ready: null,
 
     async init() {
       // 1) ensure visitor
@@ -111,8 +98,7 @@
         try {
           const r = await this.identify();
           if (!r?.visitor_id) setLevel(1);
-        } catch (e) {
-          console.warn('[SVID] identify failed', e);
+        } catch {
           setLevel(1);
         }
       } else {
@@ -124,7 +110,7 @@
         emit('svid:visitor', v);
       }
 
-      // 2) если уже есть пользователь — активируем UI
+      // 2) promote user if present
       const user_id = storage.get(LS.USER_ID);
       if (user_id) {
         const u = {
@@ -140,12 +126,11 @@
         this.ready = Promise.resolve({ level: parseInt(localStorage.getItem(LVL_KEY) || '1', 10) });
       }
 
-      // --- NEW: сразу синхронизировать UI-уровень из состояния
+      // синхронизируем UI-уровень на старте (и для bfcache)
       ensureUILvlFromState();
     },
 
-    // -------- API методы к /api/svid/* --------
-
+    // --- endpoints ---
     async identify() {
       const payload = {
         fingerprint: navigator.userAgent,
@@ -171,14 +156,15 @@
       if (res?.visitor) setVisitor(res.visitor);
       setUser({ user_id: res.user_id, level: res.level ?? 2, jwt: res.jwt });
 
-     try {
-     const isLoginPage = /\/login\/?/.test(location.pathname);
-     if (isLoginPage) location.href = `${location.origin}/index.html`;
-     } catch (e) { /* no-op */ }
+      // жёсткий редирект только если мы на странице логина
+      try {
+        if (/\/login\/?/.test(location.pathname)) {
+          location.href = `${location.origin}/index.html`;
+        }
+      } catch { /* no-op */ }
 
       return res;
     },
-
 
     async reset({ email, password }) {
       const res = await http('/reset', { method: 'POST', body: { email, password } });
@@ -189,14 +175,17 @@
     async logout() {
       try {
         await http('/logout', { method: 'POST', body: { user_id: storage.get(LS.USER_ID) } });
-      } catch (e) {
-        console.warn('[SVID] logout non-2xx', e);
-      }
+      } catch { /* dev: сервер может вернуть не-200, это ок */}
       clearUserKeepVisitor();
       return { ok: true };
     },
 
-    // вспомогательные
+    // удобство для index.js
+    async me() {
+      return http('/me', { method: 'GET' }); // Authorization подтянется из localStorage
+    },
+
+    // helpers
     setLevel(n) { setLevel(n); },
     getLevel()  { return parseInt(localStorage.getItem(LVL_KEY) || '1', 10); },
     getState() {
@@ -215,13 +204,12 @@
     },
   };
 
+  // ---------------- boot ----------------
   window.SVID = SVID;
 
-  // --- NEW: после возврата страницы из bfcache переустановить уровень
+  // Восстановление после bfcache (назад/вперёд)
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted) {
-      ensureUILvlFromState();
-    }
+    if (e.persisted) ensureUILvlFromState();
   });
 
   if (document.readyState === 'loading') {

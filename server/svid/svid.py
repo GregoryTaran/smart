@@ -1,46 +1,115 @@
-# /server/svid/svid.py
-# Под твою схему БД:
-# visitor(visitor_id uuid pk, level int2, first_seen_at timestamptz default now(),
-#         landing_url text, referrer_host text, ...),
-# users(user_id uuid pk, display_name text, email text unique, level int2),
-# auth_vault(artifact_id uuid pk, user_id uuid, provider text, kind text, payload jsonb, status text, created_at timestamptz default now())
+# server/svid/svid.py
+from __future__ import annotations
 
-import os, time, uuid, secrets, base64, hashlib, hmac
-from typing import Optional, Any, Dict
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi import status as http
-from pydantic import BaseModel
-from supabase import create_client, Client
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+import os
+import hashlib
+import hmac
+import json
+import secrets
 
-# ---------- Supabase ----------
-def get_supabase() -> Client:
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        raise RuntimeError("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set")
-    return create_client(url, key)
+# --- Supabase client ---------------------------------------------------------
+# supabase-py v2
+try:
+    from supabase import create_client, Client  # type: ignore
+except Exception:  # pragma: no cover
+    create_client = None
+    Client = None
 
-sb: Client = get_supabase()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", os.getenv("SUPABASE_SERVICE_KEY", "")).strip()
+if not SUPABASE_URL or not SUPABASE_KEY:
+    # Не падаем на импорте — дадим внятную ошибку при первом запросе
+    _SB_ERR = "Supabase credentials are not configured (SUPABASE_URL / SUPABASE_ANON_KEY)."
+else:
+    _SB_ERR = None
+
+def _sb() -> Client:
+    if _SB_ERR:
+        raise HTTPException(500, detail=_SB_ERR)
+    if create_client is None:
+        raise HTTPException(500, detail="supabase client is not installed on server.")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Tables ------------------------------------------------------------------
+T_VISITOR = "visitor"
+T_USERS   = "users"
+T_VAULT   = "auth_vault"
+
+# --- FastAPI router ----------------------------------------------------------
 router = APIRouter(prefix="/api/svid", tags=["svid"])
 
-# ---------- Модели ----------
+# --- PBKDF2 utilities --------------------------------------------------------
+class HashSpec(BaseModel):
+    algo: str = "pbkdf2_sha256"
+    salt: str
+    iters: int = 120_000
+    hash: str
+
+def _pbkdf2(password: str, salt: bytes, iters: int = 120_000) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters, dklen=32)
+
+def _hash_password(password: str, iters: int = 120_000) -> HashSpec:
+    salt = secrets.token_bytes(16)
+    digest = _pbkdf2(password, salt, iters)
+    return HashSpec(salt=salt.hex(), iters=iters, hash=digest.hex())
+
+def _verify_password(password: str, spec: HashSpec) -> bool:
+    if spec.algo != "pbkdf2_sha256":
+        return False
+    salt = bytes.fromhex(spec.salt)
+    need = bytes.fromhex(spec.hash)
+    got = _pbkdf2(password, salt, spec.iters)
+    return hmac.compare_digest(got, need)
+
+# --- Dev JWT (простой токен) -------------------------------------------------
+def _dev_jwt(user_id: str) -> str:
+    # Формат: svid.<user_id>.<unix>
+    return f"svid.{user_id}.{int(datetime.now(tz=timezone.utc).timestamp())}"
+
+def _extract_user_id_from_dev_jwt(auth_header: Optional[str]) -> Optional[str]:
+    """
+    Ждем Authorization: Bearer svid.<user_id>.<ts>
+    Возвращаем user_id или None.
+    """
+    if not auth_header:
+        return None
+    try:
+        if not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header.split(" ", 1)[1].strip()
+        parts = token.split(".")
+        if len(parts) < 3 or parts[0] != "svid":
+            return None
+        return parts[1]
+    except Exception:
+        return None
+
+# --- Schemas -----------------------------------------------------------------
 class IdentifyIn(BaseModel):
-    fingerprint: Optional[str] = None     # пока не пишем
-    tz: Optional[str] = None              # пока не пишем
+    fingerprint: Optional[str] = None
+    tz: Optional[str] = None
     visitor_id: Optional[str] = None
-    landing_url: Optional[str] = None
-    referrer_host: Optional[str] = None
 
 class IdentifyOut(BaseModel):
     visitor_id: str
-    level: int = 1  # 1 = guest
+    level: int = 1
 
 class RegisterIn(BaseModel):
-    name: str
+    name: Optional[str] = Field(None, alias="display_name")
+    display_name: Optional[str] = None
     email: str
     password: str
     visitor_id: Optional[str] = None
+
+class UserOut(BaseModel):
+    user_id: str
+    level: int = 2
+    jwt: Optional[str] = None
+    visitor: Optional[IdentifyOut] = None
 
 class LoginIn(BaseModel):
     email: str
@@ -49,196 +118,213 @@ class LoginIn(BaseModel):
 
 class ResetIn(BaseModel):
     email: str
-
-class UserOut(BaseModel):
-    user_id: str
-    level: int = 2  # 2 = user
-    jwt: Optional[str] = None
-    visitor: Optional[IdentifyOut] = None
+    password: str
 
 class OkOut(BaseModel):
     ok: bool = True
 
-# ---------- Таблицы ----------
-T_VISITOR = "visitor"
-T_USERS   = "users"
-T_VAULT   = "auth_vault"
+class MeOut(BaseModel):
+    user_id: str
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    level: int = 2  # 2 = user
 
-# ---------- PBKDF2 (stdlib) ----------
-def _hash_password(pw: str) -> str:
-    salt = secrets.token_bytes(16)
-    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
-    return base64.b64encode(salt + dk).decode("utf-8")
+# --- Helpers: DB access ------------------------------------------------------
+def _now_iso() -> str:
+    return datetime.now(tz=timezone.utc).isoformat()
 
-def _check_password(pw: str, stored: str) -> bool:
-    try:
-        raw = base64.b64decode(stored.encode("utf-8"))
-        salt, dk = raw[:16], raw[16:]
-        new_dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, 100_000)
-        return hmac.compare_digest(dk, new_dk)
-    except Exception:
-        return False
-
-# ---------- Утилиты ----------
-def _client_ip(req: Request) -> str:
-    xff = req.headers.get("x-forwarded-for")
-    return xff.split(",")[0].strip() if xff else (req.client.host if req.client else "0.0.0.0")
-
-def _dev_jwt(user_id: str) -> str:
-    return f"svid.{user_id}.{int(time.time())}"
-
-# ---------- DB-хелперы ----------
-def _get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
-    res = sb.table(T_USERS).select("*").eq("email", email).limit(1).execute()
-    rows = res.data or []
-    return rows[0] if rows else None
-
-def _get_password_hash_artifact(user_id: str) -> Optional[str]:
-    res = (
-        sb.table(T_VAULT)
-        .select("payload")
-        .eq("user_id", user_id)
-        .eq("provider", "email")
-        .eq("kind", "password_hash")
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    rows = res.data or []
-    if not rows: return None
-    payload = rows[0].get("payload") or {}
-    return payload.get("hash")
-
-def _put_password_hash_artifact(user_id: str, hash_str: str):
-    sb.table(T_VAULT).insert({
-        "artifact_id": str(uuid.uuid4()),
-        "user_id": user_id,
-        "provider": "email",
-        "kind": "password_hash",
-        "payload": {"algo": "pbkdf2_sha256", "iter": 100_000, "hash": hash_str},
-        "status": "active"
-    }).execute()
-
-def _get_visitor(visitor_id: str) -> Optional[Dict[str, Any]]:
-    res = sb.table(T_VISITOR).select("*").eq("visitor_id", visitor_id).limit(1).execute()
-    rows = res.data or []
-    return rows[0] if rows else None
-
-def _create_visitor(data: IdentifyIn) -> str:
-    """Вставляем только реально существующие колонки, без экзотики."""
-    vid = str(uuid.uuid4())
+def _ensure_visitor(sb: Client, visitor_id: Optional[str], fp: Optional[str], tz: Optional[str]) -> str:
+    """
+    Если visitor_id нет — создаём, если есть — возвращаем.
+    """
+    if visitor_id:
+        return visitor_id
     payload = {
-        "visitor_id": vid,
-        "level": 1,  # guest
+        "fingerprint": fp or None,
+        "tz": tz or None,
+        "created_at": _now_iso(),
     }
-    # эти поля ты точно показывал на скрине
-    if data.landing_url is not None:
-        payload["landing_url"] = data.landing_url
-    if data.referrer_host is not None:
-        payload["referrer_host"] = data.referrer_host
+    res = sb.table(T_VISITOR).insert(payload).execute()
+    data = (res.data or [{}])[0]
+    vid = data.get("visitor_id") or data.get("id")
+    if not vid:
+        # fallback: перечитать последний созданный
+        q = sb.table(T_VISITOR).select("visitor_id").order("created_at", desc=True).limit(1).execute()
+        rows = q.data or []
+        if not rows:
+            raise HTTPException(500, detail="cannot create visitor")
+        vid = rows[0].get("visitor_id") or rows[0].get("id")
+    return str(vid)
 
-    # first_seen_at пусть ставится дефолтом (now()) на стороне БД
-    sb.table(T_VISITOR).insert(payload).execute()
-    return vid
+def _get_user_by_email(sb: Client, email: str) -> Optional[Dict[str, Any]]:
+    q = sb.table(T_USERS).select("*").eq("email", email).limit(1).execute()
+    rows = q.data or []
+    return rows[0] if rows else None
 
-def _link_visitor_to_user(visitor_id: Optional[str], user_id: str):
-    if not visitor_id:
-        return
-    # best-effort: если таких колонок нет, молча игнорируем
+def _get_user_by_id(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
+    q = sb.table(T_USERS).select("*").eq("user_id", user_id).limit(1).execute()
+    rows = q.data or []
+    return rows[0] if rows else None
+
+def _store_password_hash(sb: Client, user_id: str, spec: HashSpec) -> None:
+    payload = {
+        "user_id": user_id,
+        "payload": {"hash": spec.model_dump()},
+        "created_at": _now_iso(),
+    }
+    sb.table(T_VAULT).insert(payload).execute()
+
+def _get_password_hash(sb: Client, user_id: str) -> Optional[HashSpec]:
+    q = sb.table(T_VAULT).select("payload").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
+    rows = q.data or []
+    if not rows:
+        return None
+    payload = rows[0].get("payload") or {}
+    spec = payload.get("hash")
+    if not spec:
+        return None
     try:
-        sb.table(T_VISITOR).update({
-            # если у тебя есть эти поля — отлично; если нет — запрос всё равно проигнорим
-            "user_id": user_id,
-            "linked_to_user": True,
-            "linked_at": "now()"
-        }).eq("visitor_id", visitor_id).execute()
+        return HashSpec(**spec)
     except Exception:
-        pass
+        return None
 
-# ---------- Роуты ----------
+# --- Routes ------------------------------------------------------------------
+
 @router.post("/identify", response_model=IdentifyOut)
-def identify(body: IdentifyIn, request: Request):
-    """Шаг 1: любой посетитель получает visitor_id и level=1 (guest)."""
-    if body.visitor_id:
-        row = _get_visitor(body.visitor_id)
-        if row:
-            return IdentifyOut(visitor_id=row["visitor_id"], level=row.get("level") or 1)
-    # создаём нового
-    new_id = _create_visitor(body)
-    return IdentifyOut(visitor_id=new_id, level=1)
+def identify(body: IdentifyIn):
+    """
+    Создает (или подтверждает) сущность visitor и возвращает базовый уровень 1.
+    """
+    sb = _sb()
+    vid = _ensure_visitor(sb, body.visitor_id, body.fingerprint, body.tz)
+    return IdentifyOut(visitor_id=vid, level=1)
+
 
 @router.post("/register", response_model=UserOut)
-def register(body: RegisterIn, request: Request):
-    email = body.email.strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(http.HTTP_400_BAD_REQUEST, detail="Invalid email")
+def register(body: RegisterIn):
+    """
+    Создает пользователя уровня 2 и сохраняет хэш пароля в auth_vault.
+    """
+    sb = _sb()
 
-    existed = _get_user_by_email(email)
-    if existed:
-        raise HTTPException(http.HTTP_409_CONFLICT, detail="Email already registered")
+    # Нормализуем имя
+    display_name = body.display_name or body.name
 
-    user_id = str(uuid.uuid4())
-    try:
-        sb.table(T_USERS).insert({
-            "user_id": user_id,
-            "display_name": body.name.strip(),
-            "email": email,
-            "level": 2
-        }).execute()
+    # Email уникален
+    existing = _get_user_by_email(sb, body.email)
+    if existing:
+        raise HTTPException(409, detail="User already exists")
 
-        _put_password_hash_artifact(user_id, _hash_password(body.password))
-        _link_visitor_to_user(body.visitor_id, user_id)
-    except Exception as e:
-        raise HTTPException(http.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB error: {e}")
+    # Создаём пользователя
+    payload_user = {
+        "display_name": display_name,
+        "email": body.email,
+        "level": 2,
+        "created_at": _now_iso(),
+    }
+    ins = sb.table(T_USERS).insert(payload_user).execute()
+    row = (ins.data or [{}])[0]
+    user_id = row.get("user_id") or row.get("id")
+    if not user_id:
+        # fallback перечитать
+        q = sb.table(T_USERS).select("user_id").eq("email", body.email).limit(1).execute()
+        rows = q.data or []
+        if not rows:
+            raise HTTPException(500, detail="cannot create user")
+        user_id = rows[0].get("user_id") or rows[0].get("id")
+    user_id = str(user_id)
 
-    jwt = _dev_jwt(user_id)
-    visitor_out = IdentifyOut(visitor_id=body.visitor_id, level=1) if body.visitor_id else None
-    return UserOut(user_id=user_id, level=2, jwt=jwt, visitor=visitor_out)
+    # Сохраняем хэш
+    spec = _hash_password(body.password)
+    _store_password_hash(sb, user_id, spec)
+
+    # Привязываем визитора (опционально — достаточно вернуть его)
+    vid = _ensure_visitor(sb, body.visitor_id, None, None)
+
+    return UserOut(
+        user_id=user_id,
+        level=2,
+        jwt=_dev_jwt(user_id),
+        visitor=IdentifyOut(visitor_id=vid, level=1),
+    )
+
 
 @router.post("/login", response_model=UserOut)
-def login(body: LoginIn, request: Request):
-    email = body.email.strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(http.HTTP_400_BAD_REQUEST, detail="Invalid email")
-
-    user = _get_user_by_email(email)
+def login(body: LoginIn):
+    """
+    Валидирует пароль, возвращает user_id, level=2 и dev-JWT.
+    """
+    sb = _sb()
+    user = _get_user_by_email(sb, body.email)
     if not user:
-        raise HTTPException(http.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(401, detail="Invalid credentials")
 
-    hash_str = _get_password_hash_artifact(user_id=user["user_id"])
-    if not hash_str or not _check_password(body.password, hash_str):
-        raise HTTPException(http.HTTP_401_UNAUTHORIZED, detail="Wrong credentials")
+    user_id = str(user.get("user_id") or user.get("id"))
+    spec = _get_password_hash(sb, user_id)
+    if not spec or not _verify_password(body.password, spec):
+        raise HTTPException(401, detail="Invalid credentials")
 
-    _link_visitor_to_user(body.visitor_id, user["user_id"])
+    vid = _ensure_visitor(sb, body.visitor_id, None, None)
 
-    jwt = _dev_jwt(user["user_id"])
-    visitor_out = IdentifyOut(visitor_id=body.visitor_id, level=1) if body.visitor_id else None
-    return UserOut(user_id=user["user_id"], level=user.get("level") or 2, jwt=jwt, visitor=visitor_out)
+    return UserOut(
+        user_id=user_id,
+        level=int(user.get("level") or 2),
+        jwt=_dev_jwt(user_id),
+        visitor=IdentifyOut(visitor_id=vid, level=1),
+    )
 
-@router.post("/reset")
-def reset_password(body: ResetIn):
-    email = body.email.strip().lower()
-    user = _get_user_by_email(email)
+
+@router.post("/reset", response_model=OkOut)
+def reset(body: ResetIn):
+    """
+    Простейший reset: перезаписать пароль на новый.
+    (в проде — email-поток, подтверждения и т.д.)
+    """
+    sb = _sb()
+    user = _get_user_by_email(sb, body.email)
     if not user:
-        raise HTTPException(http.HTTP_404_NOT_FOUND, detail="User not found")
+        # Не раскрываем существование email
+        return OkOut(ok=True)
 
-    new_password = _gen_dev_password(10)
-    try:
-        _put_password_hash_artifact(user["user_id"], _hash_password(new_password))
-    except Exception as e:
-        raise HTTPException(http.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"DB error: {e}")
+    user_id = str(user.get("user_id") or user.get("id"))
+    spec = _hash_password(body.password)
+    _store_password_hash(sb, user_id, spec)
+    return OkOut(ok=True)
 
-    return JSONResponse({"new_password": new_password})
-
-def _gen_dev_password(length: int = 10) -> str:
-    import random
-    pool = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^*"
-    return "".join(random.choice(pool) for _ in range(length))
 
 @router.post("/logout", response_model=OkOut)
 def logout():
+    """
+    В dev-версии просто возвращаем OK — фронт сам чистит localStorage,
+    визитор остается.
+    """
     return OkOut(ok=True)
+
+
+# --- NEW: /me ---------------------------------------------------------------
+
+@router.get("/me", response_model=MeOut)
+def me(request: Request):
+    """
+    Возвращает профиль текущего пользователя по dev-JWT (Authorization: Bearer svid.<user_id>.<ts>).
+    """
+    sb = _sb()
+    user_id = _extract_user_id_from_dev_jwt(request.headers.get("authorization"))
+    if not user_id:
+        raise HTTPException(401, detail="Unauthorized")
+
+    user = _get_user_by_id(sb, user_id)
+    if not user:
+        raise HTTPException(404, detail="User not found")
+
+    return MeOut(
+        user_id=str(user.get("user_id") or user.get("id")),
+        display_name=user.get("display_name"),
+        email=user.get("email"),
+        level=int(user.get("level") or 2),
+    )
+
 
 @router.get("/health")
 def health():
-    return {"ok": True, "service": "svid"}
+    return {"ok": True, "ts": int(datetime.now(tz=timezone.utc).timestamp())}
