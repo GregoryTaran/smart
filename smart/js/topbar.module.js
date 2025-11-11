@@ -34,35 +34,29 @@ function setLevel(n) {
 function renderTopbar(state = {}) {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
+
   const logoHref = state.logoHref || 'index.html';
   const logoSrc  = state.logoSrc  || 'assets/logo400.jpg';
 
   topbar.innerHTML = `
-    <div class="topbar-inner"
-         style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #eee;background:#fff;">
-      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false"
-              aria-label="Открыть меню"
-              style="font-size:20px;background:none;border:0;cursor:pointer;line-height:1">☰</button>
+    <div class="topbar-inner">
+      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="Открыть меню">☰</button>
 
-      <a class="logo" href="${logoHref}" style="display:inline-flex;align-items:center;text-decoration:none">
-        <img src="${logoSrc}" alt="SMART VISION" style="height:36px;width:auto;display:block" />
+      <a class="logo" href="${logoHref}">
+        <img src="${logoSrc}" alt="SMART VISION" />
       </a>
 
-      <div style="flex:1"></div>
-
-      <a id="auth-link" class="login-link" href="login/login.html#login"
-         style="white-space:nowrap;text-decoration:none;color:#222">Логин</a>
+      <a id="auth-link" class="login-link" href="login/login.html#login">Логин</a>
     </div>
   `;
 
-  // бургер
   const btn = topbar.querySelector('.menu-toggle');
   btn?.addEventListener('click', toggleMenu);
 
-  // правый “Логин/Выйти”
   bindAuthLink();
   syncAuthLink(level());
 }
+
 
 // ===== Меню: сайдбар/оверлей =====
 function toggleMenu() {
