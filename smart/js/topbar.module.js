@@ -12,7 +12,7 @@ const MENU = [
 
   { id:'ts',    title:'Проверка сервера',        href:'testserver/testserver.html',       allow:[2,3,4,5] },
   { id:'rec',   title:'Диктофон',                href:'voicerecorder/voicerecorder.html', allow:[2,3,4,5] },
-  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[2,3,4,5] },
+  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[1,2,3,4,5] },
   { id:'logout',title:'Выйти',                   href:'#logout', action:'logout',         allow:[2,3,4,5] },
 
   { id:'admin', title:'Админка',                 href:'admin.html',                       allow:[5] },
