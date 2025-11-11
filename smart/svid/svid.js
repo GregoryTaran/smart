@@ -172,6 +172,11 @@
       return res;
     },
 
+    // ДОБАВЬ НИЖЕ — алиас для совместимости со старым кодом:
+async resetPassword(args) { 
+  return this.reset(args); 
+},
+
     async logout() {
       try {
         await http('/logout', { method: 'POST', body: { user_id: storage.get(LS.USER_ID) } });
