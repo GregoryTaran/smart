@@ -1,8 +1,7 @@
-/* smart/svid/svid.js — минимальный клиент SVID
-   Покрывает: identify, register, login, reset, me, logout
-   - Нормализует вывод ошибок (detail|error|message|raw text)
-   - Не шлёт пустые строки
-   - Менеджит localStorage: svid.visitor_id, svid.visitor_level, svid.user_id, svid.user_level, svid.jwt, svid.level
+/* smart/svid/svid.js — обновлённый клиент
+   - детальные ошибки (detail|error|message|raw)
+   - не шлёт пустые строки
+   - alias resetPassword → reset
 */
 (() => {
   const API_BASE = '/api/svid';
@@ -17,7 +16,6 @@
       level: +(localStorage.getItem('svid.level') || 0) || 0,
     };
   }
-
   function _set(k, v) {
     if (v === null || v === undefined) localStorage.removeItem(k);
     else localStorage.setItem(k, String(v));
@@ -26,14 +24,12 @@
   async function http(path, { method = 'GET', body, headers = {} } = {}) {
     const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
     if (body !== undefined) opts.body = JSON.stringify(body);
-
     const res = await fetch(`${API_BASE}${path}`, opts);
     const text = await res.text();
     let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { /* может быть html */ }
-
+    try { data = text ? JSON.parse(text) : {}; } catch {}
     if (!res.ok) {
-      const msg = (data && (data.detail || data.error || data.message)) || (text || `HTTP ${res.status}`);
+      const msg = (data && (data.detail || data.error || data.message)) || text || `HTTP ${res.status}`;
       throw new Error(msg);
     }
     return data;
@@ -44,7 +40,7 @@
     for (const f of fields) {
       let v = formEl.querySelector(`[name="${f}"]`)?.value;
       if (typeof v === 'string') v = v.trim();
-      if (v === '' || v === undefined) continue; // не шлём пустые строки
+      if (v === '' || v === undefined) continue;     // не шлём пустые
       out[f] = v;
     }
     return out;
@@ -106,17 +102,15 @@
   async function reset({ email, password } = {}) {
     const body = {};
     if (email) body.email = email.trim();
-    if (password) body.password = password; // сервер примет и без него (dev-сценарий)
-    const data = await http('/reset', { method: 'POST', body });
-    return data;
+    if (password) body.password = password; // сервер примет и без него (dev)
+    return await http('/reset', { method: 'POST', body });
   }
 
   async function me() {
     const st = _state();
     const headers = {};
     if (st.jwt) headers['Authorization'] = `Bearer ${st.jwt}`;
-    const data = await http('/me', { headers });
-    return data;
+    return await http('/me', { headers });
   }
 
   async function logout() {
@@ -131,14 +125,11 @@
     return { ok: true };
   }
 
+  // экспорт
   window.SVID = {
-    identify,
-    register,
-    login,
-    reset,
-    me,
-    logout,
-    getState: _state,
-    buildPayload,
+    identify, register, login, reset, me, logout,
+    getState: _state, buildPayload,
   };
+  // алиас для старого кода
+  window.SVID.resetPassword = window.SVID.reset;
 })();
