@@ -1,11 +1,14 @@
-/* smart/svid/svid.js — обновлённый клиент
-   - детальные ошибки (detail|error|message|raw)
-   - не шлёт пустые строки
-   - alias resetPassword → reset
+/* smart/svid/svid.js — GLOBAL build (Contract v1 compliant)
+   - Единственный источник правды по visitor/user/level/jwt
+   - Глобальный синглтон window.SVID (совместимо со "старым" кодом)
+   - Идемпотентные события: svid:visitor, svid:user, svid:logout, svid:level, svid:error
+   - Гарантия наличия уровня (≥1) и визитора (при сети)
 */
 (() => {
   const API_BASE = '/api/svid';
+  const SCHEMA_VERSION = 1;
 
+  // === utils =================================================================
   function _state() {
     return {
       visitor_id: localStorage.getItem('svid.visitor_id') || null,
@@ -14,13 +17,16 @@
       user_level: +(localStorage.getItem('svid.user_level') || 0) || 0,
       jwt: localStorage.getItem('svid.jwt') || null,
       level: +(localStorage.getItem('svid.level') || 0) || 0,
+      schema: +(localStorage.getItem('svid.schema') || 0) || 0,
     };
   }
   function _set(k, v) {
     if (v === null || v === undefined) localStorage.removeItem(k);
     else localStorage.setItem(k, String(v));
   }
-
+  function _dispatch(name, detail) {
+    try { window.dispatchEvent(new CustomEvent(name, { detail })); } catch (e) {}
+  }
   async function http(path, { method = 'GET', body, headers = {} } = {}) {
     const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
     if (body !== undefined) opts.body = JSON.stringify(body);
@@ -30,79 +36,109 @@
     try { data = text ? JSON.parse(text) : {}; } catch {}
     if (!res.ok) {
       const msg = (data && (data.detail || data.error || data.message)) || text || `HTTP ${res.status}`;
-      throw new Error(msg);
+      const err = new Error(msg);
+      _dispatch('svid:error', { message: msg });
+      throw err;
     }
     return data;
   }
 
-  function buildPayload(formEl, fields) {
-    const out = {};
-    for (const f of fields) {
-      let v = formEl.querySelector(`[name="${f}"]`)?.value;
-      if (typeof v === 'string') v = v.trim();
-      if (v === '' || v === undefined) continue;     // не шлём пустые
-      out[f] = v;
+  // === schema/init ===========================================================
+  (function ensureSchema() {
+    const st = _state();
+    if (st.schema < SCHEMA_VERSION) {
+      // future migrations would go here
+      _set('svid.schema', SCHEMA_VERSION);
     }
-    return out;
-  }
+    if (!st.level) _set('svid.level', 1); // уровень всегда есть
+  })();
 
+  // === core actions ==========================================================
   async function identify({ tz = Intl.DateTimeFormat().resolvedOptions().timeZone } = {}) {
     const st = _state();
     const body = { tz };
     if (st.visitor_id) body.visitor_id = st.visitor_id;
     const data = await http('/identify', { method: 'POST', body });
-    if (data?.visitor_id) {
-      _set('svid.visitor_id', data.visitor_id);
-      _set('svid.visitor_level', data.level ?? 1);
-      _set('svid.level', data.level ?? 1);
-      window.dispatchEvent(new CustomEvent('svid:visitor', { detail: { visitor_id: data.visitor_id, level: data.level ?? 1 } }));
+
+    // API can be { visitor_id, level } or { visitor: { visitor_id, level } }
+    const vid = data?.visitor?.visitor_id ?? data?.visitor_id ?? null;
+    const lvl = (data?.visitor?.level ?? data?.level ?? 1) || 1;
+
+    if (vid) {
+      _set('svid.visitor_id', vid);
+      _set('svid.visitor_level', lvl);
+      _set('svid.level', Math.max(1, lvl));
+      _dispatch('svid:visitor', { visitor_id: vid, level: Math.max(1, lvl) });
+      _dispatch('svid:level',   { level: Math.max(1, lvl) });
     }
     return data;
   }
 
   async function register({ display_name, email, password, visitor_id } = {}) {
     const body = {};
-    if (display_name) body.display_name = display_name.trim();
-    if (email) body.email = email.trim();
+    if (display_name) body.display_name = String(display_name).trim();
+    if (email) body.email = String(email).trim();
     if (password) body.password = password;
     const st = _state();
     body.visitor_id = visitor_id || st.visitor_id || undefined;
 
     const data = await http('/register', { method: 'POST', body });
-    if (data?.user_id) {
-      _set('svid.user_id', data.user_id);
-      _set('svid.user_level', data.user?.level ?? 2);
-      _set('svid.jwt', data.jwt || null);
-      _set('svid.level', data.user?.level ?? 2);
-      window.dispatchEvent(new CustomEvent('svid:user', { detail: { user_id: data.user_id, level: data.user?.level ?? 2, jwt: data.jwt || null } }));
+
+    // Политика: пользователь считается залогиненным ТОЛЬКО при наличии jwt
+    const hasJwt = !!(data && data.jwt);
+    const userId = data?.user_id || data?.user?.id || null;
+    const userLevel = (data?.user?.level ?? 2);
+
+    if (hasJwt && userId) {
+      _set('svid.user_id', userId);
+      _set('svid.user_level', userLevel);
+      _set('svid.jwt', data.jwt);
+      _set('svid.level', userLevel);
+      _dispatch('svid:user',  { user_id: userId, level: userLevel, jwt: data.jwt });
+      _dispatch('svid:level', { level: userLevel });
     }
-    if (data?.visitor?.visitor_id) {
-      _set('svid.visitor_id', data.visitor.visitor_id);
-      _set('svid.visitor_level', data.visitor.level ?? 1);
+
+    // Обновим визитора, если сервер вернул
+    const vid = data?.visitor?.visitor_id ?? data?.visitor_id ?? null;
+    const lvl = (data?.visitor?.level ?? data?.level ?? 1) || 1;
+    if (vid) {
+      _set('svid.visitor_id', vid);
+      _set('svid.visitor_level', lvl);
+      // level не поднимаем здесь, т.к. без jwt это не "user"
+      _dispatch('svid:visitor', { visitor_id: vid, level: Math.max(1, lvl) });
+      // Принудительно синхронизируем текущий уровень (мог остаться 1)
+      const eff = +(localStorage.getItem('svid.level') || 1);
+      _dispatch('svid:level', { level: eff });
     }
+
     return data;
   }
 
   async function login({ email, password } = {}) {
     const body = {};
-    if (email) body.email = email.trim();
+    if (email) body.email = String(email).trim();
     if (password) body.password = password;
 
     const data = await http('/login', { method: 'POST', body });
-    if (data?.user_id) {
-      _set('svid.user_id', data.user_id);
-      _set('svid.user_level', data.user?.level ?? 2);
-      _set('svid.jwt', data.jwt || null);
-      _set('svid.level', data.user?.level ?? 2);
-      window.dispatchEvent(new CustomEvent('svid:user', { detail: { user_id: data.user_id, level: data.user?.level ?? 2, jwt: data.jwt || null } }));
+    const userId = data?.user_id || data?.user?.id || null;
+    const userLevel = (data?.user?.level ?? 2);
+    const jwt = data?.jwt || null;
+
+    if (userId) {
+      _set('svid.user_id', userId);
+      _set('svid.user_level', userLevel);
+      _set('svid.jwt', jwt);
+      _set('svid.level', userLevel);
+      _dispatch('svid:user',  { user_id: userId, level: userLevel, jwt });
+      _dispatch('svid:level', { level: userLevel });
     }
     return data;
   }
 
   async function reset({ email, password } = {}) {
     const body = {};
-    if (email) body.email = email.trim();
-    if (password) body.password = password; // сервер примет и без него (dev)
+    if (email) body.email = String(email).trim();
+    if (password) body.password = password; // сервер может принять и без него (dev)
     return await http('/reset', { method: 'POST', body });
   }
 
@@ -121,77 +157,48 @@
     const st = _state();
     const lvl = st.visitor_level || 1;
     _set('svid.level', lvl);
-    window.dispatchEvent(new CustomEvent('svid:logout', { detail: { level: lvl } }));
+    _dispatch('svid:logout', { level: lvl });
+    _dispatch('svid:level',  { level: lvl });
     return { ok: true };
   }
 
-  // экспорт
+  // === guarantee: visitor + level ===========================================
+  async function ensureVisitorAndLevel() {
+    const st0 = _state();
+    // 1) если уже есть visitor+level -> просто разошлём события
+    if (st0.visitor_id && st0.level) {
+      _dispatch('svid:visitor', { visitor_id: st0.visitor_id, level: st0.level });
+      _dispatch('svid:level',   { level: st0.level });
+      return { visitor_id: st0.visitor_id, level: st0.level, source: 'storage' };
+    }
+    // 2) гарантия уровня
+    if (!st0.level) _set('svid.level', 1);
+    // 3) если нет визитора — создадим/подтвердим
+    if (!st0.visitor_id) {
+      try {
+        const data = await identify({});
+        const vid = data?.visitor?.visitor_id ?? data?.visitor_id ?? null;
+        const lvl = (data?.visitor?.level ?? data?.level ?? 1) || 1;
+        if (vid) return { visitor_id: vid, level: Math.max(1, lvl), source: 'network' };
+      } catch (e) {
+        _dispatch('svid:error', { message: String(e && e.message || e) });
+      }
+    }
+    // 4) fallback: синхронизируем то, что есть
+    const st = _state();
+    _dispatch('svid:visitor', { visitor_id: st.visitor_id || null, level: st.level || 1 });
+    _dispatch('svid:level',   { level: st.level || 1 });
+    return { visitor_id: st.visitor_id || null, level: st.level || 1, source: 'fallback' };
+  }
+
+  // === public API ============================================================
   window.SVID = {
     identify, register, login, reset, me, logout,
-    getState: _state, buildPayload,
+    getState: _state,
+    ensureVisitorAndLevel,
+    ready: Promise.resolve().then(() => ensureVisitorAndLevel())
   };
-  // алиас для старого кода
-  window.SVID.resetPassword = window.SVID.reset;
+
+  // авто-инициализация (не блокирующая)
+  try { window.SVID.ready.catch(()=>{}); } catch(e){}
 })();
-
-// === ensureVisitorAndLevel logic ===
-// Guarantee that every visitor has a level and visitor_id from the moment they land.
-// This does not interfere with register/login/logout logic.
-
-export async function ensureVisitorAndLevel() {
-  const st = _state();
-
-  // 1️⃣ If already have visitor and level — reuse and fire event
-  if (st.visitor_id && st.level) {
-    try {
-      window.dispatchEvent(new CustomEvent('svid:visitor', {
-        detail: { visitor_id: st.visitor_id, level: st.level },
-      }));
-    } catch (e) { console.warn('dispatch fail', e); }
-    return { visitor_id: st.visitor_id, level: st.level, source: 'storage' };
-  }
-
-  // 2️⃣ Ensure minimal level (even without visitor)
-  if (!st.level) _set('svid.level', 1);
-
-  // 3️⃣ If no visitor_id, try to get from backend
-  if (!st.visitor_id) {
-    try {
-      const res = await fetch('/identify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data?.visitor?.visitor_id) {
-        const vid = data.visitor.visitor_id;
-        const lvl = data.visitor.level ?? 1;
-        _set('svid.visitor_id', vid);
-        _set('svid.visitor_level', lvl);
-        _set('svid.level', lvl);
-        try {
-          window.dispatchEvent(new CustomEvent('svid:visitor', {
-            detail: { visitor_id: vid, level: lvl },
-          }));
-        } catch(e) {}
-        return { visitor_id: vid, level: lvl, source: 'network' };
-      } else {
-        console.warn('ensureVisitorAndLevel: unexpected response', data);
-      }
-    } catch(err) {
-      console.error('ensureVisitorAndLevel: identify failed', err);
-    }
-  }
-
-  // 4️⃣ Fallback: dispatch with whatever we have
-  const final = _state();
-  try {
-    window.dispatchEvent(new CustomEvent('svid:visitor', {
-      detail: { visitor_id: final.visitor_id || null, level: final.level || 1 },
-    }));
-  } catch(_) {}
-  return { visitor_id: final.visitor_id || null, level: final.level || 1, source: 'fallback' };
-}
-
-// Run automatically once on load (non-blocking)
-try { ensureVisitorAndLevel().catch(()=>{}); } catch(e){}
