@@ -1,34 +1,37 @@
-// === Voice Recorder (финальная версия с импортами и WS) ===
+// === Voice Recorder (версия с логированием) ===
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
 import WavAssembler from "./audiocore/wav-assembler.js"; // опционально
-import "./audiocore/recorder.worklet.js";
 
-// === WebSocket блок с интеграцией SVID ===
+// === WebSocket блок с интеграцией SVID и логированием ===
 let ws = null;
 
 async function connectWS(recId) {
-  // Берём user_id из ядра SVID
+  console.log("🎧 [WS] Preparing connection for recId:", recId);
   const state = (window.SVID && typeof SVID.getState === 'function')
     ? SVID.getState()
     : {};
   const userId = state.user_id || state.visitor_id || "anon";
+  console.log("🧠 [SVID] userId =", userId);
 
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const url = `${proto}://${location.host}/ws/voicerecorder`;
+  console.log("🌐 [WS] Connecting to:", url);
+
   ws = new WebSocket(url);
 
   ws.onopen = () => {
+    console.log("✅ [WS] Connected, sending START");
     ws.send(`START ${JSON.stringify({ user_id: userId, rec_id: recId, ext: ".wav" })}`);
-    console.log("🎧 WS connected as", userId);
   };
 
   ws.onmessage = (ev) => {
-    console.log("WS msg:", ev.data);
+    console.log("📨 [WS] Message:", ev.data);
     try {
       const d = JSON.parse(ev.data);
       if (d.status === "SAVED") {
+        console.log("💾 [WS] Saved file URL:", d.url);
         const list = document.getElementById("record-list");
         if (list) {
           const li = document.createElement("li");
@@ -36,29 +39,37 @@ async function connectWS(recId) {
           list.prepend(li);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn("⚠️ [WS] Non-JSON message:", ev.data);
+    }
   };
 
-  ws.onerror = (e) => console.error("WS error:", e);
-  ws.onclose = () => console.log("WS closed");
+  ws.onerror = (e) => console.error("❌ [WS] Error:", e);
+  ws.onclose = (ev) => console.log("🛑 [WS] Closed:", ev.code, ev.reason);
 }
 
 // === Безопасное подключение segmenter ===
 function attachSegmenterHandler() {
   if (typeof segmenter !== "undefined" && segmenter && typeof segmenter.onSegment !== "undefined") {
+    console.log("🎙️ [Segmenter] Handler attached");
     segmenter.onSegment = (seg) => {
+      console.log("📦 [Segmenter] Sending chunk, size:", seg.blob.size);
       if (ws && ws.readyState === 1) seg.blob.arrayBuffer().then(buf => ws.send(buf));
     };
-    console.log("✅ segmenter.onSegment attached");
   } else {
-    setTimeout(attachSegmenterHandler, 200);
+    console.log("⏳ [Segmenter] Waiting to attach...");
+    setTimeout(attachSegmenterHandler, 300);
   }
 }
 attachSegmenterHandler();
 
 async function stopWS() {
-  if (ws && ws.readyState === 1) ws.send("END");
+  if (ws && ws.readyState === 1) {
+    console.log("🧹 [WS] Sending END");
+    ws.send("END");
+  }
   ws = null;
+  console.log("🧩 [WS] Connection reset");
 }
 
 // === Пример вызова в start() ===
