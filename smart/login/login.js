@@ -31,7 +31,7 @@
   const switches = qa('[data-action]');
 
   // Состояния: register | login | reset
-  let state = 'register';
+  let state = 'login';
 
   // --------- Утилиты ---------
 
@@ -141,7 +141,7 @@
     disableButton(btn, true);
     try {
       // ВАЖНО: svid.js должен быть подключен раньше этого файла
-      const data = await window.SVID.register({ name, email, password: pass });
+      const data = await window.SVID.register({ display_name: name, email, password: pass });
       showStatus('Регистрация успешна. Добро пожаловать!', 'success');
 
       // очистка текущей формы
@@ -196,7 +196,7 @@
     const btn = findSubmitButton(formReset);
     disableButton(btn, true);
     try {
-      const { new_password } = await window.SVID.resetPassword({ email });
+      const { new_password } = await window.SVID.reset({ email });
       showStatus('Пароль сгенерирован. Смотрите ниже 👇', 'success');
       showResetResult(new_password ? `Новый пароль: ${new_password}` : 'Инструкция отправлена на почту.');
 
@@ -215,13 +215,13 @@
       const action = el.getAttribute('data-action');
       if (action === 'to-login') setState('login');
       else if (action === 'to-reset') setState('reset');
-      else if (action === 'to-register') setState('register');
+      else if (action === 'to-register') setState('login');
     });
   });
 
   // Инициализация
   document.addEventListener('DOMContentLoaded', () => {
-    setState('register');
+    setState('login');
     injectClearButton(formRegister);
     injectClearButton(formLogin);
     injectClearButton(formReset);

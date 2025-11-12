@@ -85,18 +85,10 @@
     const data = await http('/register', { method: 'POST', body });
 
     // Политика: пользователь считается залогиненным ТОЛЬКО при наличии jwt
-    const hasJwt = !!(data && data.jwt);
+    const hasJwt = false; // forced: registration does NOT log in
     const userId = data?.user_id || data?.user?.id || null;
     const userLevel = (data?.user?.level ?? 2);
-
-    if (hasJwt && userId) {
-      _set('svid.user_id', userId);
-      _set('svid.user_level', userLevel);
-      _set('svid.jwt', data.jwt);
-      _set('svid.level', userLevel);
-      _dispatch('svid:user',  { user_id: userId, level: userLevel, jwt: data.jwt });
-      _dispatch('svid:level', { level: userLevel });
-    }
+  // registration: no user elevation here
 
     // Обновим визитора, если сервер вернул
     const vid = data?.visitor?.visitor_id ?? data?.visitor_id ?? null;
@@ -128,7 +120,7 @@
       _set('svid.user_id', userId);
       _set('svid.user_level', userLevel);
       _set('svid.jwt', jwt);
-      _set('svid.level', userLevel);
+      // (skipped) do not elevate level on register
       _dispatch('svid:user',  { user_id: userId, level: userLevel, jwt });
       _dispatch('svid:level', { level: userLevel });
     }
