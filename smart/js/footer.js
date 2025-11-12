@@ -98,4 +98,5 @@
   } else {
     start();
   }
+  window.addEventListener('svid:visitor', renderInformer);
 })();
