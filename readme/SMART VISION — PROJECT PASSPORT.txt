@@ -1,0 +1,17 @@
+# SMART VISION — PROJECT PASSPORT
+
+1. PROJECT NAME: SMART VISION
+2. AUTHOR: Greg Taran
+3. PURPOSE: Web platform (Frontend + FastAPI Backend + Supabase)
+4. FRONTEND: smart/ (Сайт смонтирован на папку smart/)
+5. BACKEND: FastAPI server (Render) (Сервер смонтирован на папку server/)
+6. DATABASE: Supabase (Postgres + Storage)
+7. DOMAIN: https://test.smartvision.life/
+8. STRUCTURE: two folders — smart/ (frontend) and server/ (backend)
+9. FRONT-ENTRY: /smart/index.html
+10. AUTH PAGE: /smart/login/login.html
+13. ENV VARS (Render): SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / OPENAI_API_KEY / GOOGLE_API_KEY
+15. MAIN FILES: main.py
+
+22. SUPABASE_URL = "https://bqtlomddtojirtkazpvj.supabase.co"
+
