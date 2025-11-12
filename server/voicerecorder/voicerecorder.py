@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from supabase import create_client
 import os, uuid
 
@@ -11,11 +11,10 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 BUCKET = "sv-storage"
 FOLDER = "VoiceRecorder"
 
-@app.post("/api/voicerecorder/test-upload")
+@app.post("/voicerecorder/test-upload")
 async def test_upload(file: UploadFile = File(...)):
-    """Просто принять файл и положить в Supabase Storage"""
+    """Тестовая загрузка файла в Supabase Storage"""
     try:
-        # генерим временный id для теста
         test_id = uuid.uuid4().hex[:8]
         filename = file.filename or f"test_{test_id}.wav"
         path = f"{FOLDER}/test/{filename}"
@@ -24,6 +23,7 @@ async def test_upload(file: UploadFile = File(...)):
         res = supabase.storage.from_(BUCKET).upload(
             path, data, {"content-type": file.content_type}
         )
+
         if res.get("error"):
             return {"ok": False, "error": res["error"]}
 
