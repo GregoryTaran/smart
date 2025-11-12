@@ -69,7 +69,7 @@
     body.visitor_id = visitor_id || st.visitor_id || undefined;
 
     const data = await http('/register', { method: 'POST', body });
-    if (data?.jwt) {
+    if (data?.user_id) {
       _set('svid.user_id', data.user_id);
       _set('svid.user_level', data.user?.level ?? 2);
       _set('svid.jwt', data.jwt || null);
@@ -79,9 +79,7 @@
     if (data?.visitor?.visitor_id) {
       _set('svid.visitor_id', data.visitor.visitor_id);
       _set('svid.visitor_level', data.visitor.level ?? 1);
-    
-    try { window.dispatchEvent(new CustomEvent('svid:visitor', { detail: { visitor_id: data.visitor.visitor_id, level: (data.visitor.level ?? 1) } })); } catch (e) {}
-  }
+    }
     return data;
   }
 
@@ -91,7 +89,7 @@
     if (password) body.password = password;
 
     const data = await http('/login', { method: 'POST', body });
-    if (data?.jwt) {
+    if (data?.user_id) {
       _set('svid.user_id', data.user_id);
       _set('svid.user_level', data.user?.level ?? 2);
       _set('svid.jwt', data.jwt || null);
@@ -135,3 +133,65 @@
   // алиас для старого кода
   window.SVID.resetPassword = window.SVID.reset;
 })();
+
+// === ensureVisitorAndLevel logic ===
+// Guarantee that every visitor has a level and visitor_id from the moment they land.
+// This does not interfere with register/login/logout logic.
+
+export async function ensureVisitorAndLevel() {
+  const st = _state();
+
+  // 1️⃣ If already have visitor and level — reuse and fire event
+  if (st.visitor_id && st.level) {
+    try {
+      window.dispatchEvent(new CustomEvent('svid:visitor', {
+        detail: { visitor_id: st.visitor_id, level: st.level },
+      }));
+    } catch (e) { console.warn('dispatch fail', e); }
+    return { visitor_id: st.visitor_id, level: st.level, source: 'storage' };
+  }
+
+  // 2️⃣ Ensure minimal level (even without visitor)
+  if (!st.level) _set('svid.level', 1);
+
+  // 3️⃣ If no visitor_id, try to get from backend
+  if (!st.visitor_id) {
+    try {
+      const res = await fetch('/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data?.visitor?.visitor_id) {
+        const vid = data.visitor.visitor_id;
+        const lvl = data.visitor.level ?? 1;
+        _set('svid.visitor_id', vid);
+        _set('svid.visitor_level', lvl);
+        _set('svid.level', lvl);
+        try {
+          window.dispatchEvent(new CustomEvent('svid:visitor', {
+            detail: { visitor_id: vid, level: lvl },
+          }));
+        } catch(e) {}
+        return { visitor_id: vid, level: lvl, source: 'network' };
+      } else {
+        console.warn('ensureVisitorAndLevel: unexpected response', data);
+      }
+    } catch(err) {
+      console.error('ensureVisitorAndLevel: identify failed', err);
+    }
+  }
+
+  // 4️⃣ Fallback: dispatch with whatever we have
+  const final = _state();
+  try {
+    window.dispatchEvent(new CustomEvent('svid:visitor', {
+      detail: { visitor_id: final.visitor_id || null, level: final.level || 1 },
+    }));
+  } catch(_) {}
+  return { visitor_id: final.visitor_id || null, level: final.level || 1, source: 'fallback' };
+}
+
+// Run automatically once on load (non-blocking)
+try { ensureVisitorAndLevel().catch(()=>{}); } catch(e){}
