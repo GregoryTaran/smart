@@ -80,6 +80,17 @@
     });
   }
 
+
+  // Универсальный редирект на index.html с учётом <base>
+  function redirectToIndex() {
+    try {
+      const url = new URL('index.html', document.baseURI).href;
+      location.replace(url);
+    } catch (e) {
+      // fallback: относительный переход
+      location.replace('index.html');
+    }
+  }
   function injectClearButton(form) {
     if (!form) return;
     const wrap = form.querySelector('.login__links') || form;
@@ -166,7 +177,7 @@
       clearForm(formLogin);
 
       // тут можно редиректнуть, если хочешь:
-      // location.href = '/smart/index.html';
+      redirectToIndex();
     } catch (err) {
       showStatus(err?.message || 'Ошибка входа. Проверьте данные.', 'error');
     } finally {
