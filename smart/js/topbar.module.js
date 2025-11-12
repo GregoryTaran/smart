@@ -1,15 +1,14 @@
 
-// === SMART VISION: auth-level classes for CSS styling (topbar only will use them) ===
-function setAuthClasses(level) {
-  const lvl = Number(level) || 0;
-  const cls = document.body.classList;
-  cls.toggle('auth-on',  lvl >= 2);
-  cls.toggle('auth-off', lvl <  2);
-  // remove previous auth-level-* classes
-  [...cls].filter(c => c.startsWith('auth-level-')).forEach(c => cls.remove(c));
-  cls.add(`auth-level-${lvl}`);
+// === Global redirect to index after logout (respects <base>) ===
+function redirectToIndex() {
+  try {
+    const url = new URL('index.html', document.baseURI).href;
+    location.replace(url);
+  } catch (e) {
+    location.replace('index.html');
+  }
 }
-// === /auth-level classes ===
+// === /redirect helper ===
 /* topbar.module.js
    Мини-патч: добавлен диагностический бейдж "level N" (низ справа).
    БЭКЕНД: /api/svid/* ; UI слушает событие window "svid:level" и читает localStorage('svid.level')
@@ -126,24 +125,14 @@ function bindAuthLink() {
 }
 function syncAuthLink(lvl) {
   const a = document.getElementById('auth-link');
-  const lvl = Number(arguments[0]) || 0;
-  if (!a) { setAuthClasses(lvl); return; }
-
+  if (!a) return;
   if (lvl >= 2) {
-    // logged in -> show logout in topbar
     a.textContent = 'Выйти';
     a.setAttribute('href', '#logout');
-    a.setAttribute('data-action', 'logout'); // unified selector for CSS
-    a.classList.add('is-logout');
   } else {
-    // guest -> show login link
     a.textContent = 'Логин';
     a.setAttribute('href', 'login/login.html#login');
-    a.removeAttribute('data-action');
-    a.classList.remove('is-logout');
   }
-  // expose level to CSS
-  setAuthClasses(lvl);
 }
 
 function renderMenu(currentLevel = level()) {
@@ -270,3 +259,6 @@ export async function initPage({
     }
   });
 }
+
+// Force navigation to index on any logout
+window.addEventListener('svid:logout', () => redirectToIndex());
