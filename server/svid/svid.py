@@ -1,10 +1,8 @@
-# server/svid/svid.py
+# server/svid/svid.py — стабильная версия с фиксом под Supabase v2.x
 from __future__ import annotations
-
 import os, uuid, hashlib, hmac, secrets
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
-
 from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
@@ -24,7 +22,6 @@ T_USERS = "users"
 T_VISITOR = "visitor"
 T_VAULT = "auth_vault"
 
-# ---------- App / Router ----------
 app = FastAPI()
 router = APIRouter(prefix="/api/svid", tags=["svid"])
 
@@ -42,20 +39,27 @@ def _normalize_email(email: str) -> str:
         raise HTTPException(400, detail="Invalid email")
     return email
 
+def _extract_data(r) -> list:
+    """Универсальный извлекатель данных из supabase-пакета."""
+    if r is None:
+        return []
+    if isinstance(r, list):
+        return r
+    if hasattr(r, "data") and isinstance(r.data, list):
+        return r.data
+    if hasattr(r, "json") and isinstance(r.json, dict) and "data" in r.json:
+        return r.json["data"]
+    if isinstance(r, dict) and "data" in r:
+        return r["data"]
+    return []
+
 def _hash_password(password: str) -> Dict[str, Any]:
     if not password or len(password) < 6:
         raise HTTPException(400, detail="Password must be at least 6 characters")
     salt = secrets.token_bytes(16)
     iters = 120_000
     dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters)
-    return {
-        "hash": {
-            "algo": "pbkdf2_sha256",
-            "salt": salt.hex(),
-            "iters": iters,
-            "hash": dk.hex(),
-        }
-    }
+    return {"hash": {"algo": "pbkdf2_sha256", "salt": salt.hex(), "iters": iters, "hash": dk.hex()}}
 
 def _verify_password(password: str, spec: Dict[str, Any]) -> bool:
     try:
@@ -72,17 +76,16 @@ def _safe_execute(call):
     try:
         return call()
     except Exception as e:
-        # Supabase клиент в разных версиях отдаёт чуть разный объект ошибки — прогоняем как текст
         raise HTTPException(400, detail=f"DB error: {e}")
 
 def _get_user_by_email(sb: Client, email: str) -> Optional[Dict[str, Any]]:
     r = _safe_execute(sb.table(T_USERS).select("*").eq("email", email).limit(1).execute)
-    data = (getattr(r, "data", None) or r or [])
+    data = _extract_data(r)
     return data[0] if data else None
 
 def _get_user_by_id(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
     r = _safe_execute(sb.table(T_USERS).select("*").eq("user_id", user_id).limit(1).execute)
-    data = (getattr(r, "data", None) or r or [])
+    data = _extract_data(r)
     return data[0] if data else None
 
 def _store_password_hash(sb: Client, user_id: str, spec: Dict[str, Any]) -> None:
@@ -103,22 +106,18 @@ def _get_password_hash_spec(sb: Client, user_id: str) -> Optional[Dict[str, Any]
                       .order("created_at", desc=True)
                       .limit(1)
                       .execute)
-    data = (getattr(r, "data", None) or r or [])
+    data = _extract_data(r)
     return (data[0] or {}).get("payload") if data else None
 
 def _ensure_visitor(sb: Client, visitor_id: Optional[str], tz: Optional[str]) -> Tuple[str, int]:
     if visitor_id:
         r = _safe_execute(sb.table(T_VISITOR).select("*").eq("visitor_id", visitor_id).limit(1).execute)
-        data = (getattr(r, "data", None) or r or [])
+        data = _extract_data(r)
         if data:
             lvl = int(data[0].get("level") or 1)
             return visitor_id, lvl
     vid = str(uuid.uuid4())
-    _safe_execute(sb.table(T_VISITOR).insert({
-        "visitor_id": vid,
-        "level": 1,
-        "timezone_guess": tz
-    }).execute)
+    _safe_execute(sb.table(T_VISITOR).insert({"visitor_id": vid, "level": 1, "timezone_guess": tz}).execute)
     return vid, 1
 
 def _make_dev_jwt(user_id: str) -> str:
@@ -150,50 +149,13 @@ class RegisterIn(BaseModel):
     display_name: Optional[str] = Field(None, alias="name")
     visitor_id: Optional[str] = None
 
-    @validator("email")
-    def v_email(cls, v):  # сообщим нормальную причину
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("email is required")
-        return v
-
-    @validator("password")
-    def v_pwd(cls, v):
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("password is required")
-        if len(v) < 6:
-            raise ValueError("password must be at least 6 characters")
-        return v
-
 class LoginIn(BaseModel):
     email: str
     password: str
 
-    @validator("email")
-    def v_email(cls, v):
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("email is required")
-        return v
-
-    @validator("password")
-    def v_pwd(cls, v):
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("password is required")
-        return v
-
 class ResetIn(BaseModel):
     email: str
     password: Optional[str] = None
-
-    @validator("email")
-    def v_email(cls, v):
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("email is required")
-        return v
 
 class UserOut(BaseModel):
     ok: bool = True
@@ -211,6 +173,7 @@ class MeOut(BaseModel):
 
 class OkOut(BaseModel):
     ok: bool = True
+    new_password: Optional[str] = None
 
 # ---------- Routes ----------
 @router.get("/health")
@@ -228,7 +191,6 @@ def register(body: RegisterIn):
     sb = _sb()
     email = _normalize_email(body.email)
     display_name = (body.display_name or email.split("@", 1)[0]).strip()
-
     if _get_user_by_email(sb, email):
         raise HTTPException(409, detail="User already exists")
 
@@ -243,20 +205,20 @@ def register(body: RegisterIn):
     }).execute)
 
     _store_password_hash(sb, user_id, _hash_password(body.password))
-
     visitor_id, vlevel = _ensure_visitor(sb, body.visitor_id, None)
-    # линковка, если поле есть
     try:
-        _safe_execute(sb.table(T_VISITOR).update({"user_id": user_id, "linked_to_user": True, "linked_at": datetime.now(timezone.utc)}).eq("visitor_id", visitor_id).execute)
+        _safe_execute(sb.table(T_VISITOR).update({
+            "user_id": user_id, "linked_to_user": True,
+            "linked_at": datetime.now(timezone.utc)
+        }).eq("visitor_id", visitor_id).execute)
     except Exception:
         pass
 
     jwt = _make_dev_jwt(user_id)
     return UserOut(
-        user_id=user_id,
-        jwt=jwt,
+        user_id=user_id, jwt=jwt,
         user={"email": email, "display_name": display_name, "level": 2},
-        visitor={"visitor_id": visitor_id, "level": vlevel},
+        visitor={"visitor_id": visitor_id, "level": vlevel}
     )
 
 @router.post("/login", response_model=UserOut)
@@ -284,29 +246,25 @@ def reset(body: ResetIn):
     email = _normalize_email(body.email)
     user = _get_user_by_email(sb, email)
     if not user:
-        # на dev не раскрываем наличие — ок
         return OkOut(ok=True)
 
     if body.password and body.password.strip():
         _store_password_hash(sb, user["user_id"], _hash_password(body.password.strip()))
         return OkOut(ok=True)
 
-    # dev: если пароль не прислали — сгенерим и просто сохраним
     rnd = secrets.token_urlsafe(10)
     _store_password_hash(sb, user["user_id"], _hash_password(rnd))
-    return OkOut(ok=True)
+    return OkOut(ok=True, new_password=rnd)
 
 @router.get("/me", response_model=MeOut)
 def me(request: Request):
     user_id = _extract_user_id_from_dev_jwt(request.headers.get("Authorization"))
     if not user_id:
         raise HTTPException(401, detail="No or invalid dev token")
-
     sb = _sb()
     user = _get_user_by_id(sb, user_id)
     if not user:
         raise HTTPException(404, detail="User not found")
-
     return MeOut(
         user_id=str(user["user_id"]),
         display_name=user.get("display_name"),
@@ -316,7 +274,6 @@ def me(request: Request):
 
 @router.post("/logout", response_model=OkOut)
 def logout():
-    # dev: серверных сессий нет
     return OkOut(ok=True)
 
 # ---------- Error handlers ----------
@@ -336,5 +293,4 @@ async def val_exc_handler(request: Request, exc: RequestValidationError):
     msg = "; ".join([e.get("msg", "validation error") for e in exc.errors()]) or "Invalid payload"
     return JSONResponse(status_code=422, content={"ok": False, "detail": msg})
 
-# Mount router
 app.include_router(router)
