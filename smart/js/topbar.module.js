@@ -1,4 +1,3 @@
-
 // === Global redirect to index after logout (respects <base>) ===
 function redirectToIndex() {
   try {
@@ -126,33 +125,12 @@ function bindAuthLink() {
 function syncAuthLink(lvl) {
   const a = document.getElementById('auth-link');
   if (!a) return;
-
   if (lvl >= 2) {
     a.textContent = 'Выйти';
     a.setAttribute('href', '#logout');
-
-    // 🔥 inline-подсветка в логине (синий фон)
-    a.style.background = '#007bff';
-    a.style.color = '#fff';
-    a.style.borderRadius = '8px';
-    a.style.fontWeight = '700';
-    a.style.padding = '6px 12px';
-    a.style.transition = 'background 0.2s ease';
-    a.onmouseover = () => (a.style.background = '#0056b3');
-    a.onmouseout  = () => (a.style.background = '#007bff');
-
   } else {
     a.textContent = 'Логин';
     a.setAttribute('href', 'login/login.html#login');
-
-    // 🔄 белый фон, если не залогинен
-    a.style.background = '#fff';
-    a.style.color = '#000';
-    a.style.border = '1px solid #ccc';
-    a.style.borderRadius = '8px';
-    a.style.fontWeight = '400';
-    a.style.padding = '6px 12px';
-    a.onmouseover = a.onmouseout = null;
   }
 }
 
@@ -283,3 +261,12 @@ export async function initPage({
 
 // Force navigation to index on any logout
 window.addEventListener('svid:logout', () => redirectToIndex());
+
+
+// === Force navigation + full reload on logout ===
+window.addEventListener('svid:logout', () => {
+  redirectToIndex();
+  // небольшой таймаут, чтобы редирект успел выполниться
+  setTimeout(() => location.reload(true), 200);
+});
+// === /Force reload ===
