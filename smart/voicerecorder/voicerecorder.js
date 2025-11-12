@@ -1,4 +1,3 @@
-\
 // === Voice Recorder (start-gated, with rich logging) ===
 // Page does NOTHING until you press Start.
 
