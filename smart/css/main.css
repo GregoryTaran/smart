@@ -345,3 +345,14 @@ body.menu-open #overlay { display: block; }
 .stack-16 > * + *{ margin-top:16px; }
 /* Горизонтальный ряд кнопок/контролов с gap (по желанию) */
 .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
+
+
+/* Яркая подсветка только в топ-баре, когда юзер залогинен */
+.auth-on #topbar [data-action="logout"] {
+  background: #ff3b30;          /* яркий фон (красный) */
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-weight: 700;
+  outline: 2px solid rgba(0,0,0,.15);
+}
