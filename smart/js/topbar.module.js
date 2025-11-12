@@ -1,3 +1,4 @@
+
 // === Global redirect to index after logout (respects <base>) ===
 function redirectToIndex() {
   try {
@@ -123,14 +124,46 @@ function bindAuthLink() {
   });
 }
 function syncAuthLink(lvl) {
-  const a = document.getElementById('auth-link');
-  if (!a) return;
+  // Robust sync: handle cases when #auth-link is not yet in DOM
+  let a = document.getElementById('auth-link');
+  if (!a) {
+    setTimeout(() => syncAuthLink(lvl), 100);
+    return;
+  }
+
   if (lvl >= 2) {
+    // LOGGED IN -> show Logout (blue filled)
     a.textContent = 'Выйти';
     a.setAttribute('href', '#logout');
+    a.setAttribute('data-action', 'logout');
+    a.classList.add('is-logout');
+
+    // Inline highlight (highest priority regardless of CSS load order)
+    a.style.background = '#007bff';
+    a.style.color = '#fff';
+    a.style.border = 'none';
+    a.style.borderRadius = '8px';
+    a.style.fontWeight = '700';
+    a.style.padding = '6px 12px';
+    a.style.transition = 'background 0.2s ease';
+    a.onmouseover = () => (a.style.background = '#0056b3');
+    a.onmouseout  = () => (a.style.background = '#007bff');
+
   } else {
+    // NOT LOGGED IN -> show Login (white with outlined rectangle)
     a.textContent = 'Логин';
     a.setAttribute('href', 'login/login.html#login');
+    a.removeAttribute('data-action');
+    a.classList.remove('is-logout');
+
+    a.style.background = '#fff';
+    a.style.color = '#000';
+    a.style.border = '2px solid #333';
+    a.style.borderRadius = '8px';
+    a.style.fontWeight = '600';
+    a.style.padding = '6px 12px';
+    a.style.transition = 'none';
+    a.onmouseover = a.onmouseout = null;
   }
 }
 
@@ -261,12 +294,3 @@ export async function initPage({
 
 // Force navigation to index on any logout
 window.addEventListener('svid:logout', () => redirectToIndex());
-
-
-// === Force navigation + full reload on logout ===
-window.addEventListener('svid:logout', () => {
-  redirectToIndex();
-  // небольшой таймаут, чтобы редирект успел выполниться
-  setTimeout(() => location.reload(true), 200);
-});
-// === /Force reload ===
