@@ -33,6 +33,13 @@ except Exception as e:
     log.warning(f"Auth module not loaded: {e}")
 
 try:
+    from voicerecorder.voicerecorder_api import router as vr_upload_router
+    app.include_router(vr_upload_router)  # даёт /api/voicerecorder/*
+    log.info("voicerecorder_api router mounted")
+except Exception as e:
+    log.warning(f"voicerecorder_api not mounted: {e}")
+
+try:
     from voicerecorder.ws_voicerecorder import router as voicerecorder_router
     app.include_router(voicerecorder_router, prefix="", tags=["voicerecorder"])
     log.info("voicerecorder router mounted (registered before static root)")
