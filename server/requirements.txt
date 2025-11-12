@@ -1,6 +1,7 @@
 fastapi==0.120.4
 uvicorn[standard]==0.38.0
 aiofiles==25.1.0
+python-multipart>=0.0.9
 
 # audio & processing
 numpy>=1.25
