@@ -10,7 +10,7 @@ log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.1.0")
 
-# ------------------------ CORS (как было) ------------------------
+# ------------------------ CORS ------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,21 +32,33 @@ try:
 except Exception as e:
     log.warning(f"Auth module not loaded: {e}")
 
+# ✅ WebSocket для диктофона — оставляем как было
+try:
+    from voicerecorder.ws_voicerecorder import router as voicerecorder_ws_router
+    app.include_router(voicerecorder_ws_router, prefix="", tags=["voicerecorder-ws"])
+    log.info("voicerecorder WS router mounted")
+except Exception as e:
+    log.info("voicerecorder WS router not mounted: %s", e)
+
+# ✅ HTTP-роутер диктофона через APIRouter (даёт /api/voicerecorder/*)
 try:
     from voicerecorder.voicerecorder_api import router as vr_upload_router
-    app.include_router(vr_upload_router)  # даёт /api/voicerecorder/*
-    log.info("voicerecorder_api router mounted")
+    app.include_router(vr_upload_router)
+    log.info("voicerecorder_api router mounted (/api/voicerecorder/*)")
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
+# ❗ Саб‑приложение оставляем в коде, но ВЫКЛЮЧЕНО по умолчанию.
+# Включить можно, если поставить VR_USE_SUBAPP=1 (тогда займёт весь /api/*)
 try:
-    from voicerecorder.ws_voicerecorder import router as voicerecorder_router
-    app.include_router(voicerecorder_router, prefix="", tags=["voicerecorder"])
-    log.info("voicerecorder router mounted (registered before static root)")
+    if os.getenv("VR_USE_SUBAPP") == "1":
+        from voicerecorder.voicerecorder import app as voicerecorder_app
+        app.mount("/api", voicerecorder_app)
+        log.info("Voicerecorder sub-app mounted at /api (VR_USE_SUBAPP=1)")
+    else:
+        log.info("Voicerecorder sub-app NOT mounted (VR_USE_SUBAPP!=1)")
 except Exception as e:
-    log.info("voicerecorder router not mounted (module missing or import error): %s", e)
-
-
+    log.warning(f"Voicerecorder sub-app mount skipped: {e}")
 
 try:
     from database.api_db import router as db_router
@@ -80,7 +92,7 @@ try:
 except Exception as e:
     log.error(f"Failed to mount svid.svid: {e}")
 
-# ------------------------ Health (как было) ----------------------
+# ------------------------ Health ----------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -107,11 +119,7 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import JSONResponse
-from pathlib import Path
-import os
-
+# ------------------------ FRONTEND STATIC ------------------------
 SMART_FRONT_ROOT = os.environ.get("SMART_FRONT_ROOT", "").strip()
 MOUNT_PATH = os.environ.get("SMART_MOUNT_PATH", "/").strip() or "/"
 cwd_root = (Path(os.getcwd()).resolve() / "smart")
@@ -132,11 +140,7 @@ else:
     tried = [str(p) for p in candidates if p]
     log.warning("[static] Front root not found. Tried: %s", tried)
 
-@app.get(f"{MOUNT_PATH.rstrip('/')}/.static-check", response_class=JSONResponse)
-def static_check():
-    return {
-        "mounted": bool(STATIC_ROOT and STATIC_ROOT.exists()),
-        "static_root": str(STATIC_ROOT) if STATIC_ROOT else None,
-        "base_path": MOUNT_PATH,
-        "cwd": os.getcwd(),
-    }
+# ------------------------ DEBUG ----------------------
+@app.get("/api/debug/routes")
+def _routes():
+    return sorted([getattr(r, "path", str(r)) for r in app.routes])
