@@ -46,13 +46,7 @@ try:
 except Exception as e:
     log.info("voicerecorder router not mounted (module missing or import error): %s", e)
 
-# --- Новый модуль VoiceRecorder upload API ---
-try:
-    from voicerecorder.voicerecorder import app as voicerecorder_app
-    app.mount("/api", voicerecorder_app)
-    log.info("VoiceRecorder upload API mounted")
-except Exception as e:
-    log.warning(f"VoiceRecorder upload API not mounted: {e}")
+
 
 try:
     from database.api_db import router as db_router
