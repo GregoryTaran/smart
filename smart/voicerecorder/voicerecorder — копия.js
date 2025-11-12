@@ -1,15 +1,9 @@
-// === Voice Recorder (финальная версия с импортами и WS) ===
+// === Voice Recorder with SVID integration ===
 
-import SVAudioCore from "./audiocore/sv-audio-core.js";
-import WavSegmenter from "./audiocore/wav-segmenter.js";
-import WavAssembler from "./audiocore/wav-assembler.js"; // опционально
-import "./audiocore/recorder.worklet.js";
-
-// === WebSocket блок с интеграцией SVID ===
 let ws = null;
 
 async function connectWS(recId) {
-  // Берём user_id из ядра SVID
+  // Берём user_id напрямую из ядра SVID
   const state = (window.SVID && typeof SVID.getState === 'function')
     ? SVID.getState()
     : {};
@@ -43,23 +37,14 @@ async function connectWS(recId) {
   ws.onclose = () => console.log("WS closed");
 }
 
-// === Безопасное подключение segmenter ===
-function attachSegmenterHandler() {
-  if (typeof segmenter !== "undefined" && segmenter && typeof segmenter.onSegment !== "undefined") {
-    segmenter.onSegment = (seg) => {
-      if (ws && ws.readyState === 1) seg.blob.arrayBuffer().then(buf => ws.send(buf));
-    };
-    console.log("✅ segmenter.onSegment attached");
-  } else {
-    setTimeout(attachSegmenterHandler, 200);
-  }
-}
-attachSegmenterHandler();
+segmenter.onSegment = (seg) => {
+  if (ws && ws.readyState === 1) seg.blob.arrayBuffer().then(buf => ws.send(buf));
+};
 
 async function stopWS() {
   if (ws && ws.readyState === 1) ws.send("END");
   ws = null;
 }
 
-// === Пример вызова в start() ===
+// === Integration point in start() ===
 // await connectWS(recordingId);

@@ -17,26 +17,27 @@
   <div id="app">
     <header id="topbar" role="banner"></header>
     <main id="main" role="main">
-      <section class="vr-root">
-        <div class="vr-container sv-center-700">
-          <div id="identity-bar" style="font-family:monospace; padding:8px; background:#0b1220; color:#e6eef8;">
-            ID: <span id="anon-id">—</span>  |  Session: <span id="session-id">—</span>  |  Recording: <span id="recording-id">—</span>
-          </div>
-          <div class="demo">
-            <h3>Mic Indicator — тест (Start / Pause / Stop + AEC/NS/AGC/Gain)</h3>
-            <div aria-hidden="true" class="mic-box"><div id="vc-level"></div></div>
-            <div class="controls">
-              <button id="startBtn">Start</button>
-              <button id="pauseBtn" disabled>Pause</button>
-              <button id="stopBtn" disabled>Stop</button>
-              <audio id="sv-player" class="sv-player sv-player--disabled" controls preload="metadata"></audio>
-              <span class="status" id="status">idle</span>
-              <ul id="record-list" style="margin-top:1em;font-family:monospace;"></ul>
+     
+     
+<section class="vr-root">
+  <div class="vr-container sv-center-700">
+    <div class="demo">
+      <h3>Mic Indicator — тест (Start / Pause / Stop + AEC/NS/AGC/Gain)</h3>
+      <div aria-hidden="true" class="mic-box"><div id="vc-level"></div></div>
+      <div class="controls">
+        <button id="startBtn">Start</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <audio id="sv-player" class="sv-player sv-player--disabled" controls preload="metadata"></audio>
+        <span class="status" id="status">idle</span>
+        <ul id="record-list" style="margin-top:1em;font-family:monospace;"></ul>
+      </div>
+    </div>
+  </div>
+</section>
 
-            </div>
-          </div>
-        </div>
-      </section>
+
+
     </main>
     <footer id="footer" role="contentinfo"></footer>
   </div>
