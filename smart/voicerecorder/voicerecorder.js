@@ -1,5 +1,5 @@
 // === Voice Recorder (start-gated, with rich logging) ===
-// Page does NOTHING until you press Start.
+// Страница НИЧЕГО не делает, пока пользователь не нажал Start.
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
@@ -14,7 +14,10 @@ const stopBtn   = document.getElementById("stopBtn");
 const playerEl  = document.getElementById("sv-player");
 const listEl    = document.getElementById("record-list");
 
-const setStatus = (s) => { if (statusEl) statusEl.textContent = s; console.log("🧭 [STATE]", s); };
+const setStatus = (s) => {
+  if (statusEl) statusEl.textContent = s;
+  console.log("🧭 [STATE]", s);
+};
 
 // ---------- Globals for current session ----------
 let core = null;          // SVAudioCore instance
@@ -25,7 +28,9 @@ let paused = false;
 
 // ---------- WS ----------
 async function connectWS(recId) {
-  const state = (window.SVID && typeof SVID.getState === 'function') ? SVID.getState() : {};
+  const state = (window.SVID && typeof SVID.getState === "function")
+    ? SVID.getState()
+    : {};
   const userId = state.user_id || state.visitor_id || "anon";
 
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -36,7 +41,10 @@ async function connectWS(recId) {
 
   ws.onopen = () => {
     console.log("✅ [WS] Connected, sending START");
-    ws.send(`START ${JSON.stringify({ user_id: userId, rec_id: recId, ext: ".wav" })}`);
+    ws.send(
+      "START " +
+      JSON.stringify({ user_id: userId, rec_id: recId, ext: ".wav" })
+    );
   };
 
   ws.onmessage = (ev) => {
@@ -63,57 +71,91 @@ async function connectWS(recId) {
   };
 
   ws.onerror = (e) => console.error("❌ [WS] Error:", e);
-  ws.onclose = (ev) => console.log("🛑 [WS] Closed:", ev.code, ev.reason);
+  ws.onclose = (ev) => {
+    console.log("🛑 [WS] Closed:", ev.code, ev.reason);
+  };
 }
 
+// Отдельная функция, если захотим где-то ещё инициировать END
 async function stopWS() {
-  if (ws && ws.readyState === 1) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
     console.log("🧹 [WS] Sending END");
     ws.send("END");
   }
-  ws = null;
+  // ws сам закроется после ответа сервера; обнулять не обязательно
 }
 
 // ---------- Lifecycle ----------
 async function start() {
   if (core) {
-    console.warn("start(): already running"); 
+    console.warn("start(): already running");
     return;
   }
 
-  // ID for this session
+  // ID для данной сессии записи
   recordingId = (crypto?.randomUUID?.() || `rec_${Date.now()}`);
   console.log("🎬 [START] recId =", recordingId);
   setStatus("starting…");
 
-  // 1) Init audio core (creates AudioContext, loads worklet)
-  core = new SVAudioCore({ chunkSize: 2048, workletUrl: "voicerecorder/audiocore/recorder.worklet.js" });
-  await core.init(); // safe: only happens when user pressed Start
+  // 1) Init audio core (создаёт AudioContext, грузит worklet)
+  core = new SVAudioCore({
+    chunkSize: 2048,
+    workletUrl: "voicerecorder/audiocore/recorder.worklet.js",
+  });
+  await core.init(); // происходит только после клика по Start
   console.log("🎛️ [CORE] AudioContext SR =", core.getContext()?.sampleRate);
 
-  // 2) Init segmenter for exact 2s segments
+  // 2) Init segmenter для строгих 2-секундных сегментов
   segmenter = new WavSegmenter({
     sampleRate: core.getContext()?.sampleRate || 48000,
     segmentSeconds: 2,
     normalize: true,
-    emitBlobPerSegment: true,  // so we can send blob directly
-    padLastSegment: false
+    emitBlobPerSegment: true
+    // padLastSegment НЕ указываем → новый дефолт = true,
+    // поэтому последний сегмент тоже будет ровно 2 сек (добьётся нулями)
   });
+
   segmenter.onSegment = (seg) => {
-    // Guard: Only send when WS is open
-    if (ws && ws.readyState === 1 && seg.blob) {
-      console.log("📦 [SEG] send chunk seq", seg.seq, "dur", seg.durationSec.toFixed(2), "blob", seg.blob.size);
-      seg.blob.arrayBuffer().then(buf => ws.send(buf)).catch(console.error);
+    // Отправляем только если сокет реально открыт
+    if (!seg?.blob) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn(
+        "📦 [SEG] drop / WS not ready",
+        "seq",
+        seg.seq,
+        "dur",
+        seg.durationSec.toFixed(2),
+        "blob",
+        seg.blob.size
+      );
+      return;
+    }
+
+    console.log(
+      "📦 [SEG] send chunk seq",
+      seg.seq,
+      "dur",
+      seg.durationSec.toFixed(2),
+      "blob",
+      seg.blob.size
+    );
+
+    try {
+      // ВАЖНО: отправляем Blob напрямую, без async arrayBuffer(),
+      // чтобы не было гонки с ws = null / END.
+      ws.send(seg.blob);
+    } catch (e) {
+      console.error("❌ [SEG] send failed", e);
     }
   };
 
   // 3) Wire frames -> segmenter
   core.onAudioFrame = (f32) => {
-    // Each frame comes from worklet at fixed chunkSize (from core) — we just feed segmenter
+    // Каждый входящий фрейм просто скармливаем сегментеру
     segmenter.pushFrame(f32);
   };
 
-  // 4) Open WebSocket AFTER core ready (to have user_id, recId in place)
+  // 4) Открываем WebSocket
   await connectWS(recordingId);
 
   // 5) UI state
@@ -131,13 +173,13 @@ async function pause() {
     paused = true;
     setStatus("paused");
     console.log("⏸ [PAUSE]");
-    pauseBtn.textContent = "Resume";
+    if (pauseBtn) pauseBtn.textContent = "Resume";
   } else {
     core.resumeCapture();
     paused = false;
     setStatus("recording");
     console.log("▶️ [RESUME]");
-    pauseBtn.textContent = "Pause";
+    if (pauseBtn) pauseBtn.textContent = "Pause";
   }
 }
 
@@ -146,23 +188,31 @@ async function stop() {
   setStatus("stopping…");
 
   try {
-    // Finish last partial
+    // Сначала просим сегментер ДОБРАТЬ последний сегмент (он будет ровно 2 сек)
     segmenter?.stop();
-  } catch(e){ console.warn(e); }
+  } catch (e) {
+    console.warn(e);
+  }
 
+  // Теперь, когда все сегменты уже отданы через onSegment, сообщаем серверу END
   await stopWS();
 
-  try { core.stop(); } catch(e){ console.warn(e); }
+  try {
+    core.stop();
+  } catch (e) {
+    console.warn(e);
+  }
+
   core = null;
   segmenter = null;
   recordingId = null;
   paused = false;
 
-  // UI
+  // UI → idle
   startBtn?.removeAttribute("disabled");
   pauseBtn?.setAttribute("disabled", "true");
   stopBtn?.setAttribute("disabled", "true");
-  pauseBtn.textContent = "Pause";
+  if (pauseBtn) pauseBtn.textContent = "Pause";
 
   setStatus("idle");
   console.log("🏁 [STOP] done");
@@ -170,7 +220,7 @@ async function stop() {
 
 // ---------- Bind buttons ----------
 document.addEventListener("DOMContentLoaded", () => {
-  // Important: we do NOTHING here except binding buttons.
+  // ВАЖНО: здесь только биндим кнопки, ничего не запускаем сами
   startBtn?.addEventListener("click", start);
   pauseBtn?.addEventListener("click", pause);
   stopBtn?.addEventListener("click", stop);
