@@ -121,6 +121,8 @@
       _set('svid.user_level', userLevel);
       _set('svid.jwt', jwt);
       // (skipped) do not elevate level on register
+      _set('svid.level', userLevel);
+      
       _dispatch('svid:user',  { user_id: userId, level: userLevel, jwt });
       _dispatch('svid:level', { level: userLevel });
     }

@@ -215,7 +215,7 @@
       const action = el.getAttribute('data-action');
       if (action === 'to-login') setState('login');
       else if (action === 'to-reset') setState('reset');
-      else if (action === 'to-register') setState('login');
+      else if (action === 'to-register') setState('register');
     });
   });
 
