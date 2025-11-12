@@ -69,7 +69,7 @@
     body.visitor_id = visitor_id || st.visitor_id || undefined;
 
     const data = await http('/register', { method: 'POST', body });
-    if (data?.user_id) {
+    if (data?.jwt) {
       _set('svid.user_id', data.user_id);
       _set('svid.user_level', data.user?.level ?? 2);
       _set('svid.jwt', data.jwt || null);
@@ -79,7 +79,9 @@
     if (data?.visitor?.visitor_id) {
       _set('svid.visitor_id', data.visitor.visitor_id);
       _set('svid.visitor_level', data.visitor.level ?? 1);
-    }
+    
+    try { window.dispatchEvent(new CustomEvent('svid:visitor', { detail: { visitor_id: data.visitor.visitor_id, level: (data.visitor.level ?? 1) } })); } catch (e) {}
+  }
     return data;
   }
 
@@ -89,7 +91,7 @@
     if (password) body.password = password;
 
     const data = await http('/login', { method: 'POST', body });
-    if (data?.user_id) {
+    if (data?.jwt) {
       _set('svid.user_id', data.user_id);
       _set('svid.user_level', data.user?.level ?? 2);
       _set('svid.jwt', data.jwt || null);
