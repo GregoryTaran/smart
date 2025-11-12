@@ -144,3 +144,27 @@ else:
 @app.get("/api/debug/routes")
 def _routes():
     return sorted([getattr(r, "path", str(r)) for r in app.routes])
+
+
+# === VR: прямые HTTP-пути для теста ===
+from fastapi import UploadFile, File
+from supabase import create_client
+import uuid, os
+
+_SB = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+_BUCKET, _FOLDER = "sv-storage", "VoiceRecorder"
+
+@app.get("/api/voicerecorder/ping")
+def _vr_ping():
+    return {"ok": True}
+
+@app.post("/api/voicerecorder/test-upload")
+async def _vr_upload(file: UploadFile = File(...)):
+    data = await file.read()
+    name = file.filename or f"test_{uuid.uuid4().hex[:8]}.wav"
+    key = f"{_FOLDER}/test/{name}"
+    r = _SB.storage.from_(_BUCKET).upload(key, data, {"content-type": file.content_type})
+    if isinstance(r, dict) and r.get("error"):
+        return {"ok": False, "error": r["error"]}
+    signed = _SB.storage.from_(_BUCKET).create_signed_url(key, 24*3600)
+    return {"ok": True, "path": key, "url": (signed.get("signedURL") if isinstance(signed, dict) else None)}
