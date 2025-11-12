@@ -1,225 +1,144 @@
-/* svid/svid.js — фронтовой клиент идентификации/аутентификации
-   Бэкенд: модуль svid, маршруты /api/svid/*
-   Эндпоинты: POST /identify | /register | /login | /reset | /logout, GET /me
-
-   Фронт-стояние (только для UI):
-     svid.visitor_id, svid.visitor_level
-     svid.user_id,    svid.user_level
-     svid.jwt
-     svid.level       // единый текущий уровень для меню/страниц
+/* smart/svid/svid.js — минимальный клиент SVID
+   Покрывает: identify, register, login, reset, me, logout
+   - Нормализует вывод ошибок (detail|error|message|raw text)
+   - Не шлёт пустые строки
+   - Менеджит localStorage: svid.visitor_id, svid.visitor_level, svid.user_id, svid.user_level, svid.jwt, svid.level
 */
-
-;(function () {
+(() => {
   const API_BASE = '/api/svid';
 
-  const LS = {
-    VISITOR_ID:  'svid.visitor_id',
-    VISITOR_LVL: 'svid.visitor_level',
-    USER_ID:     'svid.user_id',
-    USER_LVL:    'svid.user_level',
-    JWT:         'svid.jwt',
-  };
-  const LVL_KEY = 'svid.level';
-
-  // ---------------- utils ----------------
-  const storage = {
-    get(k)   { return localStorage.getItem(k); },
-    set(k,v) { localStorage.setItem(k, v); },
-    del(k)   { localStorage.removeItem(k); },
-  };
-  function emit(name, detail) {
-    window.dispatchEvent(new CustomEvent(name, { detail }));
-  }
-  function setLevel(n) {
-    const lvl = Number.isFinite(+n) ? +n : 1;
-    localStorage.setItem(LVL_KEY, String(lvl));
-    emit('svid:level', { level: lvl });
-  }
-  function ensureUILvlFromState() {
-    try {
-      const s = SVID?.getState?.() || {};
-      const lvl = Number(s.user_level) || Number(s.visitor_level) || 1;
-      if (String(localStorage.getItem(LVL_KEY)) !== String(lvl)) {
-        localStorage.setItem(LVL_KEY, String(lvl));
-        emit('svid:level', { level: lvl });
-      }
-    } catch { /* no-op */ }
+  function _state() {
+    return {
+      visitor_id: localStorage.getItem('svid.visitor_id') || null,
+      visitor_level: +(localStorage.getItem('svid.visitor_level') || 0) || 0,
+      user_id: localStorage.getItem('svid.user_id') || null,
+      user_level: +(localStorage.getItem('svid.user_level') || 0) || 0,
+      jwt: localStorage.getItem('svid.jwt') || null,
+      level: +(localStorage.getItem('svid.level') || 0) || 0,
+    };
   }
 
-  async function http(path, { method = 'GET', body } = {}) {
-    const headers = { 'Content-Type': 'application/json' };
-    const jwt = storage.get(LS.JWT);
-    if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+  function _set(k, v) {
+    if (v === null || v === undefined) localStorage.removeItem(k);
+    else localStorage.setItem(k, String(v));
+  }
 
-    const res = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'include',
-    });
+  async function http(path, { method = 'GET', body, headers = {} } = {}) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
 
-    if (res.status === 204) return { ok: true };
-    const ct = res.headers.get('content-type') || '';
-    const data = ct.includes('application/json') ? await res.json() : await res.text();
-    if (!res.ok) throw new Error((data && data.error) ? data.error : `HTTP ${res.status}`);
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch { /* может быть html */ }
+
+    if (!res.ok) {
+      const msg = (data && (data.detail || data.error || data.message)) || (text || `HTTP ${res.status}`);
+      throw new Error(msg);
+    }
     return data;
   }
 
-  // ---------------- state setters ----------------
-  function setVisitor({ visitor_id, level }) {
-    if (visitor_id) storage.set(LS.VISITOR_ID, visitor_id);
-    if (Number.isFinite(+level)) storage.set(LS.VISITOR_LVL, String(+level));
-    setLevel(Number.isFinite(+level) ? +level : 1);
-    emit('svid:visitor', { visitor_id, level: Number.isFinite(+level) ? +level : 1 });
-  }
-  function setUser({ user_id, level, jwt }) {
-    if (user_id) storage.set(LS.USER_ID, user_id);
-    if (Number.isFinite(+level)) storage.set(LS.USER_LVL, String(+level));
-    if (jwt)     storage.set(LS.JWT, jwt);
-    setLevel(Number.isFinite(+level) ? +level : 2);
-    emit('svid:user', { user_id, level: Number.isFinite(+level) ? +level : 2, jwt: jwt || null });
-  }
-  function clearUserKeepVisitor() {
-    storage.del(LS.USER_ID);
-    storage.del(LS.USER_LVL);
-    storage.del(LS.JWT);
-    const vLvl = parseInt(storage.get(LS.VISITOR_LVL) || '1', 10);
-    setLevel(Number.isFinite(vLvl) ? vLvl : 1);
-    emit('svid:logout', {});
+  function buildPayload(formEl, fields) {
+    const out = {};
+    for (const f of fields) {
+      let v = formEl.querySelector(`[name="${f}"]`)?.value;
+      if (typeof v === 'string') v = v.trim();
+      if (v === '' || v === undefined) continue; // не шлём пустые строки
+      out[f] = v;
+    }
+    return out;
   }
 
-  // ---------------- public API ----------------
-  const SVID = {
-    ready: null,
+  async function identify({ tz = Intl.DateTimeFormat().resolvedOptions().timeZone } = {}) {
+    const st = _state();
+    const body = { tz };
+    if (st.visitor_id) body.visitor_id = st.visitor_id;
+    const data = await http('/identify', { method: 'POST', body });
+    if (data?.visitor_id) {
+      _set('svid.visitor_id', data.visitor_id);
+      _set('svid.visitor_level', data.level ?? 1);
+      _set('svid.level', data.level ?? 1);
+      window.dispatchEvent(new CustomEvent('svid:visitor', { detail: { visitor_id: data.visitor_id, level: data.level ?? 1 } }));
+    }
+    return data;
+  }
 
-    async init() {
-      // 1) ensure visitor
-      if (!storage.get(LS.VISITOR_ID)) {
-        try {
-          const r = await this.identify();
-          if (!r?.visitor_id) setLevel(1);
-        } catch {
-          setLevel(1);
-        }
-      } else {
-        const v = {
-          visitor_id: storage.get(LS.VISITOR_ID),
-          level: parseInt(storage.get(LS.VISITOR_LVL) || '1', 10),
-        };
-        setLevel(Number.isFinite(+v.level) ? +v.level : 1);
-        emit('svid:visitor', v);
-      }
+  async function register({ display_name, email, password, visitor_id } = {}) {
+    const body = {};
+    if (display_name) body.display_name = display_name.trim();
+    if (email) body.email = email.trim();
+    if (password) body.password = password;
+    const st = _state();
+    body.visitor_id = visitor_id || st.visitor_id || undefined;
 
-      // 2) promote user if present
-      const user_id = storage.get(LS.USER_ID);
-      if (user_id) {
-        const u = {
-          user_id,
-          level: parseInt(storage.get(LS.USER_LVL) || '2', 10),
-          jwt: storage.get(LS.JWT) || null,
-        };
-        setLevel(Number.isFinite(+u.level) ? +u.level : 2);
-        emit('svid:user', u);
-      }
+    const data = await http('/register', { method: 'POST', body });
+    if (data?.user_id) {
+      _set('svid.user_id', data.user_id);
+      _set('svid.user_level', data.user?.level ?? 2);
+      _set('svid.jwt', data.jwt || null);
+      _set('svid.level', data.user?.level ?? 2);
+      window.dispatchEvent(new CustomEvent('svid:user', { detail: { user_id: data.user_id, level: data.user?.level ?? 2, jwt: data.jwt || null } }));
+    }
+    if (data?.visitor?.visitor_id) {
+      _set('svid.visitor_id', data.visitor.visitor_id);
+      _set('svid.visitor_level', data.visitor.level ?? 1);
+    }
+    return data;
+  }
 
-      if (!this.ready) {
-        this.ready = Promise.resolve({ level: parseInt(localStorage.getItem(LVL_KEY) || '1', 10) });
-      }
+  async function login({ email, password } = {}) {
+    const body = {};
+    if (email) body.email = email.trim();
+    if (password) body.password = password;
 
-      // синхронизируем UI-уровень на старте (и для bfcache)
-      ensureUILvlFromState();
-    },
+    const data = await http('/login', { method: 'POST', body });
+    if (data?.user_id) {
+      _set('svid.user_id', data.user_id);
+      _set('svid.user_level', data.user?.level ?? 2);
+      _set('svid.jwt', data.jwt || null);
+      _set('svid.level', data.user?.level ?? 2);
+      window.dispatchEvent(new CustomEvent('svid:user', { detail: { user_id: data.user_id, level: data.user?.level ?? 2, jwt: data.jwt || null } }));
+    }
+    return data;
+  }
 
-    // --- endpoints ---
-    async identify() {
-      const payload = {
-        fingerprint: navigator.userAgent,
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-        visitor_id: storage.get(LS.VISITOR_ID) || null,
-      };
-      const res = await http('/identify', { method: 'POST', body: payload });
-      setVisitor({ visitor_id: res.visitor_id, level: res.level ?? 1 });
-      return res;
-    },
+  async function reset({ email, password } = {}) {
+    const body = {};
+    if (email) body.email = email.trim();
+    if (password) body.password = password; // сервер примет и без него (dev-сценарий)
+    const data = await http('/reset', { method: 'POST', body });
+    return data;
+  }
 
-    async register({ name, email, password }) {
-      const payload = { name, email, password, visitor_id: storage.get(LS.VISITOR_ID) || null };
-      const res = await http('/register', { method: 'POST', body: payload });
-      if (res?.visitor) setVisitor(res.visitor);
-      setUser({ user_id: res.user_id, level: res.level ?? 2, jwt: res.jwt });
-      return res;
-    },
+  async function me() {
+    const st = _state();
+    const headers = {};
+    if (st.jwt) headers['Authorization'] = `Bearer ${st.jwt}`;
+    const data = await http('/me', { headers });
+    return data;
+  }
 
-    async login({ email, password }) {
-      const payload = { email, password, visitor_id: storage.get(LS.VISITOR_ID) || null };
-      const res = await http('/login', { method: 'POST', body: payload });
-      if (res?.visitor) setVisitor(res.visitor);
-      setUser({ user_id: res.user_id, level: res.level ?? 2, jwt: res.jwt });
+  async function logout() {
+    try { await http('/logout', { method: 'POST', body: {} }); } catch {}
+    _set('svid.user_id', null);
+    _set('svid.user_level', null);
+    _set('svid.jwt', null);
+    const st = _state();
+    const lvl = st.visitor_level || 1;
+    _set('svid.level', lvl);
+    window.dispatchEvent(new CustomEvent('svid:logout', { detail: { level: lvl } }));
+    return { ok: true };
+  }
 
-      // жёсткий редирект только если мы на странице логина
-      try {
-        if (/\/login\/?/.test(location.pathname)) {
-          location.href = `${location.origin}/index.html`;
-        }
-      } catch { /* no-op */ }
-
-      return res;
-    },
-
-    async reset({ email, password }) {
-      const res = await http('/reset', { method: 'POST', body: { email, password } });
-      emit('svid:password_reset', res);
-      return res;
-    },
-
-    // ДОБАВЬ НИЖЕ — алиас для совместимости со старым кодом:
-async resetPassword(args) { 
-  return this.reset(args); 
-},
-
-    async logout() {
-      try {
-        await http('/logout', { method: 'POST', body: { user_id: storage.get(LS.USER_ID) } });
-      } catch { /* dev: сервер может вернуть не-200, это ок */}
-      clearUserKeepVisitor();
-      return { ok: true };
-    },
-
-    // удобство для index.js
-    async me() {
-      return http('/me', { method: 'GET' }); // Authorization подтянется из localStorage
-    },
-
-    // helpers
-    setLevel(n) { setLevel(n); },
-    getLevel()  { return parseInt(localStorage.getItem(LVL_KEY) || '1', 10); },
-    getState() {
-      return {
-        visitor_id: storage.get(LS.VISITOR_ID),
-        visitor_level: storage.get(LS.VISITOR_LVL),
-        user_id: storage.get(LS.USER_ID),
-        user_level: storage.get(LS.USER_LVL),
-        jwt: storage.get(LS.JWT),
-      };
-    },
-    nukeAll() {
-      Object.values(LS).forEach(k => storage.del(k));
-      emit('svid:nuked', {});
-      setLevel(1);
-    },
+  window.SVID = {
+    identify,
+    register,
+    login,
+    reset,
+    me,
+    logout,
+    getState: _state,
+    buildPayload,
   };
-
-  // ---------------- boot ----------------
-  window.SVID = SVID;
-
-  // Восстановление после bfcache (назад/вперёд)
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) ensureUILvlFromState();
-  });
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => SVID.init());
-  } else {
-    SVID.init();
-  }
 })();
