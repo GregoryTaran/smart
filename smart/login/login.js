@@ -47,7 +47,7 @@
     try {
       await window.SVID.login({ email, password });
       // УСПЕХ → жёсткий переход на индекс, чтобы меню/уровни обновились
-      window.location.replace('/smart/index.html');
+      window.location.replace('./index.html');
     } catch (err) {
       const msg = (err?.message || '').toLowerCase();
       if (msg.includes('invalid credentials')) {
