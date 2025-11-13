@@ -3,7 +3,8 @@
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
-import MicIndicator from "./mic-indicator.js";
+import MicIndicator from "./mic-indicator/mic-indicator.js";
+
 // Assembler is optional now; server assembles -> MP3
 // import WavAssembler from "./audiocore/wav-assembler.js";
 
