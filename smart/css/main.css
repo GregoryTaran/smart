@@ -346,4 +346,3 @@ body.menu-open #overlay { display: block; }
 /* Горизонтальный ряд кнопок/контролов с gap (по желанию) */
 .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
 
-
