@@ -98,8 +98,11 @@ async function start() {
   if (!indicator && micIndicatorEl) {
     indicator = new MicIndicator(micIndicatorEl);
   }
-  if (indicator && core.stream) {
-    await indicator.connectStream(core.stream);
+
+  // ВАЖНО: берём микрофонный MediaStream из SVAudioCore
+  const stream = core.getStream ? core.getStream() : null;
+  if (indicator && stream) {
+    await indicator.connectStream(stream);
   }
 
   // === Segmenter ===
@@ -127,12 +130,8 @@ async function start() {
     ws.send(seg.blob);
   };
 
-  // === Frames → indicator + segmenter ===
+  // === Frames → только в сегментер ===
   core.onAudioFrame = (f32) => {
-    if (indicator) {
-      const rms = Math.sqrt(f32.reduce((s, v) => s + v * v, 0) / f32.length);
-      indicator.setSimLevel(rms);
-    }
     if (segmenter) segmenter.pushFrame(f32);
   };
 
