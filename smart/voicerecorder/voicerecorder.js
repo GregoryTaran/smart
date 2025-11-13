@@ -3,6 +3,7 @@
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
+import MicIndicator from "./mic-indicator.js";
 // Assembler is optional now; server assembles -> MP3
 // import WavAssembler from "./audiocore/wav-assembler.js";
 
@@ -13,6 +14,7 @@ const pauseBtn  = document.getElementById("pauseBtn");
 const stopBtn   = document.getElementById("stopBtn");
 const playerEl  = document.getElementById("sv-player");
 const listEl    = document.getElementById("record-list");
+const micIndicatorEl = document.getElementById("micIndicator");
 
 const setStatus = (s) => {
   if (statusEl) statusEl.textContent = s;
@@ -25,6 +27,7 @@ let segmenter = null;     // WavSegmenter instance
 let ws = null;            // WebSocket
 let recordingId = null;
 let paused = false;
+let indicator = null;     // <<< добавлено для микрофонного индикатора
 
 // ---------- WS ----------
 async function connectWS(recId) {
@@ -105,14 +108,21 @@ async function start() {
   await core.init(); // происходит только после клика по Start
   console.log("🎛️ [CORE] AudioContext SR =", core.getContext()?.sampleRate);
 
+  // === MIC INDICATOR (создаём при первом запуске) ===
+  if (!indicator && micIndicatorEl) {
+    indicator = new MicIndicator(micIndicatorEl);
+  }
+  // подключаем реальный поток микрофона
+  if (indicator && core.stream) {
+    await indicator.connectStream(core.stream);
+  }
+
   // 2) Init segmenter для строгих 2-секундных сегментов
   segmenter = new WavSegmenter({
     sampleRate: core.getContext()?.sampleRate || 48000,
     segmentSeconds: 2,
     normalize: true,
     emitBlobPerSegment: true
-    // padLastSegment НЕ указываем → новый дефолт = true,
-    // поэтому последний сегмент тоже будет ровно 2 сек (добьётся нулями)
   });
 
   segmenter.onSegment = (seg) => {
@@ -141,18 +151,24 @@ async function start() {
     );
 
     try {
-      // ВАЖНО: отправляем Blob напрямую, без async arrayBuffer(),
-      // чтобы не было гонки с ws = null / END.
       ws.send(seg.blob);
     } catch (e) {
       console.error("❌ [SEG] send failed", e);
     }
   };
 
-  // 3) Wire frames -> segmenter
+  // 3) Wire frames -> segmenter + индикатор
   core.onAudioFrame = (f32) => {
-    // Каждый входящий фрейм просто скармливаем сегментеру
-    segmenter.pushFrame(f32);
+    // индикатор уровня (RMS)
+    if (indicator) {
+      const rms = Math.sqrt(f32.reduce((s, v) => s + v * v, 0) / f32.length);
+      indicator.setSimLevel(rms);
+    }
+
+    // сегментация
+    if (segmenter) {
+      segmenter.pushFrame(f32);
+    }
   };
 
   // 4) Открываем WebSocket
@@ -187,14 +203,16 @@ async function stop() {
   if (!core) return;
   setStatus("stopping…");
 
+  // выключаем индикатор
+  if (indicator) indicator.setInactive();
+
   try {
-    // Сначала просим сегментер ДОБРАТЬ последний сегмент (он будет ровно 2 сек)
+    // Сначала просим сегментер ДОБРАТЬ последний сегмент
     segmenter?.stop();
   } catch (e) {
     console.warn(e);
   }
 
-  // Теперь, когда все сегменты уже отданы через onSegment, сообщаем серверу END
   await stopWS();
 
   try {
@@ -220,7 +238,6 @@ async function stop() {
 
 // ---------- Bind buttons ----------
 document.addEventListener("DOMContentLoaded", () => {
-  // ВАЖНО: здесь только биндим кнопки, ничего не запускаем сами
   startBtn?.addEventListener("click", start);
   pauseBtn?.addEventListener("click", pause);
   stopBtn?.addEventListener("click", stop);
