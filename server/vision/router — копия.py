@@ -4,7 +4,7 @@ from datetime import datetime, date
 import os
 
 from supabase import create_client, Client
-from openai import OpenAI
+import openai
 
 # ----------- ENV / клиенты -----------
 
@@ -19,10 +19,9 @@ if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY не задан в переменных окружения")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY
 
 router = APIRouter(prefix="/vision", tags=["vision"])
-
 
 # ----------- Модели -----------
 
@@ -48,44 +47,41 @@ class StepResponse(BaseModel):
     created_at: datetime
 
 
-# ----------- Вспомогательные функции -----------
+# ----------- Хелпер: сбор контекста -----------
 
 def build_messages_for_openai(vision_id: str, user_text: str):
     """
-    Собираем историю по визии и добавляем текущее сообщение.
-    Если что-то пойдёт не так — просто вернём системное + текущее.
+    Берём последние шаги по этой визии и собираем простой контекст для OpenAI.
+    Если шагов нет – просто текущий вопрос.
     """
-    system_prompt = (
-        "Ты ассистент, который помогает пользователю формулировать и развивать его визию. "
-        "Говори по-русски, отвечай кратко и по делу, но по-дружески."
-    )
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-    ]
-
+    history = []
     try:
-        # забираем последние N шагов по визии
         res = (
             supabase.table("vision_steps")
-            .select("user_text, ai_text, created_at")
+            .select("user_text, ai_text")
             .eq("vision_id", vision_id)
-            .order("created_at", desc=True)
+            .order("created_at", desc=False)
             .limit(10)
             .execute()
         )
-        history = list(reversed(res.data or []))
+        history = res.data or []
+    except Exception:
+        # На этапе MVP можно молча проглотить — просто не будет истории
+        history = []
 
-        for row in history:
-            if row.get("user_text"):
-                messages.append({"role": "user", "content": row["user_text"]})
-            if row.get("ai_text"):
-                messages.append({"role": "assistant", "content": row["ai_text"]})
-    except Exception as e:
-        # логируем, но не роняем
-        print(f"[VISION] build_messages_for_openai error: {e}")
+    messages = [
+        {
+            "role": "system",
+            "content": "Ты помощник, который помогает человеку двигаться к своей визии. Отвечай ясно, по делу и поддерживающе.",
+        }
+    ]
 
-    # текущее сообщение
+    for step in history:
+        if step.get("user_text"):
+            messages.append({"role": "user", "content": step["user_text"]})
+        if step.get("ai_text"):
+            messages.append({"role": "assistant", "content": step["ai_text"]})
+
     messages.append({"role": "user", "content": user_text})
     return messages
 
@@ -95,15 +91,10 @@ def build_messages_for_openai(vision_id: str, user_text: str):
 @router.post("/create", response_model=CreateVisionResponse)
 async def create_vision(body: CreateVisionRequest):
     """
-    Создаёт запись в public.visions.
+    Создаёт визию в public.visions.
     """
-    if not body.user_id:
-        raise HTTPException(status_code=400, detail="user_id обязателен")
-
-    today = date.today()
-    title = f"Визия от {today.strftime('%d.%m.%Y')}"
-
     try:
+        title = f"Визия от {date.today().strftime('%d.%m.%Y')}"
         res = (
             supabase
             .table("visions")
@@ -120,10 +111,9 @@ async def create_vision(body: CreateVisionRequest):
             raise HTTPException(status_code=500, detail="Supabase не вернул данные при создании визии")
 
         row = res.data[0]
-
         return CreateVisionResponse(
-            vision_id=row["vision_id"],
-            title=row.get("title") or title,
+            vision_id=row["id"],
+            title=row["title"],
             created_at=row["created_at"],
         )
     except HTTPException:
@@ -136,39 +126,18 @@ async def create_vision(body: CreateVisionRequest):
 async def create_step(body: StepRequest):
     """
     Создаёт шаг в public.vision_steps и возвращает его.
-    Здесь дергаем OpenAI.
+    Здесь уже дергаем OpenAI.
     """
-    if not body.vision_id:
-        raise HTTPException(status_code=400, detail="vision_id обязателен")
-    if not body.user_text:
-        raise HTTPException(status_code=400, detail="user_text обязателен")
-
     try:
         # 1. Сбор контекста
         messages = build_messages_for_openai(body.vision_id, body.user_text)
 
-        # 2. Вызов OpenAI (новый клиент, openai>=1.x)
-        completion = client.chat.completions.create(
+        # 2. Вызов OpenAI (если нужна другая модель — просто поменяй имя)
+        completion = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=messages,
         )
-
-        choice = completion.choices[0]
-        msg = choice.message
-
-        # Унифицировано достаём текст
-        if isinstance(msg.content, str):
-            ai_text = msg.content.strip()
-        else:
-            parts = []
-            for part in msg.content:
-                text = getattr(part, "text", None)
-                if text:
-                    parts.append(text)
-            ai_text = (" ".join(parts)).strip()
-
-        if not ai_text:
-            ai_text = "У меня пока нет осмысленного ответа, попробуй переформулировать запрос."
+        ai_text = completion.choices[0].message["content"].strip()
 
         # 3. Запись шага в БД
         res = (
