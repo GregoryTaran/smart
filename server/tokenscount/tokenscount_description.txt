@@ -1,0 +1,42 @@
+МОДУЛЬ: tokenscount
+НАЗНАЧЕНИЕ:
+  Универсальный модуль учёта токенов для всех вызовов любых LLM (GPT и другие).
+  Не привязан к конкретным сущностям (визии и т.п.), работает по принципу:
+  "кто-то" -> "какому-то провайдеру" -> "примерно столько-то токенов".
+
+Таблица в Supabase: public.tokenscount
+
+Структура таблицы:
+  id            BIGSERIAL, PK, автоинкремент
+  clientid      TEXT, может быть user_id, visitor_id, session_id и т.п.
+  clienttype    TEXT, тип клиента: "user", "visitor", "system", и т.д.
+  provider      TEXT, название провайдера LLM ("openai", "anthropic", "local", ...)
+  model         TEXT, название модели ("gpt-4.1", "gpt-4o", "some-model", ...)
+  prompttokens  INTEGER, токены во входящем запросе (если известны)
+  completiontokens INTEGER, токены в ответе модели (если известны)
+  totaltokens   INTEGER, общее количество токенов (если известно)
+  rawusage      JSONB, сырые данные usage от провайдера (как есть)
+  meta          JSONB, любые наши дополнительные данные (module, visionid и т.п.)
+  createdat     TIMESTAMPTZ, время записи, по умолчанию now()
+
+Все поля, кроме id, НЕ обязательны.
+Таблица не должна ломать вставку, даже если провайдер не вернул usage или вернул его в странном виде.
+
+ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ:
+  - Логиненный пользователь:
+      clientid   = user_id
+      clienttype = "user"
+
+  - Открытый модуль без регистрации:
+      clientid   = visitor_id (генерится на фронте и хранится в localStorage)
+      clienttype = "visitor"
+
+  - Системные вызовы:
+      clientid   = NULL или "system"
+      clienttype = "system"
+
+ОГРАНИЧЕНИЕ ДОСТУПА:
+  В будущем можно по сумме totaltokens на clientid делать лимиты:
+    - "бесплатный" лимит для visitor
+    - тарифы для user
+  Вся логика лимитов будет в коде, а tokenscount только хранит факты.
