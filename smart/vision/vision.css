@@ -134,3 +134,15 @@ button.vision-btn:disabled,
   color: #fee2e2;
   font-size: 0.85rem;
 }
+/* чтобы текст не растворялся в черном фоне */
+
+.vision-panel {
+  color: #f5f5f5;            /* общий цвет текста внутри панели */
+}
+
+.vision-input,
+.vision-message-text,
+.vision-info,
+.vision-error {
+  color: #f5f5f5;
+}
