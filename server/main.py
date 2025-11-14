@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 import logging, os
 from pathlib import Path
-from server.vision.router import router as vision_router
+from vision.router import router as vision_router
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
