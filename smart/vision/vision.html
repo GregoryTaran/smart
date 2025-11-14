@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="../" />
+  <title>Путь по визии</title>
+
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="vision/vision.css" />
+</head>
+<body>
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
+    <div id="app">
+      <header id="topbar" role="banner"></header>
+
+
+
+    <main id="main" role="main">
+      <section class="vision-page">
+        <div class="vision-panel">
+          <h1 class="vision-title-main">Путь по визии</h1>
+
+          <button id="createVisionBtn" class="vision-btn vision-btn-primary">
+            Создать визию
+          </button>
+
+          <div id="visionInfo" class="vision-info vision-hidden">
+            <div class="vision-info-label">Текущая визия:</div>
+            <div id="visionTitle" class="vision-info-title"></div>
+          </div>
+
+          <form id="messageForm" class="vision-form">
+            <textarea
+              id="userInput"
+              class="vision-input"
+              rows="3"
+              placeholder="Сформулируй шаг к своей визии..."
+              disabled
+            ></textarea>
+            <button type="submit" id="sendBtn" class="vision-btn" disabled>
+              Отправить
+            </button>
+          </form>
+
+          <div id="messages" class="vision-messages"></div>
+
+          <div id="visionError" class="vision-error vision-hidden"></div>
+        </div>
+      </section>
+    </main>
+
+
+
+       <div id="home-geo-footer"></div>
+      <footer id="footer" role="contentinfo"></footer>
+    </div>
+  </div>
+   <div id="overlay" hidden></div>
+
+<script defer src="svid/svid.js"></script>
+<script defer src="js/footer.js?v=2"></script>
+
+<script defer type="module" src="vision/vision.js"></script>
+
+  <!-- наш модуль топбара -->
+  <script type="module">
+    import { initPage } from "./js/topbar.module.js";
+    initPage({
+      fragments: [["menu.html", "#sidebar"]],
+      cacheBust: false,
+      topbar: {
+        state: { logoHref: "index.html", logoSrc: "assets/logo400.jpg", auth: { user: null } }
+      }
+    });
+  </script>
+
+
+</body>
+</html>
