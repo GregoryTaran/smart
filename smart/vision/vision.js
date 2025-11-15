@@ -142,28 +142,22 @@ function setVisionIdInHash(visionId) {
 //
 
 // Пытаемся эвристически вытащить user_id из SVID.
-// Здесь мы не знаем точный контракт, поэтому пробуем несколько вариантов.
-// Если ни один не сработал — возвращаем null.
 function detectUserIdFromSvid() {
   try {
-    // Примеры, что может быть:
-    // window.svidUserId
     if (window.svidUserId && typeof window.svidUserId === "string") {
       return window.svidUserId;
     }
-
-    // window.SVID_USER_ID
     if (window.SVID_USER_ID && typeof window.SVID_USER_ID === "string") {
       return window.SVID_USER_ID;
     }
-
-    // window.svid.userId
     if (window.svid && typeof window.svid.userId === "string") {
       return window.svid.userId;
     }
-
-    // window.svid.user.id
-    if (window.svid && window.svid.user && typeof window.svid.user.id === "string") {
+    if (
+      window.svid &&
+      window.svid.user &&
+      typeof window.svid.user.id === "string"
+    ) {
       return window.svid.user.id;
     }
   } catch (e) {
@@ -262,7 +256,6 @@ async function createVision() {
     const title = qs("#visionTitle");
     if (info) info.classList.remove("vision-hidden");
     if (title) {
-      // если сервер вернул title — используем его, иначе техническое имя
       title.textContent = data.title || `Визия ${state.visionId}`;
     }
 
@@ -351,7 +344,19 @@ function init() {
 
   // 1) Пытаемся восстановить уже существующую визию из URL:
   //    если в адресе есть #vision=<id>, считаем, что визия уже создана.
-  const existingVisionId = getVisionIdFromHash();
+  //    Делаем это БЕЗОПАСНО: если вдруг функции getVisionIdFromHash нет,
+  //    init не падает, а просто считает, что хеша нет.
+  let existingVisionId = null;
+  try {
+    if (typeof getVisionIdFromHash === "function") {
+      existingVisionId = getVisionIdFromHash();
+    } else {
+      console.log("[VISION] getVisionIdFromHash не определён, пропускаем hash");
+    }
+  } catch (e) {
+    console.error("[VISION] safe hash read error", e);
+  }
+
   if (existingVisionId) {
     state.visionId = existingVisionId;
     console.log("[VISION] restored visionId from URL:", state.visionId);
@@ -387,8 +392,6 @@ function init() {
   });
 
   // 4) Параллельно пытаемся получить userId (svid / localStorage)
-  //    Это не блокирует интерфейс, но к моменту создания визии
-  //    userId обычно уже будет готов.
   ensureUserId().catch((e) =>
     console.error("[VISION] ensureUserId on init failed:", e),
   );
