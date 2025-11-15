@@ -1,100 +1,70 @@
 // vision/vision.js
+// -----------------------------------------------------------
+// Фронтовая логика модуля "Путь по визии"
+// -----------------------------------------------------------
+// Здесь мы:
+// 1) создаём визию на сервере
+// 2) отправляем шаги (сообщения) в визию
+// 3) показываем диалог на странице
+// 4) храним vision_id в URL (#vision=...), чтобы не потерять
+//    контекст при перезагрузке страницы
+// -----------------------------------------------------------
 
 const API_BASE = "/api/vision";
 
+// Глобальное состояние фронта (микро-стор)
 const state = {
-  userId: null,
-  visionId: null,
+  userId: null,        // кто пишет (берём из svid / localStorage)
+  visionId: null,      // текущая визия (UUID с сервера)
+  isCreating: false,   // флаг "создаём визию"
+  isSending: false,    // флаг "отправляем шаг"
 };
 
-// ---------- SVID / user_id ----------
+// ---------------------------------------------
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ---------------------------------------------
 
-function makeLocalFallbackUserId() {
-  const key = "vision.local_user_id";
-  try {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const id = "local-" + Math.random().toString(36).slice(2);
-    localStorage.setItem(key, id);
-    return id;
-  } catch (e) {
-    console.error("[VISION] localStorage fallback user_id error", e);
-    return "local-" + Math.random().toString(36).slice(2);
-  }
-}
-
-async function resolveUserIdFromSVID() {
-  try {
-    if (window.SVID) {
-      // даём SVID шанс инициализироваться
-      if (typeof window.SVID.ensureVisitorAndLevel === "function") {
-        await window.SVID.ensureVisitorAndLevel();
-      } else if (window.SVID.ready && typeof window.SVID.ready.then === "function") {
-        await window.SVID.ready;
-      }
-
-      if (typeof window.SVID.getState === "function") {
-        const snap = window.SVID.getState();
-        if (snap) {
-          if (snap.user_id) return snap.user_id;       // залогиненный юзер
-          if (snap.visitor_id) return snap.visitor_id; // хотя бы визитор
-        }
-      }
-    }
-
-    // прямое чтение по контракту
-    if (typeof localStorage !== "undefined") {
-      const lsUser = localStorage.getItem("svid.user_id");
-      if (lsUser) return lsUser;
-      const lsVisitor = localStorage.getItem("svid.visitor_id");
-      if (lsVisitor) return lsVisitor;
-    }
-  } catch (e) {
-    console.error("[VISION] error while getting user_id from SVID", e);
-  }
-
-  // если SVID ещё не завезён — дев-фоллбек
-  return makeLocalFallbackUserId();
-}
-
-async function ensureUserId() {
-  if (state.userId) return state.userId;
-  state.userId = await resolveUserIdFromSVID();
-  console.log("[VISION] user_id =", state.userId);
-  return state.userId;
-}
-
-// ---------- DOM helpers ----------
-
+// Короткий хелпер вместо document.querySelector
 function qs(sel) {
   return document.querySelector(sel);
 }
 
+// Показ / скрытие блока ошибок
 function showError(msg) {
   const box = qs("#visionError");
-  if (!box) return;
-  if (!msg) {
-    box.textContent = "";
-    box.classList.add("vision-hidden");
-  } else {
-    box.textContent = msg;
-    box.classList.remove("vision-hidden");
+  if (!box) {
+    console.warn("[VISION] #visionError не найден в DOM");
+    return;
   }
+  box.textContent = msg || "";
+  box.classList.toggle("hidden", !msg);
 }
 
-function setFormEnabled(enabled) {
-  const input = qs("#userInput");
-  const btn = qs("#sendBtn");
-  if (input) input.disabled = !enabled;
-  if (btn) btn.disabled = !enabled;
-}
-
-function clearMessages() {
+// Добавляем сообщение в список диалога
+// role: "user" | "ai"
+// text: строка
+function appendMessage(role, text) {
   const list = qs("#messages");
-  if (!list) return;
-  list.innerHTML = "";
+  if (!list) {
+    console.warn("[VISION] #messages не найден в DOM");
+    return;
+  }
+
+  const item = document.createElement("div");
+  item.className = `vision-message vision-message--${role}`;
+
+  const label = role === "user" ? "Ты" : "Система";
+
+  item.innerHTML = `
+    <div class="vision-message-label">${label}</div>
+    <div class="vision-message-text">${escapeHtml(text)}</div>
+  `.trim();
+
+  list.appendChild(item);
+  list.scrollTop = list.scrollHeight; // скроллим вниз
 }
 
+// Простейший escape, чтобы не ломать HTML
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -102,37 +72,171 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;");
 }
 
-function appendMessage(role, text) {
-  const list = qs("#messages");
-  if (!list) return;
+// Включение / выключение формы отправки сообщений
+function setFormEnabled(enabled) {
+  const input = qs("#userInput");
+  const btn = qs("#sendBtn");
 
-  const item = document.createElement("div");
-  const kind = role === "user" ? "user" : "ai";
-  item.className = `vision-message vision-message--${kind}`;
+  if (input) input.disabled = !enabled;
+  if (btn) btn.disabled = !enabled;
 
-  const label = role === "user" ? "Ты" : "Визион-бот";
-
-  item.innerHTML = `
-    <div class="vision-message-label">${escapeHtml(label)}</div>
-    <div class="vision-message-text">${escapeHtml(text)}</div>
-  `;
-
-  list.appendChild(item);
-  list.scrollTop = list.scrollHeight;
+  if (enabled && input) {
+    input.focus();
+  }
 }
 
-// ---------- API calls ----------
+// ---------------------------------------------
+// РАБОТА С URL (hash) ДЛЯ vision_id
+// ---------------------------------------------
+//
+// Мы хотим, чтобы при создании визии её id попадал в URL,
+// например:
+//   https://.../vision.html#vision=UUID
+//
+// Тогда если страница перезагрузится,
+// мы сможем прочитать этот id и продолжить ту же визию.
+//
+
+// Читаем vision_id из hash, если он там есть
+// Формат ожидаем такой: #vision=<id>
+// Возвращаем строку id или null.
+function getVisionIdFromHash() {
+  try {
+    const hash = window.location.hash || "";
+    // пример hash: "#vision=123e4567-..."
+    const m = hash.match(/vision=([^&]+)/);
+    if (m && m[1]) {
+      const visionId = decodeURIComponent(m[1]);
+      console.log("[VISION] getVisionIdFromHash:", visionId);
+      return visionId;
+    }
+  } catch (e) {
+    console.error("[VISION] getVisionIdFromHash error:", e);
+  }
+  return null;
+}
+
+// Записываем vision_id в hash, чтобы можно было восстановить
+// позже. Страница при этом НЕ перезагружается.
+function setVisionIdInHash(visionId) {
+  try {
+    if (!visionId) return;
+    const base = window.location.href.split("#")[0];
+    const newUrl = `${base}#vision=${encodeURIComponent(visionId)}`;
+    window.history.replaceState(null, "", newUrl);
+    console.log("[VISION] setVisionIdInHash:", newUrl);
+  } catch (e) {
+    console.error("[VISION] setVisionIdInHash error:", e);
+  }
+}
+
+// ---------------------------------------------
+// USER ID (svid / локальный)
+// ---------------------------------------------
+//
+// Здесь мы пытаемся аккуратно вытащить user_id.
+// Идея:
+// 1) Пытаемся прочитать его из svid (если он уже интегрирован).
+// 2) Если не получилось — берём из localStorage (чтобы был стабильный).
+// 3) Если и там нет — генерируем локальный и сохраняем.
+//
+
+// Пытаемся эвристически вытащить user_id из SVID.
+// Здесь мы не знаем точный контракт, поэтому пробуем несколько вариантов.
+// Если ни один не сработал — возвращаем null.
+function detectUserIdFromSvid() {
+  try {
+    // Примеры, что может быть:
+    // window.svidUserId
+    if (window.svidUserId && typeof window.svidUserId === "string") {
+      return window.svidUserId;
+    }
+
+    // window.SVID_USER_ID
+    if (window.SVID_USER_ID && typeof window.SVID_USER_ID === "string") {
+      return window.SVID_USER_ID;
+    }
+
+    // window.svid.userId
+    if (window.svid && typeof window.svid.userId === "string") {
+      return window.svid.userId;
+    }
+
+    // window.svid.user.id
+    if (window.svid && window.svid.user && typeof window.svid.user.id === "string") {
+      return window.svid.user.id;
+    }
+  } catch (e) {
+    console.error("[VISION] detectUserIdFromSvid error:", e);
+  }
+
+  return null;
+}
+
+// Генератор локального ID, если ничего другого нет
+function makeLocalUserId() {
+  return "local-" + Math.random().toString(36).slice(2);
+}
+
+// Гарантируем, что state.userId заполнен
+async function ensureUserId() {
+  if (state.userId) {
+    console.log("[VISION] userId уже есть:", state.userId);
+    return state.userId;
+  }
+
+  // 1) Пытаемся взять из SVID
+  const fromSvid = detectUserIdFromSvid();
+  if (fromSvid) {
+    state.userId = fromSvid;
+    console.log("[VISION] userId из SVID:", state.userId);
+    return state.userId;
+  }
+
+  // 2) Пытаемся взять из localStorage
+  try {
+    const stored = window.localStorage.getItem("vision_user_id");
+    if (stored) {
+      state.userId = stored;
+      console.log("[VISION] userId из localStorage:", state.userId);
+      return state.userId;
+    }
+  } catch (e) {
+    console.warn("[VISION] не удалось прочитать localStorage:", e);
+  }
+
+  // 3) Если ничего нет — генерируем новый локальный
+  const localId = makeLocalUserId();
+  state.userId = localId;
+  console.log("[VISION] сгенерировали новый локальный userId:", state.userId);
+
+  try {
+    window.localStorage.setItem("vision_user_id", state.userId);
+  } catch (e) {
+    console.warn("[VISION] не удалось записать в localStorage:", e);
+  }
+
+  return state.userId;
+}
+
+// ---------------------------------------------
+// API: СОЗДАНИЕ ВИЗИИ
+// ---------------------------------------------
 
 async function createVision() {
   showError("");
-  const btn = qs("#createVisionBtn");
+
+  if (state.isCreating) {
+    console.log("[VISION] уже создаём визию, ждём...");
+    return;
+  }
 
   try {
-    if (btn) btn.disabled = true;
-    setFormEnabled(false);
-    clearMessages();
+    state.isCreating = true;
 
+    // Убеждаемся, что userId есть
     const userId = await ensureUserId();
+    console.log("[VISION] createVision -> user_id =", userId);
 
     const res = await fetch(`${API_BASE}/create`, {
       method: "POST",
@@ -141,51 +245,59 @@ async function createVision() {
     });
 
     if (!res.ok) {
-      let raw = "";
-      try {
-        raw = await res.text();
-      } catch (_) {}
-      console.error("[VISION] createVision error:", res.status, raw);
-      throw new Error("createVision failed");
+      const text = await res.text().catch(() => "");
+      console.error("[VISION] createVision error:", res.status, text);
+      throw new Error("Ошибка создания визии");
     }
 
     const data = await res.json();
     state.visionId = data.vision_id;
     console.log("[VISION] vision created:", data);
 
-    // 👉 вот тут магия с именем визии
+    // Кладём vision_id в URL, чтобы можно было восстановить при перезагрузке
+    setVisionIdInHash(state.visionId);
+
+    // Показываем блок с текущей визией
     const info = qs("#visionInfo");
     const title = qs("#visionTitle");
     if (info) info.classList.remove("vision-hidden");
-    if (title) title.textContent = data.title || `Визия ${data.vision_id}`;
+    if (title) {
+      // если сервер вернул title — используем его, иначе техническое имя
+      title.textContent = data.title || `Визия ${state.visionId}`;
+    }
 
+    // Включаем форму, чтобы можно было писать шаги
     setFormEnabled(true);
-    const input = qs("#userInput");
-    if (input) input.focus();
   } catch (err) {
-    console.error("[VISION] createVision exception:", err);
+    console.error(err);
     showError("Не удалось создать визию. Проверь сервер.");
   } finally {
-    if (btn) btn.disabled = false;
+    state.isCreating = false;
   }
 }
 
+// ---------------------------------------------
+// API: ОТПРАВКА ШАГА В ВИЗИЮ
+// ---------------------------------------------
 
 async function sendStep(userText) {
   showError("");
+
   if (!state.visionId) {
     showError("Сначала создай визию.");
     return;
   }
 
+  if (state.isSending) {
+    console.log("[VISION] шаг уже отправляется, подожди...");
+    return;
+  }
+
+  // Пишем сообщение на фронте сразу (опыт как в мессенджере)
   appendMessage("user", userText);
 
-  const input = qs("#userInput");
-  const btn = qs("#sendBtn");
-
   try {
-    if (input) input.disabled = true;
-    if (btn) btn.disabled = true;
+    state.isSending = true;
 
     const res = await fetch(`${API_BASE}/step`, {
       method: "POST",
@@ -197,29 +309,36 @@ async function sendStep(userText) {
     });
 
     if (!res.ok) {
-      let raw = "";
-      try {
-        raw = await res.text();
-      } catch (_) {}
-      console.error("[VISION] step error:", res.status, raw);
+      const text = await res.text().catch(() => "");
+      console.error("[VISION] step error:", res.status, text);
       throw new Error("Ошибка шага визии");
     }
 
     const data = await res.json();
-    appendMessage("ai", data.ai_text || "Пустой ответ визион-бота 🤔");
+    console.log("[VISION] step response:", data);
+
+    appendMessage("ai", data.ai_text || "(пустой ответ)");
   } catch (err) {
     console.error("[VISION] sendStep exception:", err);
-    showError("Что-то пошло не так при обработке шага визии.");
+    showError("Ошибка при запросе к ИИ. Смотри логи сервера.");
   } finally {
-    if (input) input.disabled = false;
-    if (btn) btn.disabled = false;
-    if (input) input.focus();
+    state.isSending = false;
   }
 }
 
-// ---------- init ----------
+// ---------------------------------------------
+// ИНИЦИАЛИЗАЦИЯ СТРАНИЦЫ
+// ---------------------------------------------
+//
+// Здесь мы:
+// 1) Находим нужные элементы в DOM.
+// 2) Пытаемся восстановить vision_id из URL (#vision=...).
+// 3) Настраиваем кнопку "Создать визию" и форму отправки.
+// ---------------------------------------------
 
 function init() {
+  console.log("[VISION] init start");
+
   const createBtn = qs("#createVisionBtn");
   const form = qs("#messageForm");
   const input = qs("#userInput");
@@ -230,32 +349,35 @@ function init() {
     return;
   }
 
-  // Пытаемся восстановить визию из URL (#vision=<id>)
+  // 1) Пытаемся восстановить уже существующую визию из URL:
+  //    если в адресе есть #vision=<id>, считаем, что визия уже создана.
   const existingVisionId = getVisionIdFromHash();
   if (existingVisionId) {
     state.visionId = existingVisionId;
     console.log("[VISION] restored visionId from URL:", state.visionId);
 
-    // включаем форму, как будто визия уже создана
+    // Включаем форму, как будто визия уже была создана до перезагрузки
     setFormEnabled(true);
 
     const info = qs("#visionInfo");
     const title = qs("#visionTitle");
     if (info) info.classList.remove("vision-hidden");
     if (title) {
-      // у нас пока нет заголовка с сервера, поэтому техническое имя
+      // Точного title от сервера сейчас нет, поэтому временно техническое имя
       title.textContent = `Визия ${existingVisionId}`;
     }
   } else {
-    // если визии в URL нет — блокируем форму до создания
+    // Визия ещё не создана — блокируем форму до нажатия на кнопку
     setFormEnabled(false);
   }
 
+  // 2) Кнопка "Создать визию"
   createBtn.addEventListener("click", (e) => {
     e.preventDefault();
     createVision();
   });
 
+  // 3) Отправка шага (форма)
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -264,11 +386,15 @@ function init() {
     sendStep(text);
   });
 
-  // не обязательно, но можно заранее разбудить SVID
+  // 4) Параллельно пытаемся получить userId (svid / localStorage)
+  //    Это не блокирует интерфейс, но к моменту создания визии
+  //    userId обычно уже будет готов.
   ensureUserId().catch((e) =>
     console.error("[VISION] ensureUserId on init failed:", e),
   );
+
+  console.log("[VISION] init done");
 }
 
-
+// Запускаем init, когда DOM готов
 document.addEventListener("DOMContentLoaded", init);
