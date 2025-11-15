@@ -224,7 +224,7 @@ async def create_step(body: StepRequest):
 
         # 2. Вызов OpenAI (новый SDK, openai>=1.x)
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-mini-search-preview",
             messages=messages,
         )
 

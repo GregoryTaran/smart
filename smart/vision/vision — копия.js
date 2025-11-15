@@ -230,26 +230,8 @@ function init() {
     return;
   }
 
-  // Пытаемся восстановить визию из URL (#vision=<id>)
-  const existingVisionId = getVisionIdFromHash();
-  if (existingVisionId) {
-    state.visionId = existingVisionId;
-    console.log("[VISION] restored visionId from URL:", state.visionId);
-
-    // включаем форму, как будто визия уже создана
-    setFormEnabled(true);
-
-    const info = qs("#visionInfo");
-    const title = qs("#visionTitle");
-    if (info) info.classList.remove("vision-hidden");
-    if (title) {
-      // у нас пока нет заголовка с сервера, поэтому техническое имя
-      title.textContent = `Визия ${existingVisionId}`;
-    }
-  } else {
-    // если визии в URL нет — блокируем форму до создания
-    setFormEnabled(false);
-  }
+  // изначально форма недоступна, пока не создадим визию
+  setFormEnabled(false);
 
   createBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -269,6 +251,5 @@ function init() {
     console.error("[VISION] ensureUserId on init failed:", e),
   );
 }
-
 
 document.addEventListener("DOMContentLoaded", init);
