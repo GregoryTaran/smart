@@ -141,3 +141,98 @@ button.vision-btn:disabled,
   font-size: 0.85rem;
   border: 1px solid #f5bcbc;
 }
+
+/* =========================================================
+   БЛОК СПИСКА ВИЗИЙ (новый)
+   Используется с разметкой:
+   <section class="vision-list-block"> ... </section>
+   ========================================================= */
+
+/* Общий контейнер блока "Мои визии" */
+.vision-list-block {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d4d4d4;
+}
+
+/* Заголовок блока (если нужен отдельно от .vision-title-main) */
+.vision-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+}
+
+/* Хедер списка: кнопка "Создать новую визию" справа */
+.vision-list-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+/* Вспомогательный стиль для "вторичных" кнопок */
+button.vision-btn-secondary,
+.vision-panel .vision-btn-secondary {
+  background: #ffffff;
+  border-color: #c4c4c4;
+  color: #111;
+}
+
+/* Контейнер списка визий */
+.vision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Плашка "нет визий" */
+.vision-list-empty {
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px dashed #c4c4c4;
+  font-size: 0.9rem;
+  color: #555;
+  background: #f7f7f7;
+}
+
+/* Одна визия в списке */
+.vision-list-item {
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid #d4d4d4;
+  padding: 0.45rem 0.7rem;
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* При наведении — немного подсветить */
+.vision-list-item:hover {
+  background: #f3f3f3;
+  border-color: #bdbdbd;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Активно выбранная визия */
+.vision-list-item-active {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.25);
+  background: #eef0ff;
+}
+
+/* Заголовок визии */
+.vision-list-title {
+  font-weight: 500;
+  color: #111;
+}
+
+/* Дата визии */
+.vision-list-date {
+  font-size: 0.8rem;
+  color: #666;
+  opacity: 0.9;
+}
