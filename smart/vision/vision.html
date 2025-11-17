@@ -56,6 +56,19 @@
     })();
   </script>
 
+    <!-- наш модуль топбара -->
+  <script type="module">
+    import { initPage } from "./js/topbar.module.js";
+    initPage({
+      fragments: [["menu.html", "#sidebar"]],
+      cacheBust: false,
+      topbar: {
+        state: { logoHref: "index.html", logoSrc: "assets/logo400.jpg", auth: { user: null } }
+      }
+    });
+  </script>
+
+
 
 
 </head>
@@ -134,17 +147,6 @@
 
 <script defer type="module" src="vision/vision.js"></script>
 
-  <!-- наш модуль топбара -->
-  <script type="module">
-    import { initPage } from "./js/topbar.module.js";
-    initPage({
-      fragments: [["menu.html", "#sidebar"]],
-      cacheBust: false,
-      topbar: {
-        state: { logoHref: "index.html", logoSrc: "assets/logo400.jpg", auth: { user: null } }
-      }
-    });
-  </script>
 
 
 </body>

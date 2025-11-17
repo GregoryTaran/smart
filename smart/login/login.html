@@ -62,6 +62,20 @@
   </script>
 
 
+
+  <!-- наш модуль -->
+  <script type="module">
+    import { initPage } from "./js/topbar.module.js";
+    initPage({
+      fragments: [["menu.html", "#sidebar"]],
+      cacheBust: false,
+      topbar: {
+        state: { logoHref: "index.html", logoSrc: "assets/logo400.jpg", auth: { user: null } }
+      }
+    });
+  </script>
+
+
 </head>
 <body>
   <div id="page">
@@ -157,28 +171,9 @@
 
   <!-- Оверлей для мобильного меню -->
   <div id="overlay" hidden></div>
-
- 
   <script defer src="js/footer.js?v=2"></script>
-  <!-- <script defer src="js/register-sw.js"></script> -->
   <script defer src="login/login.js"></script>
 
-  <!-- ==== Модуль: грузим меню и рисуем топ-бар ==== -->
-  <script type="module">
-    import { initPage } from "./js/topbar.module.js";
-    initPage({
-      fragments: [
-        ["menu.html", "#sidebar"]
-      ],
-      cacheBust: false,
-      topbar: {
-        state: {
-          logoHref: "index.html",
-          logoSrc:  "assets/logo400.jpg",
-          auth:     { user: null }
-        }
-      }
-    });
-  </script>
+
 </body>
 </html>

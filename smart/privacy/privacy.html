@@ -61,6 +61,24 @@
     })();
   </script>
 
+    <!-- ==== Модуль: грузим ТОЛЬКО меню и рисуем топ-бар ==== -->
+  <script type="module">
+    import { initPage } from "./js/topbar.module.js";
+    initPage({
+      fragments: [
+        ["menu.html", "#sidebar"] // футер HTML НЕ грузим
+      ],
+      cacheBust: false,
+      topbar: {
+        state: {
+          logoHref: "index.html",
+          logoSrc:  "assets/logo400.jpg",
+          auth:     { user: null }
+        }
+      }
+    });
+  </script>
+
 </head>
 <body>
   <div id="page">
@@ -127,22 +145,6 @@
 
 
   
-  <!-- ==== Модуль: грузим ТОЛЬКО меню и рисуем топ-бар ==== -->
-  <script type="module">
-    import { initPage } from "./js/topbar.module.js";
-    initPage({
-      fragments: [
-        ["menu.html", "#sidebar"] // футер HTML НЕ грузим
-      ],
-      cacheBust: false,
-      topbar: {
-        state: {
-          logoHref: "index.html",
-          logoSrc:  "assets/logo400.jpg",
-          auth:     { user: null }
-        }
-      }
-    });
-  </script>
+
 </body>
 </html>

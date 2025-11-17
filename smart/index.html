@@ -63,15 +63,16 @@
         });
     })();
   </script>
+
+  <script type="module">
+    import { initPage } from './js/topbar.module.js';
+    initPage({
+      fragments: [['menu.html', '#sidebar']],
+      cacheBust: false,
+      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+    });
+  </script>
 </head>
-
-
-
-
-
-
-
-
 
 
 
@@ -96,20 +97,11 @@
   </div>
   <div id="overlay" hidden></div>
 
-  
 
   <script defer src="js/footer.js?v=2"></script>
   <script defer src="index/index.js"></script>
 
-  <!-- 2) Точка входа: хедер/меню (модуль) -->
-  <script type="module">
-    import { initPage } from './js/topbar.module.js';
-    initPage({
-      fragments: [['menu.html', '#sidebar']],
-      cacheBust: false,
-      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
-    });
-  </script>
+
 
 </body>
 </html>
