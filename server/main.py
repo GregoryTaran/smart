@@ -1,27 +1,45 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 import logging, os
 from pathlib import Path
 from vision.router import router as vision_router
+from svid.svid import router as svid_router, auth_middleware
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.1.0")
-app.include_router(vision_router, prefix="/api")
 
+# --- middleware: gzip + наша авторизация (сессии/куки) ---
+app.add_middleware(GZipMiddleware)
 
-# ------------------------ CORS ------------------------
+# auth_middleware будет жить в svid.svid — он будет на каждом запросе
+# читать куку, искать сессию и класть юзера в request.state.user
+app.middleware("http")(auth_middleware)
+
+# --- CORS: чтобы фронт мог отправлять куки ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://test.smartvision.life",
+        "http://localhost:8000",
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- маршруты ---
+app.include_router(vision_router, prefix="/api")
+app.include_router(svid_router, prefix="/api/auth")  # ⬅ новый блок для логина/сессий
+
+
 
 # ------------------------ API/WS (как было) ----------------------
 try:
@@ -89,12 +107,6 @@ try:
 except Exception as e:
     log.warning(f"Identity VISITOR not mounted: {e}")
 
-try:
-    from svid.svid import router as svid_router
-    app.include_router(svid_router)
-    log.info("svid.svid mounted")
-except Exception as e:
-    log.error(f"Failed to mount svid.svid: {e}")
 
 # ------------------------ Health ----------------------
 @app.get("/health")
