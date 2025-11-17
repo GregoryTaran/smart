@@ -76,7 +76,7 @@ class VisionStepInHistory(BaseModel):
   - user_text — что написал человек
   - ai_text   — что ответил ассистент
   """
-  id: Optional[str] = None
+  id: str
   user_text: Optional[str]
   ai_text: Optional[str]
   created_at: datetime
@@ -323,43 +323,6 @@ async def create_step(request: Request, body: StepRequest):
     raise HTTPException(status_code=500, detail=f"Ошибка при создании шага визии: {e}")
 
 
-@router.get("/list", response_model=VisionListResponse)
-async def list_my_visions(request: Request):
-  """
-  GET /api/vision/list
-  Возвращает список визий текущего пользователя.
-  """
-  user_id = _extract_auth_user_id(request)
-  if not user_id:
-    raise HTTPException(status_code=401, detail="Не удалось определить пользователя (нет сессии)")
-
-  try:
-    res = (
-      supabase
-      .table("visions")
-      .select("id, title, created_at")
-      .eq("user_id", user_id)
-      .order("created_at", desc=True)
-      .execute()
-    )
-
-    rows = res.data or []
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f"Ошибка при получении списка визий: {e}")
-
-  visions: List[VisionShort] = []
-  for row in rows:
-    visions.append(
-      VisionShort(
-        vision_id=row["id"],
-        title=row.get("title") or "",
-        created_at=row["created_at"],
-      )
-    )
-
-  return VisionListResponse(visions=visions)
-
-
 @router.get("/{vision_id}", response_model=VisionHistoryResponse)
 async def get_vision_history(request: Request, vision_id: str):
   """
@@ -413,10 +376,9 @@ async def get_vision_history(request: Request, vision_id: str):
 
   steps: List[VisionStepInHistory] = []
   for row in steps_data:
-    step_id = row.get("id")
     steps.append(
       VisionStepInHistory(
-        id=str(step_id) if step_id is not None else None,
+        id=row["id"],
         user_text=row.get("user_text"),
         ai_text=row.get("ai_text"),
         created_at=row["created_at"],
@@ -429,3 +391,40 @@ async def get_vision_history(request: Request, vision_id: str):
     created_at=vis_row["created_at"],
     steps=steps,
   )
+
+
+@router.get("/list", response_model=VisionListResponse)
+async def list_my_visions(request: Request):
+  """
+  GET /api/vision/list
+  Возвращает список визий текущего пользователя.
+  """
+  user_id = _extract_auth_user_id(request)
+  if not user_id:
+    raise HTTPException(status_code=401, detail="Не удалось определить пользователя (нет сессии)")
+
+  try:
+    res = (
+      supabase
+      .table("visions")
+      .select("id, title, created_at")
+      .eq("user_id", user_id)
+      .order("created_at", desc=True)
+      .execute()
+    )
+
+    rows = res.data or []
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Ошибка при получении списка визий: {e}")
+
+  visions: List[VisionShort] = []
+  for row in rows:
+    visions.append(
+      VisionShort(
+        vision_id=row["id"],
+        title=row.get("title") or "",
+        created_at=row["created_at"],
+      )
+    )
+
+  return VisionListResponse(visions=visions)
