@@ -1,6 +1,6 @@
 // /smart/login/login.js
-// Реальный аутентификатор страницы (register / login / reset) поверх SVID API.
-// Требование: после успешного сабмита поля очищаются; email подставляется во вход.
+// Аутентификатор страницы (register / login / reset) поверх НОВОГО backend API.
+// Теперь работаем через /api/auth/register, /api/auth/login, /api/auth/reset.
 // Валидация email: только наличие '@'.
 
 (function () {
@@ -27,9 +27,6 @@
   // Поля сброса
   const resetEmail = q('#reset-email');
 
-  // Переключатели состояний
-  const switches = qa('[data-action]');
-
   // Состояния: register | login | reset
   let state = 'login';
 
@@ -42,7 +39,7 @@
   function showStatus(message, type = 'info') {
     if (!statusBox) return;
     statusBox.textContent = message || '';
-    statusBox.dataset.type = type; // можно стилизовать [data-type="error|success|info"]
+    statusBox.dataset.type = type; // [data-type="error|success|info"]
   }
 
   function showResetResult(message) {
@@ -80,17 +77,16 @@
     });
   }
 
-
   // Универсальный редирект на index.html с учётом <base>
   function redirectToIndex() {
     try {
       const url = new URL('index.html', document.baseURI).href;
       location.replace(url);
     } catch (e) {
-      // fallback: относительный переход
       location.replace('index.html');
     }
   }
+
   function injectClearButton(form) {
     if (!form) return;
     const wrap = form.querySelector('.login__links') || form;
@@ -115,7 +111,6 @@
     showStatus('');
     showResetResult('');
 
-    // автофокус на первый инпут активной формы
     const activeForm =
       state === 'register' ? formRegister :
       state === 'login'    ? formLogin :
@@ -123,31 +118,62 @@
     activeForm?.querySelector('input, select, textarea')?.focus();
   }
 
-  // --------- Обработчики форм (ТЕПЕРЬ РЕАЛЬНЫЕ ВЫЗОВЫ SVID) ---------
+  // --------- Работа с backend /api/auth/... ---------
 
+  async function apiPost(path, payload) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // важно для установки/отправки куки
+      body: JSON.stringify(payload || {}),
+    });
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = null;
+    }
+
+    if (!res.ok) {
+      const msg =
+        (data && (data.detail || data.error || data.message)) ||
+        `Ошибка запроса (${res.status})`;
+      throw new Error(msg);
+    }
+    return data || {};
+  }
+
+  // --------- Обработчики форм ---------
+
+  // Регистрация: /api/auth/register
   formRegister?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
 
-    const name = (regName?.value || '').trim();
+    const name  = (regName?.value || '').trim();
     const email = (regEmail?.value || '').trim();
-    const pass = regPass?.value || '';
+    const pass  = regPass?.value || '';
 
     if (!name) { showStatus('Введите имя.', 'error'); return; }
-    if (!email || !hasAtSymbol(email)) { showStatus('Email должен содержать "@".', 'error'); return; }
+    if (!email || !hasAtSymbol(email)) {
+      showStatus('Email должен содержать "@".', 'error'); return;
+    }
     if (!pass) { showStatus('Введите пароль.', 'error'); return; }
 
     const btn = findSubmitButton(formRegister);
     disableButton(btn, true);
     try {
-      // ВАЖНО: svid.js должен быть подключен раньше этого файла
-      const data = await window.SVID.register({ display_name: name, email, password: pass });
+      await apiPost('/api/auth/register', {
+        name,
+        email,
+        password: pass,
+      });
+
       showStatus('Регистрация успешна. Добро пожаловать!', 'success');
 
-      // очистка текущей формы
       clearForm(formRegister);
 
-      // подставим email во вход и переключим окно
       if (email && loginEmail) loginEmail.value = email;
       setTimeout(() => setState('login'), 250);
     } catch (err) {
@@ -157,6 +183,7 @@
     }
   });
 
+  // Вход: /api/auth/login
   formLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
@@ -164,19 +191,19 @@
     const email = (loginEmail?.value || '').trim();
     const pass  = loginPass?.value || '';
 
-    if (!email || !hasAtSymbol(email)) { showStatus('Email должен содержать "@".', 'error'); return; }
+    if (!email || !hasAtSymbol(email)) {
+      showStatus('Email должен содержать "@".', 'error'); return;
+    }
     if (!pass) { showStatus('Введите пароль.', 'error'); return; }
 
     const btn = findSubmitButton(formLogin);
     disableButton(btn, true);
     try {
-      const data = await window.SVID.login({ email, password: pass });
-      showStatus('Вход выполнен. Добро пожаловать!', 'success');
+      await apiPost('/api/auth/login', { email, password: pass });
 
-      // очистка формы входа
+      showStatus('Вход выполнен. Добро пожаловать!', 'success');
       clearForm(formLogin);
 
-      // тут можно редиректнуть, если хочешь:
       redirectToIndex();
     } catch (err) {
       showStatus(err?.message || 'Ошибка входа. Проверьте данные.', 'error');
@@ -185,22 +212,31 @@
     }
   });
 
+  // Сброс пароля: /api/auth/reset
   formReset?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
     showResetResult('');
 
     const email = (resetEmail?.value || '').trim();
-    if (!email || !hasAtSymbol(email)) { showStatus('Email для сброса должен содержать "@".', 'error'); return; }
+    if (!email || !hasAtSymbol(email)) {
+      showStatus('Email для сброса должен содержать "@".', 'error');
+      return;
+    }
 
     const btn = findSubmitButton(formReset);
     disableButton(btn, true);
     try {
-      const { new_password } = await window.SVID.reset({ email });
-      showStatus('Пароль сгенерирован. Смотрите ниже 👇', 'success');
-      showResetResult(new_password ? `Новый пароль: ${new_password}` : 'Инструкция отправлена на почту.');
+      const data = await apiPost('/api/auth/reset', { email });
+      const newPassword = data?.new_password;
 
-      // очистка формы сброса
+      showStatus('Пароль сгенерирован. Смотрите ниже 👇', 'success');
+      showResetResult(
+        newPassword
+          ? `Новый пароль: ${newPassword}`
+          : 'Пароль обновлён. Используйте новый пароль для входа.'
+      );
+
       clearForm(formReset);
     } catch (err) {
       showStatus(err?.message || 'Ошибка сброса пароля.', 'error');
