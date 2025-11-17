@@ -87,36 +87,44 @@
           
           
 
- <h1 class="vision-title-main">Путь по визии</h1>
+                <h1 class="vision-title-main">Путь по визии</h1>
+                <button id="createVisionBtn" class="vision-btn vision-btn-primary">
+                  Создать визию
+                </button>
+                <div id="visionInfo" class="vision-info vision-hidden">
+                  <div class="vision-info-label">Текущая визия:</div>
+                  <div id="visionTitle" class="vision-info-title"></div>
+                </div>
+                <!-- ТЕПЕРЬ сначала сообщения -->
+                <div id="messages" class="vision-messages"></div>
+                <!-- А уже под ними поле ввода -->
+                <form id="messageForm" class="vision-form">
+                  <textarea
+                    id="userInput"
+                    class="vision-input"
+                    rows="3"
+                    placeholder="Сформулируй шаг к своей визии..."
+                    disabled
+                  ></textarea>
+                  <button type="submit" id="sendBtn" class="vision-btn" disabled>
+                    Отправить
+                  </button>
+                </form>
+                <div id="visionError" class="vision-error vision-hidden"></div>
 
-<button id="createVisionBtn" class="vision-btn vision-btn-primary">
-  Создать визию
-</button>
 
-<div id="visionInfo" class="vision-info vision-hidden">
-  <div class="vision-info-label">Текущая визия:</div>
-  <div id="visionTitle" class="vision-info-title"></div>
-</div>
+                  <!-- Блок со списком визий пользователя -->
+                  <section class="vision-list-block">
+                    <h2 class="vision-title">Мои визии</h2>
 
-<!-- ТЕПЕРЬ сначала сообщения -->
-<div id="messages" class="vision-messages"></div>
+                    <div class="vision-list-header">
+                      <button id="newVisionBtn" type="button" class="vision-btn vision-btn-secondary">
+                        Создать новую визию
+                      </button>
+                    </div>
 
-<!-- А уже под ними поле ввода -->
-<form id="messageForm" class="vision-form">
-  <textarea
-    id="userInput"
-    class="vision-input"
-    rows="3"
-    placeholder="Сформулируй шаг к своей визии..."
-    disabled
-  ></textarea>
-  <button type="submit" id="sendBtn" class="vision-btn" disabled>
-    Отправить
-  </button>
-</form>
-
-<div id="visionError" class="vision-error vision-hidden"></div>
-
+                    <div id="visionList" class="vision-list"></div>
+                  </section>
 
 
 
