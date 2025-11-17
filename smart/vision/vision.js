@@ -31,6 +31,7 @@ const els = {
   overlay: null,
   visionList: null,
   newVisionBtn: null,
+  createVisionBtn: null,
 };
 
 function setError(msg) {
@@ -74,13 +75,21 @@ function clearMessages() {
 
 function waitForAuth() {
   return new Promise((resolve) => {
-    if (window.SV_AUTH && window.SV_AUTH.user_id) {
-      return resolve(window.SV_AUTH);
+    // Сразу пробуем взять, если уже прогружено
+    if (window.SV_AUTH) {
+      const a = window.SV_AUTH;
+      if (a.user_id || a.userId) {
+        return resolve(a);
+      }
     }
+
+    // Иначе ждём событие
     document.addEventListener(
       "sv:auth-ready",
-      () => {
-        resolve(window.SV_AUTH || {});
+      (ev) => {
+        // пробуем и window.SV_AUTH, и detail
+        const a = window.SV_AUTH || (ev && ev.detail) || {};
+        resolve(a);
       },
       { once: true },
     );
@@ -287,21 +296,30 @@ async function init() {
   els.overlay = $("overlay");
   els.visionList = $("visionList");
   els.newVisionBtn = $("newVisionBtn");
+  els.createVisionBtn = $("createVisionBtn");
 
   setError("");
 
+  // ---- Auth ----
+  let auth;
   try {
-    const auth = await waitForAuth();
-    if (!auth || !auth.is_authenticated) {
-      setError("Для работы с визиями нужно войти в систему.");
-      return;
-    }
-    state.userId = auth.user_id;
+    auth = await waitForAuth();
   } catch (e) {
     console.error("[VISION] auth error:", e);
-    setError("Не удалось определить пользователя. Обнови страницу.");
+  }
+
+  const isAuthenticated =
+    (auth && (auth.is_authenticated ?? auth.isAuthenticated)) || false;
+  const userId = auth && (auth.user_id ?? auth.userId);
+
+  if (!isAuthenticated || !userId) {
+    setError("Для работы с визиями нужно войти в систему.");
     return;
   }
+
+  state.userId = userId;
+
+  // ---- Обработчики ----
 
   if (els.form && els.input) {
     els.form.addEventListener("submit", (ev) => {
@@ -314,11 +332,18 @@ async function init() {
     });
   }
 
+  const createHandler = () => {
+    createNewVision();
+  };
+
   if (els.newVisionBtn) {
-    els.newVisionBtn.addEventListener("click", () => {
-      createNewVision();
-    });
+    els.newVisionBtn.addEventListener("click", createHandler);
   }
+  if (els.createVisionBtn) {
+    els.createVisionBtn.addEventListener("click", createHandler);
+  }
+
+  // ---- Стартовая загрузка ----
 
   await loadVisions();
 
