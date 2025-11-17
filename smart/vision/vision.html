@@ -83,52 +83,68 @@
 
     <main id="main" role="main">
       <section class="vision-page">
+
+
+
+
         <div class="vision-panel">
-          
-          
+  <!-- БЛОК 1: Мои визии -->
+  <section class="vision-list-block">
+    <h2 class="vision-title">Мои визии</h2>
 
-                <h1 class="vision-title-main">Путь по визии</h1>
-                <button id="createVisionBtn" class="vision-btn vision-btn-primary">
-                  Создать визию
-                </button>
-                <div id="visionInfo" class="vision-info vision-hidden">
-                  <div class="vision-info-label">Текущая визия:</div>
-                  <div id="visionTitle" class="vision-info-title"></div>
-                </div>
-                <!-- ТЕПЕРЬ сначала сообщения -->
-                <div id="messages" class="vision-messages"></div>
-                <!-- А уже под ними поле ввода -->
-                <form id="messageForm" class="vision-form">
-                  <textarea
-                    id="userInput"
-                    class="vision-input"
-                    rows="3"
-                    placeholder="Сформулируй шаг к своей визии..."
-                    disabled
-                  ></textarea>
-                  <button type="submit" id="sendBtn" class="vision-btn" disabled>
-                    Отправить
-                  </button>
-                </form>
-                <div id="visionError" class="vision-error vision-hidden"></div>
+    <div class="vision-list-header">
+      <button id="newVisionBtn" type="button" class="vision-btn vision-btn-secondary">
+        Создать новую визию
+      </button>
+    </div>
+
+    <div id="visionList" class="vision-list"></div>
+  </section>
+
+  <!-- БЛОК 2: Путь по визии (чат) -->
+  <section class="vision-chat-block">
+    <!-- 1 строка: ПУТЬ ПО ВИЗИИ -->
+    <h1 class="vision-title-main">ПУТЬ ПО ВИЗИИ</h1>
+
+    <!-- 2 строка: НАЗВАНИЕ ВИЗИИ | Переименовать -->
+    <div class="vision-chat-title-row">
+      <div id="visionTitle" class="vision-title-current">
+        Выбери визию или создай новую
+      </div>
+      <div class="vision-title-actions">
+        <button
+          id="renameVisionBtn"
+          type="button"
+          class="vision-rename-link"
+          disabled
+        >
+          Переименовать
+        </button>
+      </div>
+    </div>
+
+    <!-- 3+ строки: диалог -->
+    <div id="messages" class="vision-messages"></div>
+
+    <!-- Поле ввода (внизу) -->
+    <form id="messageForm" class="vision-form">
+      <textarea
+        id="userInput"
+        class="vision-input"
+        rows="3"
+        placeholder="Сформулируй шаг к своей визии..."
+        disabled
+      ></textarea>
+      <button type="submit" id="sendBtn" class="vision-btn" disabled>
+        Отправить
+      </button>
+    </form>
+
+    <div id="visionError" class="vision-error vision-hidden"></div>
+  </section>
+</div>
 
 
-                  <!-- Блок со списком визий пользователя -->
-                  <section class="vision-list-block">
-                    <h2 class="vision-title">Мои визии</h2>
-
-                    <div class="vision-list-header">
-                      <button id="newVisionBtn" type="button" class="vision-btn vision-btn-secondary">
-                        Создать новую визию
-                      </button>
-                    </div>
-
-                    <div id="visionList" class="vision-list"></div>
-                  </section>
-
-
-
-        </div>
       </section>
     </main>
 
