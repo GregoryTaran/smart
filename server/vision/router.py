@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from datetime import datetime, date
 from typing import List, Optional
@@ -10,9 +10,10 @@ from openai import OpenAI
 # ============================================================
 #  VISION ROUTER
 #  Здесь лежат все эндпоинты для модуля "Путь по визии"
-#  - POST /vision/create   — создать визию
-#  - POST /vision/step     — добавить шаг визии + ответ ИИ
-#  - GET  /vision/{id}     — получить визию и историю шагов
+#  - POST /vision/create     — создать визию (теперь по auth-сессии)
+#  - POST /vision/step       — добавить шаг визии + ответ ИИ
+#  - GET  /vision/{id}       — получить визию и историю шагов
+#  - GET  /vision/list       — получить список визий пользователя
 # ============================================================
 
 # ----------- ENV / клиенты -----------
@@ -38,8 +39,12 @@ router = APIRouter(prefix="/vision", tags=["vision"])
 # ============================================================
 
 class CreateVisionRequest(BaseModel):
-  """Тело запроса на создание визии."""
-  user_id: str
+  """
+  Старый вариант: user_id из тела.
+  Оставлен для обратной совместимости, но сейчас
+  user_id берём из сессии.
+  """
+  user_id: Optional[str] = None
 
 
 class CreateVisionResponse(BaseModel):
@@ -89,9 +94,43 @@ class VisionHistoryResponse(BaseModel):
   steps: List[VisionStepInHistory]
 
 
+class VisionShort(BaseModel):
+  """Короткая информация о визии для списка."""
+  vision_id: str
+  title: str
+  created_at: datetime
+
+
+class VisionListResponse(BaseModel):
+  """Ответ для GET /vision/list."""
+  visions: List[VisionShort]
+
+
 # ============================================================
-#           ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ OpenAI
+#           ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================
+
+def _extract_auth_user_id(request: Request) -> Optional[str]:
+  """
+  Пробуем вытащить user_id из новой системы авторизации.
+  Ожидаем, что middleware уже положил auth / user в request.state.
+  """
+  try:
+    user = getattr(request.state, "user", None)
+    if user and isinstance(user, dict) and user.get("user_id"):
+      return str(user["user_id"])
+  except Exception:
+    pass
+
+  try:
+    auth = getattr(request.state, "auth", None)
+    if auth and isinstance(auth, dict) and auth.get("user_id"):
+      return str(auth["user_id"])
+  except Exception:
+    pass
+
+  return None
+
 
 def build_messages_for_openai(vision_id: str, user_text: str):
   """
@@ -142,13 +181,20 @@ def build_messages_for_openai(vision_id: str, user_text: str):
 # ============================================================
 
 @router.post("/create", response_model=CreateVisionResponse)
-async def create_vision(body: CreateVisionRequest):
+async def create_vision(request: Request, body: Optional[CreateVisionRequest] = None):
   """
   POST /api/vision/create
   Создаём визию и возвращаем её id + title.
+  Теперь user_id берём из новой auth-системы.
   """
-  if not body.user_id:
-    raise HTTPException(status_code=400, detail="user_id обязателен")
+  user_id = _extract_auth_user_id(request)
+
+  # Фоллбек на старый вариант, если вдруг auth ещё не подключили
+  if not user_id and body and body.user_id:
+    user_id = body.user_id
+
+  if not user_id:
+    raise HTTPException(status_code=401, detail="Не удалось определить пользователя (нет сессии)")
 
   today = date.today()
   title = f"Визия от {today.strftime('%d.%m.%Y')}"
@@ -159,7 +205,7 @@ async def create_vision(body: CreateVisionRequest):
       .table("visions")
       .insert(
         {
-          "user_id": body.user_id,
+          "user_id": user_id,
           "title": title,
         }
       )
@@ -186,7 +232,7 @@ async def create_vision(body: CreateVisionRequest):
 
 
 @router.post("/step", response_model=StepResponse)
-async def create_step(body: StepRequest):
+async def create_step(request: Request, body: StepRequest):
   """
   POST /api/vision/step
   Добавляем шаг визии и получаем ответ ИИ.
@@ -195,6 +241,29 @@ async def create_step(body: StepRequest):
     raise HTTPException(status_code=400, detail="vision_id обязателен")
   if not body.user_text:
     raise HTTPException(status_code=400, detail="user_text обязателен")
+
+  # Если включена новая авторизация, проверяем, что визия принадлежит пользователю
+  auth_user_id = _extract_auth_user_id(request)
+
+  if auth_user_id:
+    try:
+      vis_check = (
+        supabase
+        .table("visions")
+        .select("id, user_id")
+        .eq("id", body.vision_id)
+        .limit(1)
+        .execute()
+      )
+      if not vis_check.data:
+        raise HTTPException(status_code=404, detail="Визия не найдена")
+      vis_row = vis_check.data[0]
+      if str(vis_row.get("user_id")) != auth_user_id:
+        raise HTTPException(status_code=403, detail="Нет доступа к этой визии")
+    except HTTPException:
+      raise
+    except Exception as e:
+      raise HTTPException(status_code=500, detail=f"Ошибка при проверке доступа к визии: {e}")
 
   try:
     # 1. Собираем сообщения для OpenAI (контекст)
@@ -255,23 +324,26 @@ async def create_step(body: StepRequest):
 
 
 @router.get("/{vision_id}", response_model=VisionHistoryResponse)
-async def get_vision_history(vision_id: str):
+async def get_vision_history(request: Request, vision_id: str):
   """
   GET /api/vision/{vision_id}
 
   Что делает:
   1. Находит визию в таблице visions.
-  2. Находит все её шаги в vision_steps.
-  3. Возвращает:
+  2. Проверяет, что она принадлежит текущему пользователю (если подключена auth).
+  3. Находит все её шаги в vision_steps.
+  4. Возвращает:
      - id, title, created_at визии
      - список шагов (user_text + ai_text) по порядку.
   """
+  auth_user_id = _extract_auth_user_id(request)
+
   # 1. Ищем саму визию
   try:
     vis_res = (
       supabase
       .table("visions")
-      .select("id, title, created_at")
+      .select("id, user_id, title, created_at")
       .eq("id", vision_id)
       .limit(1)
       .execute()
@@ -280,6 +352,9 @@ async def get_vision_history(vision_id: str):
       raise HTTPException(status_code=404, detail="Визия не найдена")
 
     vis_row = vis_res.data[0]
+
+    if auth_user_id and str(vis_row.get("user_id")) != auth_user_id:
+      raise HTTPException(status_code=403, detail="Нет доступа к этой визии")
   except HTTPException:
     raise
   except Exception as e:
@@ -299,7 +374,7 @@ async def get_vision_history(vision_id: str):
   except Exception as e:
     raise HTTPException(status_code=500, detail=f"Ошибка при чтении шагов визии: {e}")
 
-  steps: list[VisionStepInHistory] = []
+  steps: List[VisionStepInHistory] = []
   for row in steps_data:
     steps.append(
       VisionStepInHistory(
@@ -316,3 +391,40 @@ async def get_vision_history(vision_id: str):
     created_at=vis_row["created_at"],
     steps=steps,
   )
+
+
+@router.get("/list", response_model=VisionListResponse)
+async def list_my_visions(request: Request):
+  """
+  GET /api/vision/list
+  Возвращает список визий текущего пользователя.
+  """
+  user_id = _extract_auth_user_id(request)
+  if not user_id:
+    raise HTTPException(status_code=401, detail="Не удалось определить пользователя (нет сессии)")
+
+  try:
+    res = (
+      supabase
+      .table("visions")
+      .select("id, title, created_at")
+      .eq("user_id", user_id)
+      .order("created_at", desc=True)
+      .execute()
+    )
+
+    rows = res.data or []
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Ошибка при получении списка визий: {e}")
+
+  visions: List[VisionShort] = []
+  for row in rows:
+    visions.append(
+      VisionShort(
+        vision_id=row["id"],
+        title=row.get("title") or "",
+        created_at=row["created_at"],
+      )
+    )
+
+  return VisionListResponse(visions=visions)
