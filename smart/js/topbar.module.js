@@ -24,7 +24,7 @@ const MENU = [
 
   { id: 'ts',    title: 'Проверка сервера',            href: 'testserver/testserver.html',       allow: [2] },
   { id: 'rec',   title: 'Диктофон',                    href: 'voicerecorder/voicerecorder.html', allow: [2] },
-  { id: 'vision',   title: 'Диктофон',                 href: 'vision/vision.html',               allow: [2] },
+  { id: 'vision',   title: 'Путь по визии',                 href: 'vision/vision.html',               allow: [2] },
   { id: 'app',   title: 'Мобильное приложение',        href: 'app/app.html',                     allow: [1, 2] },
   { id: 'logout',title: 'Выйти',                       href: '#logout', action: 'logout',        allow: [2] },
 ];
