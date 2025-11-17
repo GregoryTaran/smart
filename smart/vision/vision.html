@@ -22,33 +22,47 @@
     <main id="main" role="main">
       <section class="vision-page">
         <div class="vision-panel">
-          <h1 class="vision-title-main">Путь по визии</h1>
+          
+          
 
-          <button id="createVisionBtn" class="vision-btn vision-btn-primary">
-            Создать визию
-          </button>
+          
 
-          <div id="visionInfo" class="vision-info vision-hidden">
-            <div class="vision-info-label">Текущая визия:</div>
-            <div id="visionTitle" class="vision-info-title"></div>
-          </div>
 
-          <form id="messageForm" class="vision-form">
-            <textarea
-              id="userInput"
-              class="vision-input"
-              rows="3"
-              placeholder="Сформулируй шаг к своей визии..."
-              disabled
-            ></textarea>
-            <button type="submit" id="sendBtn" class="vision-btn" disabled>
-              Отправить
-            </button>
-          </form>
 
-          <div id="messages" class="vision-messages"></div>
+          
+ <h1 class="vision-title-main">Путь по визии</h1>
 
-          <div id="visionError" class="vision-error vision-hidden"></div>
+<button id="createVisionBtn" class="vision-btn vision-btn-primary">
+  Создать визию
+</button>
+
+<div id="visionInfo" class="vision-info vision-hidden">
+  <div class="vision-info-label">Текущая визия:</div>
+  <div id="visionTitle" class="vision-info-title"></div>
+</div>
+
+<!-- ТЕПЕРЬ сначала сообщения -->
+<div id="messages" class="vision-messages"></div>
+
+<!-- А уже под ними поле ввода -->
+<form id="messageForm" class="vision-form">
+  <textarea
+    id="userInput"
+    class="vision-input"
+    rows="3"
+    placeholder="Сформулируй шаг к своей визии..."
+    disabled
+  ></textarea>
+  <button type="submit" id="sendBtn" class="vision-btn" disabled>
+    Отправить
+  </button>
+</form>
+
+<div id="visionError" class="vision-error vision-hidden"></div>
+
+
+
+
         </div>
       </section>
     </main>
