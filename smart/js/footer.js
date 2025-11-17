@@ -1,8 +1,8 @@
-/* js/footer.js — футер + встроенный Informer (карточка)
+/* js/footer.js — футер + Informer (новая версия под SV_AUTH)
    - Всегда создаёт #footer на странице, если его нет
    - Внутри #footer создаёт .footer-inner и карточку .card#svFooterInfo
    - Предоставляет API: window.SV.footer.setInfo(html)
-   - Информер читает ключи SVID из localStorage и обновляется по событиям
+   - Информер читает window.SV_AUTH и обновляется по событию 'sv:auth-ready'
 */
 
 (function () {
@@ -40,51 +40,80 @@
     };
   }
 
-  // ==== ИНФОРМЕР ============================================================
-  // Рендер одной строки
+  // ==== УТИЛИТЫ =============================================================
   function row(label, value) {
-    var v = (value == null || value === "") ? "—" : String(value);
-    return '<div class="sv-row"><strong>' + esc(label) + ':</strong> <code>' + esc(v) + '</code></div>';
+    var v = value == null || value === '' ? '—' : String(value);
+    return (
+      '<div class="sv-row"><strong>' +
+      esc(label) +
+      ':</strong> <code>' +
+      esc(v) +
+      '</code></div>'
+    );
   }
-  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
 
-  // Снимок SVID из localStorage
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ==== СНИМОК ИЗ window.SV_AUTH ============================================
   function snapshot() {
-    var ls = window.localStorage;
-    var user_id     = safeGet(ls, 'svid.user_id');
-    var visitor_id  = safeGet(ls, 'svid.visitor_id'); // если появится
-    var user_level  = safeGet(ls, 'svid.user_level');
-    var level       = safeGet(ls, 'svid.level');
-    var jwt         = safeGet(ls, 'svid.jwt');
-    var lvl = Number(level || user_level || 1) || 1;
-    var jwtShort = jwt ? (String(jwt).slice(0, 12) + '…') : '—';
+    var auth = (window.SV_AUTH && typeof window.SV_AUTH === 'object')
+      ? window.SV_AUTH
+      : {};
+
+    var lvl = Number(auth.level || 1) || 1;
+    var levelCode =
+      auth.levelCode || (lvl === 1 ? 'guest' : 'user');
+
     return {
-      userId: user_id || '—',
-      visitorId: visitor_id || '—',
+      loaded: !!auth.loaded,
+      isAuthenticated: !!auth.isAuthenticated,
+      userId: auth.userId || '—',
       level: lvl,
-      jwtShort: jwtShort
+      levelCode: levelCode,
+      email: auth.email || '—',
+      displayName: auth.displayName || '—'
     };
   }
 
-  function safeGet(ls, key){ try{ return ls.getItem(key); } catch(e){ return null; } }
-
+  // ==== РЕНДЕР ИНФОРМЕРА ====================================================
   function renderInformer() {
     ensureFooter();
     var s = snapshot();
     var html = [
-      row('User ID',    s.userId),
-      row('Visitor ID', s.visitorId),
-      row('Level',      s.level),
-      row('JWT',        s.jwtShort)
+      row('Auth loaded', s.loaded ? 'yes' : 'no'),
+      row('Authenticated', s.isAuthenticated ? 'yes' : 'no'),
+      row('User ID', s.userId),
+      row('Level', s.level),
+      row('Level code', s.levelCode),
+      row('Email', s.email),
+      row('Name', s.displayName)
     ].join('');
     window.SV.footer.setInfo(html);
   }
 
+  // ==== ПОДПИСКИ НА СОБЫТИЯ =================================================
   function subscribe() {
-    window.addEventListener('svid:user', renderInformer);
-    window.addEventListener('svid:logout', renderInformer);
-    window.addEventListener('storage', function(e){ if (e && e.key && e.key.indexOf('svid.') === 0) renderInformer(); });
-    window.addEventListener('pageshow', function(e){ if (e && e.persisted) renderInformer(); });
+    // Когда скрипт в <head> получил /api/auth/session и кинул 'sv:auth-ready'
+    document.addEventListener('sv:auth-ready', function () {
+      renderInformer();
+    });
+
+    // На всякий случай при возврате из bfcache
+    window.addEventListener('pageshow', function () {
+      renderInformer();
+    });
+
+    // Если где-то в коде ты будешь кидать своё событие логаута
+    window.addEventListener('sv:logout', function () {
+      renderInformer();
+    });
   }
 
   function start() {
@@ -98,5 +127,4 @@
   } else {
     start();
   }
-  window.addEventListener('svid:visitor', renderInformer);
 })();
