@@ -1,9 +1,10 @@
 // vision/vision.js
 // -----------------------------------------------------------
-// Новая фронтовая логика модуля "Путь по визии"
+// Модуль "Путь по визии"
 // - использует новую систему идентификации (window.SV_AUTH)
 // - поддерживает несколько визий на пользователя
 // - даёт выбрать любую визию из списка
+// - позволяет переименовывать текущую визию
 // -----------------------------------------------------------
 
 const API_BASE = "/api/vision";
@@ -15,8 +16,6 @@ const state = {
   isLoading: false,
   isSending: false,
 };
-
-// ---------- DOM-хелперы ----------
 
 function $(id) {
   return document.getElementById(id);
@@ -31,7 +30,8 @@ const els = {
   overlay: null,
   visionList: null,
   newVisionBtn: null,
-  createVisionBtn: null,
+  visionTitle: null,
+  renameBtn: null,
 };
 
 function setError(msg) {
@@ -50,7 +50,7 @@ function setLoading(isLoading) {
   if (els.overlay) {
     els.overlay.hidden = !isLoading;
   }
-  if (els.input) els.input.disabled = isLoading;
+  if (els.input) els.input.disabled = isLoading || !state.currentVisionId;
   if (els.sendBtn) els.sendBtn.disabled = isLoading || !state.currentVisionId;
 }
 
@@ -75,7 +75,6 @@ function clearMessages() {
 
 function waitForAuth() {
   return new Promise((resolve) => {
-    // Сразу пробуем взять, если уже прогружено
     if (window.SV_AUTH) {
       const a = window.SV_AUTH;
       if (a.user_id || a.userId) {
@@ -83,11 +82,9 @@ function waitForAuth() {
       }
     }
 
-    // Иначе ждём событие
     document.addEventListener(
       "sv:auth-ready",
       (ev) => {
-        // пробуем и window.SV_AUTH, и detail
         const a = window.SV_AUTH || (ev && ev.detail) || {};
         resolve(a);
       },
@@ -210,6 +207,13 @@ async function selectVision(visionId) {
   try {
     const data = await apiGet(`/${encodeURIComponent(visionId)}`);
 
+    if (data && els.visionTitle) {
+      els.visionTitle.textContent = data.title || "Без названия";
+    }
+    if (els.renameBtn) {
+      els.renameBtn.disabled = false;
+    }
+
     if (Array.isArray(data.steps)) {
       data.steps.forEach((step) => {
         if (step.user_text) appendMessage("user", step.user_text);
@@ -285,6 +289,50 @@ async function sendStep(text) {
   }
 }
 
+async function renameCurrentVision() {
+  if (!state.currentVisionId) return;
+  if (!els.visionTitle) return;
+
+  const currentTitle = els.visionTitle.textContent || "";
+  const newTitle = window.prompt("Новое название визии:", currentTitle.trim());
+
+  if (newTitle === null) {
+    return;
+  }
+
+  const clean = newTitle.trim();
+  if (!clean) {
+    setError("Название визии не может быть пустым.");
+    return;
+  }
+
+  setError("");
+  setLoading(true);
+
+  try {
+    const data = await apiPost("/rename", {
+      vision_id: state.currentVisionId,
+      title: clean,
+    });
+
+    const finalTitle = data && data.title ? data.title : clean;
+    els.visionTitle.textContent = finalTitle;
+
+    const idx = state.visions.findIndex(
+      (v) => v.vision_id === state.currentVisionId,
+    );
+    if (idx !== -1) {
+      state.visions[idx].title = finalTitle;
+      renderVisionList();
+    }
+  } catch (e) {
+    console.error("[VISION] renameCurrentVision error:", e);
+    setError("Не удалось переименовать визию. Попробуй ещё раз.");
+  } finally {
+    setLoading(false);
+  }
+}
+
 // ---------- init ----------
 
 async function init() {
@@ -296,11 +344,11 @@ async function init() {
   els.overlay = $("overlay");
   els.visionList = $("visionList");
   els.newVisionBtn = $("newVisionBtn");
-  els.createVisionBtn = $("createVisionBtn");
+  els.visionTitle = $("visionTitle");
+  els.renameBtn = $("renameVisionBtn");
 
   setError("");
 
-  // ---- Auth ----
   let auth;
   try {
     auth = await waitForAuth();
@@ -319,8 +367,6 @@ async function init() {
 
   state.userId = userId;
 
-  // ---- Обработчики ----
-
   if (els.form && els.input) {
     els.form.addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -332,23 +378,21 @@ async function init() {
     });
   }
 
-  const createHandler = () => {
-    createNewVision();
-  };
-
   if (els.newVisionBtn) {
-    els.newVisionBtn.addEventListener("click", createHandler);
-  }
-  if (els.createVisionBtn) {
-    els.createVisionBtn.addEventListener("click", createHandler);
+    els.newVisionBtn.addEventListener("click", () => {
+      createNewVision();
+    });
   }
 
-  // ---- Стартовая загрузка ----
+  if (els.renameBtn) {
+    els.renameBtn.addEventListener("click", () => {
+      renameCurrentVision();
+    });
+  }
 
   await loadVisions();
 
   if (!state.visions.length) {
-    // Автоматически создаём первую визию
     await createNewVision();
   }
 

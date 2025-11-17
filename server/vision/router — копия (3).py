@@ -10,11 +10,10 @@ from openai import OpenAI
 # ============================================================
 #  VISION ROUTER
 #  Здесь лежат все эндпоинты для модуля "Путь по визии"
-#  - POST /vision/create     — создать визию (по auth-сессии)
+#  - POST /vision/create     — создать визию (теперь по auth-сессии)
 #  - POST /vision/step       — добавить шаг визии + ответ ИИ
-#  - POST /vision/rename     — переименовать визию
-#  - GET  /vision/list       — список визий пользователя
 #  - GET  /vision/{id}       — получить визию и историю шагов
+#  - GET  /vision/list       — получить список визий пользователя
 # ============================================================
 
 # ----------- ENV / клиенты -----------
@@ -69,6 +68,8 @@ class StepResponse(BaseModel):
   created_at: datetime
 
 
+# ----- Модели для истории визии -----
+
 class VisionStepInHistory(BaseModel):
   """
   Один шаг визии в истории:
@@ -103,16 +104,6 @@ class VisionShort(BaseModel):
 class VisionListResponse(BaseModel):
   """Ответ для GET /vision/list."""
   visions: List[VisionShort]
-
-
-class RenameVisionRequest(BaseModel):
-  vision_id: str
-  title: str
-
-
-class RenameVisionResponse(BaseModel):
-  vision_id: str
-  title: str
 
 
 # ============================================================
@@ -278,7 +269,7 @@ async def create_step(request: Request, body: StepRequest):
     # 1. Собираем сообщения для OpenAI (контекст)
     messages = build_messages_for_openai(body.vision_id, body.user_text)
 
-    # 2. Делаем запрос к OpenAI
+    # 2. Делаем запрос к OpenAI (новый клиент, модель с поиском)
     completion = openai_client.chat.completions.create(
       model="gpt-4o-mini-search-preview",
       messages=messages,
@@ -332,68 +323,6 @@ async def create_step(request: Request, body: StepRequest):
     raise HTTPException(status_code=500, detail=f"Ошибка при создании шага визии: {e}")
 
 
-@router.post("/rename", response_model=RenameVisionResponse)
-async def rename_vision(request: Request, body: RenameVisionRequest):
-  """
-  POST /api/vision/rename
-  Переименовать визию текущего пользователя.
-  """
-  user_id = _extract_auth_user_id(request)
-  if not user_id:
-    raise HTTPException(status_code=401, detail="Не удалось определить пользователя (нет сессии)")
-
-  if not body.vision_id:
-    raise HTTPException(status_code=400, detail="vision_id обязателен")
-  if not body.title or not body.title.strip():
-    raise HTTPException(status_code=400, detail="title обязателен")
-
-  clean_title = body.title.strip()
-
-  try:
-    # Проверяем, что визия принадлежит пользователю
-    vis_res = (
-      supabase
-      .table("visions")
-      .select("id, user_id")
-      .eq("id", body.vision_id)
-      .limit(1)
-      .execute()
-    )
-
-    if not vis_res.data:
-      raise HTTPException(status_code=404, detail="Визия не найдена")
-
-    vis_row = vis_res.data[0]
-    if str(vis_row.get("user_id")) != user_id:
-      raise HTTPException(status_code=403, detail="Нет доступа к этой визии")
-
-    # Обновляем название
-    upd_res = (
-      supabase
-      .table("visions")
-      .update({"title": clean_title})
-      .eq("id", body.vision_id)
-      .execute()
-    )
-
-    if not upd_res.data:
-      return RenameVisionResponse(
-        vision_id=body.vision_id,
-        title=clean_title,
-      )
-
-    row = upd_res.data[0]
-
-    return RenameVisionResponse(
-      vision_id=row["id"],
-      title=row.get("title") or clean_title,
-    )
-  except HTTPException:
-    raise
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f"Ошибка при переименовании визии: {e}")
-
-
 @router.get("/list", response_model=VisionListResponse)
 async def list_my_visions(request: Request):
   """
@@ -435,6 +364,14 @@ async def list_my_visions(request: Request):
 async def get_vision_history(request: Request, vision_id: str):
   """
   GET /api/vision/{vision_id}
+
+  Что делает:
+  1. Находит визию в таблице visions.
+  2. Проверяет, что она принадлежит текущему пользователю (если подключена auth).
+  3. Находит все её шаги в vision_steps.
+  4. Возвращает:
+     - id, title, created_at визии
+     - список шагов (user_text + ai_text) по порядку.
   """
   auth_user_id = _extract_auth_user_id(request)
 
