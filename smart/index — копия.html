@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SMART VISION</title>
+
+  <!-- ЕДИНЫЙ базовый путь для прод/дева -->
+  <base href="./" />
+
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="index/index.css" />
+</head>
+<body>
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
+
+    <div id="app">
+      <header id="topbar" role="banner"></header>
+
+      <main id="main" role="main">
+        <section class="hero">
+          <h1>SMART VISION</h1>
+          <p>Меню рендерится по уровню из SVID. Хедер — один владелец.</p>
+        </section>
+      </main>
+
+      <div id="home-geo-footer"></div>
+      <footer id="footer" role="contentinfo"></footer>
+    </div>
+  </div>
+  <div id="overlay" hidden></div>
+
+  
+
+  <script defer src="svid/svid.js"></script>
+  <script defer src="js/footer.js?v=2"></script>
+  <script defer src="index/index.js"></script>
+
+  <!-- 2) Точка входа: хедер/меню (модуль) -->
+  <script type="module">
+    import { initPage } from './js/topbar.module.js';
+    initPage({
+      fragments: [['menu.html', '#sidebar']],
+      cacheBust: false,
+      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+    });
+  </script>
+
+</body>
+</html>

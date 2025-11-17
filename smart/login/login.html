@@ -13,6 +13,55 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="login/login.css" />
+
+
+  <script>
+    (function () {
+      // Значения по умолчанию: гость
+      window.SV_AUTH = {
+        isAuthenticated: false,
+        userId: null,
+        level: 1,
+        levelCode: 'guest',
+        email: null,
+        displayName: null,
+        loaded: false
+      };
+
+      function applySession(data) {
+        window.SV_AUTH.isAuthenticated = !!data.is_authenticated;
+        window.SV_AUTH.userId = data.user_id ?? null;
+        window.SV_AUTH.level = data.level ?? 1;
+        window.SV_AUTH.levelCode =
+          data.level_code || (window.SV_AUTH.level === 1 ? 'guest' : 'user');
+        window.SV_AUTH.email = data.email ?? null;
+        window.SV_AUTH.displayName = data.display_name ?? null;
+        window.SV_AUTH.loaded = true;
+
+        // Сообщаем всем, что авторизация прогружена
+        document.dispatchEvent(
+          new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
+        );
+      }
+
+      // Тянем сессию с бэка
+      fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include'
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Auth check failed');
+          return res.json();
+        })
+        .then(applySession)
+        .catch(function () {
+          // В случае ошибки остаёмся гостем
+          applySession({});
+        });
+    })();
+  </script>
+
+
 </head>
 <body>
   <div id="page">

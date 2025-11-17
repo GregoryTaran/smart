@@ -1,4 +1,3 @@
-
 // === Global redirect to index after logout (respects <base>) ===
 function redirectToIndex() {
   try {
@@ -9,39 +8,52 @@ function redirectToIndex() {
   }
 }
 // === /redirect helper ===
-/* topbar.module.js
-   Мини-патч: добавлен диагностический бейдж "level N" (низ справа).
-   БЭКЕНД: /api/svid/* ; UI слушает событие window "svid:level" и читает localStorage('svid.level')
+
+/* topbar.module.js — версия под новую авторизацию
+   БЭКЕНД: /api/auth/session (читаем в <head>), /api/auth/logout (здесь вызываем)
+   ФРОНТ: читает window.SV_AUTH и слушает событие document 'sv:auth-ready'
 */
 
 const MENU = [
-  { id:'home',  title:'Главная',                 href:'index.html',                       allow:[1,2] },
-  { id:'about', title:'О проекте',               href:'about/about.html',                 allow:[1,2] },
-  { id:'priv',  title:'Политика конфиденциальности', href:'privacy/privacy.html',       allow:[1,2] },
-  { id:'terms', title:'Условия использования',   href:'terms/terms.html',                 allow:[1,2] },
+  { id: 'home',  title: 'Главная',                     href: 'index.html',                       allow: [1, 2] },
+  { id: 'about', title: 'О проекте',                   href: 'about/about.html',                 allow: [1, 2] },
+  { id: 'priv',  title: 'Политика конфиденциальности', href: 'privacy/privacy.html',             allow: [1, 2] },
+  { id: 'terms', title: 'Условия использования',       href: 'terms/terms.html',                 allow: [1, 2] },
 
-  { id:'login', title:'Вход/регистрация',        href:'login/login.html',                 allow:[1] },
+  { id: 'login', title: 'Вход/регистрация',            href: 'login/login.html',                 allow: [1] },
 
-  { id:'ts',    title:'Проверка сервера',        href:'testserver/testserver.html',       allow:[2] },
-  { id:'rec',   title:'Диктофон',                href:'voicerecorder/voicerecorder.html', allow:[2] },
-  { id:'app',   title:'Мобильное приложение',    href:'app/app.html',                     allow:[1,2] },
-  { id:'logout',title:'Выйти',                   href:'#logout', action:'logout',         allow:[2] },
+  { id: 'ts',    title: 'Проверка сервера',            href: 'testserver/testserver.html',       allow: [2] },
+  { id: 'rec',   title: 'Диктофон',                    href: 'voicerecorder/voicerecorder.html', allow: [2] },
+  { id: 'app',   title: 'Мобильное приложение',        href: 'app/app.html',                     allow: [1, 2] },
+  { id: 'logout',title: 'Выйти',                       href: '#logout', action: 'logout',        allow: [2] },
 ];
 
-const LVL_KEY = 'svid.level';
+/* === Утилиты для чтения авторизации из window.SV_AUTH === */
 
-function level() {
-  const v = parseInt(localStorage.getItem(LVL_KEY) || '1', 10);
-  return Number.isFinite(v) ? v : 1;
-}
-function setLevel(n) {
-  if (window.SVID?.setLevel) return window.SVID.setLevel(n);
-  localStorage.setItem(LVL_KEY, String(n));
-  window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: n }}));
+function getAuthState() {
+  // Структура, которую заполняет скрипт в <head>
+  if (window.SV_AUTH && typeof window.SV_AUTH === 'object') {
+    return window.SV_AUTH;
+  }
+  return {
+    isAuthenticated: false,
+    userId: null,
+    level: 1,
+    levelCode: 'guest',
+    email: null,
+    displayName: null,
+    loaded: false,
+  };
 }
 
-/* === NEW: диагностический бейдж уровня (угол экрана) === */
-function ensureLevelDebugBadge() {
+function getLevel() {
+  const auth = getAuthState();
+  const lvl = Number(auth.level);
+  return Number.isFinite(lvl) && lvl > 0 ? lvl : 1;
+}
+
+/* === Диагностический бейдж уровня (низ справа) === */
+function ensureLevelDebugBadge(levelValue = getLevel()) {
   let el = document.getElementById('svid-level-badge');
   if (!el) {
     el = document.createElement('div');
@@ -54,10 +66,9 @@ function ensureLevelDebugBadge() {
     ].join(';');
     document.body.appendChild(el);
   }
-  const lvl = Number(localStorage.getItem(LVL_KEY)) || 1;
-  el.textContent = `level ${lvl}`;
+  el.textContent = `level ${levelValue}`;
 }
-/* === /NEW === */
+/* === /бейдж === */
 
 function toggleMenu() {
   const body = document.body;
@@ -77,6 +88,7 @@ function toggleMenu() {
     delete body.dataset.prevOverflow;
   }
 }
+
 function closeMenu() {
   const body = document.body;
   if (!body.classList.contains('menu-open')) return;
@@ -101,33 +113,42 @@ function initMenuControls() {
   });
 }
 
-// Правый “Логин/Выйти”
+/* === Логин/Логаут в правом верхнем углу === */
+
+async function logoutRequest() {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  } catch (e) {
+    console.warn('Logout request failed', e);
+  } finally {
+    redirectToIndex();
+  }
+}
+
 function bindAuthLink() {
   const a = document.getElementById('auth-link');
   if (!a) return;
   a.addEventListener('click', async (e) => {
-    if (level() >= 2) {
+    const lvl = getLevel();
+    if (lvl >= 2) {
+      // Залогинен → это кнопка "Выйти"
       e.preventDefault();
-      try {
-        if (window.SVID?.logout) {
-          await window.SVID.logout(); // /api/svid/logout
-        } else {
-          localStorage.removeItem('svid.user_id');
-          localStorage.removeItem('svid.user_level');
-          localStorage.removeItem('svid.jwt');
-          setLevel(1);
-        }
-      } finally {
-        closeMenu();
-      }
+      await logoutRequest();
     }
+    // если не залогинен — обычный переход на страницу логина
   });
 }
+
 function syncAuthLink(lvl) {
-  // Robust sync: handle cases when #auth-link is not yet in DOM
   let a = document.getElementById('auth-link');
   if (!a) {
-    setTimeout(() => syncAuthLink(lvl), 100);
+    // Подождём появления topbar в DOM
+    setTimeout(() => syncAuthLink(lvl), 50);
     return;
   }
 
@@ -138,7 +159,6 @@ function syncAuthLink(lvl) {
     a.setAttribute('data-action', 'logout');
     a.classList.add('is-logout');
 
-    // Inline highlight (highest priority regardless of CSS load order)
     a.style.background = '#007bff';
     a.style.color = '#fff';
     a.style.border = 'none';
@@ -150,7 +170,7 @@ function syncAuthLink(lvl) {
     a.onmouseout  = () => (a.style.background = '#007bff');
 
   } else {
-    // NOT LOGGED IN -> show Login (white with outlined rectangle)
+    // NOT LOGGED IN -> show Login
     a.textContent = 'Логин';
     a.setAttribute('href', 'login/login.html#login');
     a.removeAttribute('data-action');
@@ -167,29 +187,22 @@ function syncAuthLink(lvl) {
   }
 }
 
-function renderMenu(currentLevel = level()) {
+/* === Меню слева === */
+
+function renderMenu(currentLevel = getLevel()) {
   const host = document.querySelector('[data-svid-menu]');
   if (!host) return;
   const items = MENU.filter(i => i.allow.includes(currentLevel));
   host.innerHTML = `<ul>${
-    items.map(i => `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`).join('')
+    items.map(i =>
+      `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`
+    ).join('')
   }</ul>`;
 
   (host.querySelectorAll?.('[data-action="logout"]') || []).forEach(a => {
     a.addEventListener('click', async (e) => {
       e.preventDefault();
-      try {
-        if (window.SVID?.logout) {
-          await window.SVID.logout();
-        } else {
-          localStorage.removeItem('svid.user_id');
-          localStorage.removeItem('svid.user_level');
-          localStorage.removeItem('svid.jwt');
-          setLevel(1);
-        }
-      } finally {
-        closeMenu();
-      }
+      await logoutRequest();
     });
   });
 }
@@ -214,6 +227,8 @@ async function loadFragment(url, sel) {
   el.innerHTML = html;
 }
 
+/* === Рендер топбара === */
+
 function renderTopbar(state = {}) {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
@@ -233,8 +248,10 @@ function renderTopbar(state = {}) {
 
   topbar.querySelector('.menu-toggle')?.addEventListener('click', toggleMenu);
   bindAuthLink();
-  syncAuthLink(level());
+  syncAuthLink(getLevel());
 }
+
+/* === Главная инициализация страницы === */
 
 export async function initPage({
   fragments = [['menu.html', '#sidebar']],
@@ -243,54 +260,38 @@ export async function initPage({
 } = {}) {
   renderTopbar(topbar.state);
 
-  // если ещё нет svid.level, но уже есть SVID — проставим для UI
-  if (!localStorage.getItem(LVL_KEY) && window.SVID?.getState) {
-    const st = window.SVID.getState();
-    const lvl = Number(st.user_level) || Number(st.visitor_level) || 1;
-    localStorage.setItem(LVL_KEY, String(lvl));
-    window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: lvl } }));
-  }
-
   for (const [url, sel] of fragments) {
     await loadFragment(cacheBust ? `${url}?_=${Date.now()}` : url, sel);
   }
+
   initMenuControls();
 
-  const ready = window.SVID?.ready || Promise.resolve({ level: level() });
-  await ready.then(({ level }) => {
-    syncAuthLink(level);
-    renderMenu(level);
+  // 1) Попробуем сразу взять текущий уровень (если SV_AUTH уже загружен)
+  let lvl = getLevel();
+  syncAuthLink(lvl);
+  renderMenu(lvl);
+  highlightActive();
+  ensureLevelDebugBadge(lvl);
+
+  // 2) Подписываемся на событие, которое кидает скрипт в <head>, когда /api/auth/session ответил
+  document.addEventListener('sv:auth-ready', (event) => {
+    const detail = event?.detail || getAuthState();
+    const newLevel = Number(detail.level) || 1;
+    syncAuthLink(newLevel);
+    renderMenu(newLevel);
     highlightActive();
-    ensureLevelDebugBadge(); // NEW: показать бейдж
+    ensureLevelDebugBadge(newLevel);
   });
 
-  window.addEventListener('svid:level', e => {
-    const lvl = e.detail.level;
-    syncAuthLink(lvl);
-    renderMenu(lvl);
+  // 3) На всякий случай при возвращении из bfcache — обновим бейдж и меню
+  window.addEventListener('pageshow', () => {
+    const cur = getLevel();
+    syncAuthLink(cur);
+    renderMenu(cur);
     highlightActive();
-    ensureLevelDebugBadge(); // NEW
-  });
-
-  window.addEventListener('storage', e => {
-    if (e.key === LVL_KEY) {
-      const lvl = parseInt(e.newValue || '1',10);
-      syncAuthLink(lvl);
-      renderMenu(lvl);
-      highlightActive();
-      ensureLevelDebugBadge(); // NEW
-    }
-  });
-
-  // при возврате страницы из истории (bfcache) — обновим бейдж
-  window.addEventListener('pageshow', (e) => {
-    if (e.persisted) {
-      const cur = Number(localStorage.getItem(LVL_KEY)) || 1;
-      window.dispatchEvent(new CustomEvent('svid:level', { detail: { level: cur } }));
-      ensureLevelDebugBadge(); // NEW
-    }
+    ensureLevelDebugBadge(cur);
   });
 }
 
-// Force navigation to index on any logout
-window.addEventListener('svid:logout', () => redirectToIndex());
+// На всякий случай: если где-то в коде ты сам вызовешь logout и кинешь это событие
+window.addEventListener('sv:logout', () => redirectToIndex());
