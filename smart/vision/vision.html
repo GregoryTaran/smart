@@ -145,8 +145,11 @@
 
 <script defer src="js/footer.js?v=2"></script>
 
-<script defer type="module" src="vision/vision.js"></script>
-
+<script type="module">
+  import { requireLevel } from "./js/guards.js";
+  import "./vision/vision.js";
+  requireLevel({ level: 2 });
+</script>
 
 
 </body>

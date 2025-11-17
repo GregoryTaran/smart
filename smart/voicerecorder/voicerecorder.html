@@ -111,7 +111,7 @@
 <div id="overlay" hidden></div>
 
 
-<script defer src="js/footer.js?v=2"></script>
+
 
 <!-- Мягкое получение разрешения на микрофон -->
 <script type="module">
@@ -151,8 +151,15 @@
   document.addEventListener('DOMContentLoaded', () => { requestMicOnce(); });
 </script>
 
-<!-- Основной модуль диктофона -->
-<script defer type="module" src="voicerecorder/voicerecorder.js"></script>
+<script defer src="js/footer.js?v=2"></script>
+
+<script type="module">
+  import { requireLevel } from "./js/guards.js";
+  import "./voicerecorder/voicerecorder.js";
+  requireLevel({ level: 2 });
+</script>
+
+
 
 
 </body>
