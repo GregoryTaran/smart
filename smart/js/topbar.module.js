@@ -221,17 +221,39 @@ function renderMenu(currentLevel = getLevel()) {
 }
 
 function highlightActive() {
-  const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-  const pageId = page.replace(/\.html$/, '') || 'index';
-  document.querySelectorAll('[data-svid-menu] a').forEach(a => {
-    const id = (a.getAttribute('data-id') || '').toLowerCase();
-    const href = (a.getAttribute('href') || '').toLowerCase();
-    const ok = (id && id === pageId) ||
-               href.endsWith(`${pageId}.html`) ||
-               (pageId === 'index' && (href === '' || href.endsWith('index.html')));
+  // Текущий путь страницы, без хвостовых слешей
+  let currentPath = location.pathname.toLowerCase();
+  if (currentPath === '/') {
+    currentPath = '/index.html';
+  }
+
+  document.querySelectorAll('[data-svid-menu] a[href]').forEach(a => {
+    const rawHref = a.getAttribute('href') || '';
+
+    // Не подсвечиваем служебные ссылки типа #logout
+    if (!rawHref || rawHref.startsWith('#')) {
+      a.classList.remove('is-active');
+      return;
+    }
+
+    let hrefPath;
+    try {
+      // Делаем абсолютный путь, независимый от <base>
+      hrefPath = new URL(rawHref, window.location.origin).pathname.toLowerCase();
+    } catch {
+      hrefPath = rawHref.toLowerCase();
+    }
+
+    // Нормализуем "корень" тоже в index.html
+    if (hrefPath === '/') {
+      hrefPath = '/index.html';
+    }
+
+    const ok = currentPath === hrefPath;
     a.classList.toggle('is-active', ok);
   });
 }
+
 
 async function loadFragment(url, sel) {
   const el = document.querySelector(sel);

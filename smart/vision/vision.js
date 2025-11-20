@@ -94,13 +94,24 @@ function renderMessages(steps) {
 // --------------- Отправка шага ----------------
 function setupForm() {
   const form = document.getElementById("messageForm");
-  if (!form) return;
+  if (!form || !inputEl) return;
 
+  // Отправка по submit (кнопка "Отправить")
   form.addEventListener("submit", e => {
     e.preventDefault();
     sendStep();
   });
+
+  // Отправка по Ctrl+Enter / Cmd+Enter
+  inputEl.addEventListener("keydown", e => {
+    // Ctrl+Enter (Windows/Linux) или Cmd+Enter (Mac)
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); // не добавляем перенос строки
+      sendStep();
+    }
+  });
 }
+
 
 function sendStep() {
   if (!inputEl) return;
