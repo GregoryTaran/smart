@@ -16,24 +16,35 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-document.addEventListener("sv:auth-ready", () => {
-  loadVisionList();
+// --------------------------------------------------------
+// ⭐ ЛЁГКАЯ ЗАГРУЗКА: сразу берём кэш авторизации
+// --------------------------------------------------------
+window.addEventListener("DOMContentLoaded", () => {
+  loadVisionList();  // грузим визии МГНОВЕННО
   setupCreateButton();
 });
 
+// --------------------------------------------------------
+// Когда придёт свежая авторизация — тихо обновим
+// --------------------------------------------------------
+document.addEventListener("sv:auth-ready", () => {
+  loadVisionList();
+});
+
+// --------------------------------------------------------
 // Загрузка списка визий
+// --------------------------------------------------------
 function loadVisionList() {
   apiGet("/api/vision/list")
     .then(data => renderList(data.visions || []))
     .catch(err => console.error("Ошибка загрузки визий", err));
 }
 
-// Рендер списка
 function renderList(visions) {
   const box = document.getElementById("visionList");
   box.innerHTML = "";
 
-  if (visions.length === 0) {
+  if (!visions.length) {
     box.innerHTML = `<p class="empty-text">У вас пока нет визий</p>`;
     return;
   }
@@ -41,18 +52,23 @@ function renderList(visions) {
   visions.forEach(v => {
     const item = document.createElement("div");
     item.className = "vision-list-item";
+
     item.innerHTML = `
       <div class="vision-list-title">${v.title}</div>
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
+
     item.onclick = () => {
       window.location.href = `/vision/vision.html?vision_id=${v.vision_id}`;
     };
+
     box.appendChild(item);
   });
 }
 
+// --------------------------------------------------------
 // Создание визии
+// --------------------------------------------------------
 function setupCreateButton() {
   const btn = document.getElementById("newVisionBtn");
   if (!btn) return;

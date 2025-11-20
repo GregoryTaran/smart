@@ -16,11 +16,14 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// Получаем ID визии
+// Получаем ID визии из URL
 const params = new URLSearchParams(location.search);
 const visionId = params.get("vision_id");
 
-document.addEventListener("sv:auth-ready", () => {
+// --------------------------------------------------------
+// ⭐ ЛЁГКАЯ ЗАГРУЗКА: сразу грузим визию (по localStorage auth)
+// --------------------------------------------------------
+window.addEventListener("DOMContentLoaded", () => {
   if (visionId) {
     loadVision();
     setupForm();
@@ -28,7 +31,16 @@ document.addEventListener("sv:auth-ready", () => {
   }
 });
 
+// --------------------------------------------------------
+// Когда придёт обновлённая авторизация — обновляем визию
+// --------------------------------------------------------
+document.addEventListener("sv:auth-ready", () => {
+  if (visionId) loadVision();
+});
+
+// --------------------------------------------------------
 // Загрузка визии
+// --------------------------------------------------------
 function loadVision() {
   apiGet(`/api/vision/${visionId}`)
     .then(data => {
@@ -37,12 +49,14 @@ function loadVision() {
       enableInput();
     })
     .catch(err => {
-      console.error("Ошибка загрузки визии", err);
+      console.error("Ошибка загрузки визии:", err);
       showError("Не удалось загрузить визию");
     });
 }
 
-// Сообщения
+// --------------------------------------------------------
+// Рендер сообщений
+// --------------------------------------------------------
 function renderMessages(steps) {
   const box = document.getElementById("messages");
   box.innerHTML = "";
@@ -70,7 +84,9 @@ function renderMessages(steps) {
   box.scrollTop = box.scrollHeight;
 }
 
+// --------------------------------------------------------
 // Отправка шага
+// --------------------------------------------------------
 function setupForm() {
   const form = document.getElementById("messageForm");
   form.addEventListener("submit", e => {
@@ -92,16 +108,19 @@ function sendStep() {
   })
     .then(() => loadVision())
     .catch(err => {
-      console.error("Ошибка отправки шага", err);
+      console.error("Ошибка отправки шага:", err);
       showError("Не удалось отправить шаг");
     });
 }
 
+// --------------------------------------------------------
 // Переименование визии
+// --------------------------------------------------------
 function setupRename() {
   const btn = document.getElementById("renameVisionBtn");
-  btn.disabled = false;
+  if (!btn) return;
 
+  btn.disabled = false;
   btn.onclick = () => {
     const newName = prompt("Введите новое название визии:");
     if (!newName) return;
@@ -112,12 +131,15 @@ function setupRename() {
     })
       .then(() => loadVision())
       .catch(err => {
-        console.error("Ошибка переименования", err);
+        console.error("Ошибка переименования:", err);
         showError("Не удалось переименовать визию");
       });
   };
 }
 
+// --------------------------------------------------------
+// UI helpers
+// --------------------------------------------------------
 function enableInput() {
   document.getElementById("userInput").disabled = false;
   document.getElementById("sendBtn").disabled = false;
