@@ -1,255 +1,404 @@
 // vision/vision.js
+// -----------------------------------------------------------
+// Модуль "Путь по визии"
+// - использует новую систему идентификации (window.SV_AUTH)
+// - поддерживает несколько визий на пользователя
+// - даёт выбрать любую визию из списка
+// - позволяет переименовывать текущую визию
+// -----------------------------------------------------------
 
 const API_BASE = "/api/vision";
 
 const state = {
   userId: null,
-  visionId: null,
+  visions: [],
+  currentVisionId: null,
+  isLoading: false,
+  isSending: false,
 };
 
-// ---------- SVID / user_id ----------
-
-function makeLocalFallbackUserId() {
-  const key = "vision.local_user_id";
-  try {
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const id = "local-" + Math.random().toString(36).slice(2);
-    localStorage.setItem(key, id);
-    return id;
-  } catch (e) {
-    console.error("[VISION] localStorage fallback user_id error", e);
-    return "local-" + Math.random().toString(36).slice(2);
-  }
+function $(id) {
+  return document.getElementById(id);
 }
 
-async function resolveUserIdFromSVID() {
-  try {
-    if (window.SVID) {
-      // даём SVID шанс инициализироваться
-      if (typeof window.SVID.ensureVisitorAndLevel === "function") {
-        await window.SVID.ensureVisitorAndLevel();
-      } else if (window.SVID.ready && typeof window.SVID.ready.then === "function") {
-        await window.SVID.ready;
-      }
+const els = {
+  messages: null,
+  form: null,
+  input: null,
+  sendBtn: null,
+  error: null,
+  overlay: null,
+  visionList: null,
+  newVisionBtn: null,
+  visionTitle: null,
+  renameBtn: null,
+};
 
-      if (typeof window.SVID.getState === "function") {
-        const snap = window.SVID.getState();
-        if (snap) {
-          if (snap.user_id) return snap.user_id;       // залогиненный юзер
-          if (snap.visitor_id) return snap.visitor_id; // хотя бы визитор
-        }
-      }
-    }
-
-    // прямое чтение по контракту
-    if (typeof localStorage !== "undefined") {
-      const lsUser = localStorage.getItem("svid.user_id");
-      if (lsUser) return lsUser;
-      const lsVisitor = localStorage.getItem("svid.visitor_id");
-      if (lsVisitor) return lsVisitor;
-    }
-  } catch (e) {
-    console.error("[VISION] error while getting user_id from SVID", e);
-  }
-
-  // если SVID ещё не завезён — дев-фоллбек
-  return makeLocalFallbackUserId();
-}
-
-async function ensureUserId() {
-  if (state.userId) return state.userId;
-  state.userId = await resolveUserIdFromSVID();
-  console.log("[VISION] user_id =", state.userId);
-  return state.userId;
-}
-
-// ---------- DOM helpers ----------
-
-function qs(sel) {
-  return document.querySelector(sel);
-}
-
-function showError(msg) {
-  const box = qs("#visionError");
-  if (!box) return;
+function setError(msg) {
+  if (!els.error) return;
   if (!msg) {
-    box.textContent = "";
-    box.classList.add("vision-hidden");
+    els.error.textContent = "";
+    els.error.classList.add("vision-hidden");
   } else {
-    box.textContent = msg;
-    box.classList.remove("vision-hidden");
+    els.error.textContent = msg;
+    els.error.classList.remove("vision-hidden");
   }
 }
 
-function setFormEnabled(enabled) {
-  const input = qs("#userInput");
-  const btn = qs("#sendBtn");
-  if (input) input.disabled = !enabled;
-  if (btn) btn.disabled = !enabled;
-}
-
-function clearMessages() {
-  const list = qs("#messages");
-  if (!list) return;
-  list.innerHTML = "";
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+function setLoading(isLoading) {
+  state.isLoading = isLoading;
+  if (els.overlay) {
+    els.overlay.hidden = !isLoading;
+  }
+  if (els.input) els.input.disabled = isLoading || !state.currentVisionId;
+  if (els.sendBtn) els.sendBtn.disabled = isLoading || !state.currentVisionId;
 }
 
 function appendMessage(role, text) {
-  const list = qs("#messages");
-  if (!list) return;
-
+  if (!els.messages) return;
   const item = document.createElement("div");
-  const kind = role === "user" ? "user" : "ai";
-  item.className = `vision-message vision-message--${kind}`;
-
-  const label = role === "user" ? "Ты" : "Визион-бот";
-
-  item.innerHTML = `
-    <div class="vision-message-label">${escapeHtml(label)}</div>
-    <div class="vision-message-text">${escapeHtml(text)}</div>
-  `;
-
-  list.appendChild(item);
-  list.scrollTop = list.scrollHeight;
+  item.className =
+    role === "user"
+      ? "vision-message vision-message-user"
+      : "vision-message vision-message-ai";
+  item.textContent = text;
+  els.messages.appendChild(item);
+  els.messages.scrollTop = els.messages.scrollHeight;
 }
 
-// ---------- API calls ----------
+function clearMessages() {
+  if (!els.messages) return;
+  els.messages.innerHTML = "";
+}
 
-async function createVision() {
-  showError("");
-  const btn = qs("#createVisionBtn");
+// ---------- Auth ----------
 
-  try {
-    if (btn) btn.disabled = true;
-    setFormEnabled(false);
-    clearMessages();
-
-    const userId = await ensureUserId();
-
-    const res = await fetch(`${API_BASE}/create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId }),
-    });
-
-    if (!res.ok) {
-      let raw = "";
-      try {
-        raw = await res.text();
-      } catch (_) {}
-      console.error("[VISION] createVision error:", res.status, raw);
-      throw new Error("createVision failed");
+function waitForAuth() {
+  return new Promise((resolve) => {
+    if (window.SV_AUTH) {
+      const a = window.SV_AUTH;
+      if (a.user_id || a.userId) {
+        return resolve(a);
+      }
     }
 
-    const data = await res.json();
-    state.visionId = data.vision_id;
-    console.log("[VISION] vision created:", data);
+    document.addEventListener(
+      "sv:auth-ready",
+      (ev) => {
+        const a = window.SV_AUTH || (ev && ev.detail) || {};
+        resolve(a);
+      },
+      { once: true },
+    );
+  });
+}
 
-    // 👉 вот тут магия с именем визии
-    const info = qs("#visionInfo");
-    const title = qs("#visionTitle");
-    if (info) info.classList.remove("vision-hidden");
-    if (title) title.textContent = data.title || `Визия ${data.vision_id}`;
+// ---------- API ----------
 
-    setFormEnabled(true);
-    const input = qs("#userInput");
-    if (input) input.focus();
-  } catch (err) {
-    console.error("[VISION] createVision exception:", err);
-    showError("Не удалось создать визию. Проверь сервер.");
-  } finally {
-    if (btn) btn.disabled = false;
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GET ${path} failed: ${res.status} ${text}`);
+  }
+
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    credentials: "include",
+    body: body ? JSON.stringify(body) : "{}",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST ${path} failed: ${res.status} ${text}`);
+  }
+
+  return res.json();
+}
+
+// ---------- Логика визий ----------
+
+async function loadVisions() {
+  setError("");
+  try {
+    const data = await apiGet("/list");
+    state.visions = Array.isArray(data.visions) ? data.visions : [];
+    renderVisionList();
+  } catch (e) {
+    console.error("[VISION] loadVisions error:", e);
+    setError("Не удалось загрузить список визий. Попробуй обновить страницу.");
   }
 }
 
+function renderVisionList() {
+  if (!els.visionList) return;
+  els.visionList.innerHTML = "";
 
-async function sendStep(userText) {
-  showError("");
-  if (!state.visionId) {
-    showError("Сначала создай визию.");
+  if (!state.visions.length) {
+    const empty = document.createElement("div");
+    empty.className = "vision-list-empty";
+    empty.textContent = "У тебя пока нет визий. Создай первую!";
+    els.visionList.appendChild(empty);
     return;
   }
 
-  appendMessage("user", userText);
-
-  const input = qs("#userInput");
-  const btn = qs("#sendBtn");
-
-  try {
-    if (input) input.disabled = true;
-    if (btn) btn.disabled = true;
-
-    const res = await fetch(`${API_BASE}/step`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        vision_id: state.visionId,
-        user_text: userText,
-      }),
-    });
-
-    if (!res.ok) {
-      let raw = "";
-      try {
-        raw = await res.text();
-      } catch (_) {}
-      console.error("[VISION] step error:", res.status, raw);
-      throw new Error("Ошибка шага визии");
+  state.visions.forEach((v) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "vision-list-item";
+    if (state.currentVisionId === v.vision_id) {
+      item.classList.add("vision-list-item-active");
     }
 
-    const data = await res.json();
-    appendMessage("ai", data.ai_text || "Пустой ответ визион-бота 🤔");
-  } catch (err) {
-    console.error("[VISION] sendStep exception:", err);
-    showError("Что-то пошло не так при обработке шага визии.");
+    const title = document.createElement("div");
+    title.className = "vision-list-title";
+    title.textContent = v.title || "Без названия";
+
+    const date = document.createElement("div");
+    date.className = "vision-list-date";
+    try {
+      const d = new Date(v.created_at);
+      date.textContent = d.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      date.textContent = "";
+    }
+
+    item.appendChild(title);
+    item.appendChild(date);
+
+    item.addEventListener("click", () => {
+      if (state.currentVisionId === v.vision_id) return;
+      selectVision(v.vision_id);
+    });
+
+    els.visionList.appendChild(item);
+  });
+}
+
+async function selectVision(visionId) {
+  if (!visionId) return;
+  setLoading(true);
+  setError("");
+  clearMessages();
+  state.currentVisionId = visionId;
+  renderVisionList();
+
+  try {
+    const data = await apiGet(`/${encodeURIComponent(visionId)}`);
+
+    if (data && els.visionTitle) {
+      els.visionTitle.textContent = data.title || "Без названия";
+    }
+    if (els.renameBtn) {
+      els.renameBtn.disabled = false;
+    }
+
+    if (Array.isArray(data.steps)) {
+      data.steps.forEach((step) => {
+        if (step.user_text) appendMessage("user", step.user_text);
+        if (step.ai_text) appendMessage("ai", step.ai_text);
+      });
+    }
+
+    if (els.input) els.input.disabled = false;
+    if (els.sendBtn) els.sendBtn.disabled = false;
+  } catch (e) {
+    console.error("[VISION] selectVision error:", e);
+    setError(
+      "Не удалось загрузить визию. Попробуй выбрать её ещё раз или создать новую.",
+    );
   } finally {
-    if (input) input.disabled = false;
-    if (btn) btn.disabled = false;
-    if (input) input.focus();
+    setLoading(false);
+    renderVisionList();
+  }
+}
+
+async function createNewVision() {
+  setError("");
+  setLoading(true);
+  try {
+    const data = await apiPost("/create", null);
+    const v = {
+      vision_id: data.vision_id,
+      title: data.title,
+      created_at: data.created_at,
+    };
+    state.visions.unshift(v);
+    await selectVision(v.vision_id);
+    renderVisionList();
+  } catch (e) {
+    console.error("[VISION] createNewVision error:", e);
+    setError("Не удалось создать визию. Попробуй ещё раз.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function sendStep(text) {
+  if (!state.currentVisionId) {
+    setError("Сначала выбери визию или создай новую.");
+    return;
+  }
+
+  if (!text || !text.trim()) return;
+
+  const clean = text.trim();
+  appendMessage("user", clean);
+  setError("");
+  setLoading(true);
+  state.isSending = true;
+
+  try {
+    const data = await apiPost("/step", {
+      vision_id: state.currentVisionId,
+      user_text: clean,
+    });
+
+    if (data && data.ai_text) {
+      appendMessage("ai", data.ai_text);
+    } else {
+      appendMessage("ai", "Я что-то растерялся, попробуй задать вопрос ещё раз :)");
+    }
+  } catch (e) {
+    console.error("[VISION] sendStep error:", e);
+    setError("Не удалось отправить шаг. Проверяй интернет и попробуй ещё раз.");
+  } finally {
+    state.isSending = false;
+    setLoading(false);
+  }
+}
+
+async function renameCurrentVision() {
+  if (!state.currentVisionId) return;
+  if (!els.visionTitle) return;
+
+  const currentTitle = els.visionTitle.textContent || "";
+  const newTitle = window.prompt("Новое название визии:", currentTitle.trim());
+
+  if (newTitle === null) {
+    return;
+  }
+
+  const clean = newTitle.trim();
+  if (!clean) {
+    setError("Название визии не может быть пустым.");
+    return;
+  }
+
+  setError("");
+  setLoading(true);
+
+  try {
+    const data = await apiPost("/rename", {
+      vision_id: state.currentVisionId,
+      title: clean,
+    });
+
+    const finalTitle = data && data.title ? data.title : clean;
+    els.visionTitle.textContent = finalTitle;
+
+    const idx = state.visions.findIndex(
+      (v) => v.vision_id === state.currentVisionId,
+    );
+    if (idx !== -1) {
+      state.visions[idx].title = finalTitle;
+      renderVisionList();
+    }
+  } catch (e) {
+    console.error("[VISION] renameCurrentVision error:", e);
+    setError("Не удалось переименовать визию. Попробуй ещё раз.");
+  } finally {
+    setLoading(false);
   }
 }
 
 // ---------- init ----------
 
-function init() {
-  const createBtn = qs("#createVisionBtn");
-  const form = qs("#messageForm");
-  const input = qs("#userInput");
-  const sendBtn = qs("#sendBtn");
+async function init() {
+  els.messages = $("messages");
+  els.form = $("messageForm");
+  els.input = $("userInput");
+  els.sendBtn = $("sendBtn");
+  els.error = $("visionError");
+  els.overlay = $("overlay");
+  els.visionList = $("visionList");
+  els.newVisionBtn = $("newVisionBtn");
+  els.visionTitle = $("visionTitle");
+  els.renameBtn = $("renameVisionBtn");
 
-  if (!createBtn || !form || !input || !sendBtn) {
-    console.error("[VISION] Не нашёл нужные элементы в DOM");
+  setError("");
+
+  let auth;
+  try {
+    auth = await waitForAuth();
+  } catch (e) {
+    console.error("[VISION] auth error:", e);
+  }
+
+  const isAuthenticated =
+    (auth && (auth.is_authenticated ?? auth.isAuthenticated)) || false;
+  const userId = auth && (auth.user_id ?? auth.userId);
+
+  if (!isAuthenticated || !userId) {
+    setError("Для работы с визиями нужно войти в систему.");
     return;
   }
 
-  // изначально форма недоступна, пока не создадим визию
-  setFormEnabled(false);
+  state.userId = userId;
 
-  createBtn.addEventListener("click", (e) => {
-    e.preventDefault();
-    createVision();
-  });
+  if (els.form && els.input) {
+    els.form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      if (!els.input || state.isSending) return;
+      const text = els.input.value.trim();
+      if (!text) return;
+      els.input.value = "";
+      sendStep(text);
+    });
+  }
 
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = "";
-    sendStep(text);
-  });
+  if (els.newVisionBtn) {
+    els.newVisionBtn.addEventListener("click", () => {
+      createNewVision();
+    });
+  }
 
-  // не обязательно, но можно заранее разбудить SVID
-  ensureUserId().catch((e) =>
-    console.error("[VISION] ensureUserId on init failed:", e),
-  );
+  if (els.renameBtn) {
+    els.renameBtn.addEventListener("click", () => {
+      renameCurrentVision();
+    });
+  }
+
+  await loadVisions();
+
+  if (!state.visions.length) {
+    await createNewVision();
+  }
+
+  console.log("[VISION] init done");
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  init().catch((e) => console.error("[VISION] init failed:", e));
+});
