@@ -3,135 +3,193 @@
   min-height: 70svh;
   display: grid;
   place-items: center;
-  background: #fff;
+  background: #ffffff;
   color: #0b1220;
-  font-family: system-ui, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
-.login__box { width: 100%; padding: 24px; }
-.login__title { margin: 0 0 8px; font-size: 1.6rem; }
-.login__lead { margin: 0 0 18px; color: #475569; }
-
-.login__form { display: grid; gap: 12px; max-width: 420px; }
-.login__label { display: grid; gap: 6px; font-weight: 600; }
-
-.login__input {
-  padding: 12px 14px;
-  border: 1px solid #cfd3dc;
-  border-radius: 10px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color .2s ease, box-shadow .2s ease;
-}
-.login__input:focus {
-  border-color: #0b5fff;
-  box-shadow: 0 0 0 3px rgba(11,95,255,.15);
+.login__box {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px 20px;
+  box-sizing: border-box;
 }
 
-/* ===== Базовые переменные темы ===== */
-:root {
-  --sv-radius: 10px;
-  /* прежний синий оставляем, но не используем в primary */
-  --sv-blue: #0b5fff;
-  --sv-blue-ring:  #66a3ff;
-  --sv-border: #cfd3dc;
-
-  /* новая «прозрачно-сиреневая» палитра */
-  --sv-iris-50:  rgba(120, 100, 255, .12); /* базовый фон (прозрачный) */
-  --sv-iris-60:  rgba(120, 100, 255, .16); /* hover */
-  --sv-iris-70:  rgba(120, 100, 255, .22); /* active/focus */
-  --sv-iris-line: #8d82ff;                 /* рамка/бордер/акцент */
-  --sv-text-strong: #0b1220;               /* тёмный читаемый текст */
-}
-
-/* ===== Кнопки (новый «UI») ===== */
-
-/* Primary: по умолчанию прозрачный сиреневый */
-.login .login__btn {
-  display: inline-block;
-  padding: 12px 14px;
-  border-radius: var(--sv-radius);
-  border: 1px solid var(--sv-iris-line);
-  background: var(--sv-iris-50);
-  color: var(--sv-text-strong);
+/* Заголовок "ВХОД | РЕГИСТРАЦИЯ" — уменьшен ~на 30% */
+.login__title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;         /* было около 1.6rem */
   font-weight: 700;
-  cursor: pointer;
+  text-align: center;
+  letter-spacing: .05em;
+}
+
+/* ===== Статусы ===== */
+.login__status {
+  min-height: 1.2em;
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.login__status--inline {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+/* на будущее, если ставишь data-type */
+.login__status[data-type="error"]   { color: #b91c1c; }
+.login__status[data-type="success"] { color: #166534; }
+.login__status[data-type="info"]    { color: #0b1220; }
+
+/* ===== Формы ===== */
+.login__form {
+  display: grid;
+  gap: 12px;
+}
+
+.login__label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+/* Поля ввода */
+.login__input {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sv-border, #e2e8f0);
+
+  font-size: 0.95rem;
+  color: #0b1220;
+
+  background: #f9fafb;
+  outline: none;
+
   transition:
-    background .25s ease,
-    box-shadow .25s ease,
-    border-color .25s ease,
-    transform .06s ease;
-  will-change: transform;
-  filter: none;
-  box-shadow: none;
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease,
+    transform 0.06s ease;
 }
+
+.login__input::placeholder {
+  color: #9ca3af;
+}
+
+.login__input:focus-visible {
+  border-color: var(--sv-iris-line, #7c3aed);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+  transform: translateY(-1px);
+}
+
+/* ===== Кнопки ===== */
+
+/* Основная фиолетовая кнопка */
+.login .login__btn {
+  display: block;                /* на всю строку */
+  width: 100%;                   /* ширина как у инпутов */
+  box-sizing: border-box;
+
+  margin-top: 4px;
+  padding: 11px 16px;
+
+  border-radius: var(--sv-radius, 999px);
+  border: 1px solid var(--sv-iris-line, #7c3aed);
+
+  background: var(--sv-iris-50, #e9d5ff);
+  color: #0b1220;
+
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  cursor: pointer;
+
+  transition:
+    background 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.06s ease;
+}
+
 .login .login__btn:hover {
-  background: var(--sv-iris-60);
+  background: var(--sv-iris-60, #c4b5fd);
+  box-shadow: 0 10px 25px rgba(124, 58, 237, 0.35);
+  transform: translateY(-1px);
 }
+
 .login .login__btn:active {
-  background: var(--sv-iris-70);
-  border-color: var(--sv-iris-line);
-  box-shadow: 0 0 0 2px rgba(120,100,255,.18);
+  background: var(--sv-iris-70, #a78bfa);
+  box-shadow: 0 4px 12px rgba(88, 28, 135, 0.5);
   transform: translateY(0);
 }
+
 .login .login__btn:focus-visible {
   outline: none;
-  background: var(--sv-iris-70);
-  border-color: var(--sv-iris-line);
-  box-shadow: 0 0 0 3px rgba(120,100,255,.25);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.9),
+    0 0 0 5px rgba(124, 58, 237, 0.75);
 }
 
-/* Ghost: и один, и комбинированный селектор — чтобы точно применилось */
+/* Белые вторичные кнопки — тот же стиль, но фон белый */
 .login .login__btn--ghost,
 .login .login__btn.login__btn--ghost {
-  background: transparent;
-  color: var(--sv-text-strong);
-  border: 1px solid var(--sv-iris-line);
+  background: #ffffff;                       /* белый фон */
+  color: #0b1220;
+  border: 1px solid var(--sv-iris-line, #7c3aed);
+  border-radius: var(--sv-radius, 999px);
+
+  box-shadow: none;
 }
+
 .login .login__btn--ghost:hover,
 .login .login__btn.login__btn--ghost:hover {
-  background: var(--sv-iris-50);
+  background: var(--sv-iris-50, #f3e8ff);    /* лёгкая сиреневая подсветка */
 }
+
 .login .login__btn--ghost:active,
 .login .login__btn.login__btn--ghost:active,
 .login .login__btn--ghost:focus-visible,
 .login .login__btn.login__btn--ghost:focus-visible {
-  background: var(--sv-iris-70);
-  border-color: var(--sv-iris-line);
-  box-shadow: 0 0 0 3px rgba(120,100,255,.25);
+  background: var(--sv-iris-70, #ddd6fe);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
 }
 
-/* Доступность */
-.login .login__btn:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-  filter: none;
-  box-shadow: none;
+/* ===== Низ формы: "или" и белые кнопки ===== */
+
+.micro-hint {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  text-align: center;
 }
 
-/* Уважение к предпочитаемому снижению анимаций */
-@media (prefers-reduced-motion: reduce) {
-  .login .login__btn,
-  .login__input { transition: none; }
+.login__links {
+  display: flex;
+  flex-direction: column;   /* Кнопки строго одна под другой */
+  gap: 8px;
+  margin-top: 6px;
 }
 
-.login__status { min-height: 20px; font-size: .95rem; color: #334155; }
+.login__links .login__btn {
+  width: 100%;
+  flex: 0 0 auto;
+}
 
-/* Tabs (Вход / Регистрация) — reuse existing tokens */
-.login .tabs {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px;
+/* Текст на экране сброса пароля */
+.login__text {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
 }
-.login .tablink {
-  display: inline-block; text-align: center; padding: 10px 12px;
-  border: 1px solid var(--sv-iris-line); border-radius: var(--sv-radius);
-  background: var(--sv-iris-50); color: var(--sv-text-strong); text-decoration: none;
-}
-.login .tablink[aria-selected="true"] {
-  background: var(--sv-iris-70);
-  box-shadow: 0 0 0 3px rgba(120,100,255,.25);
-}
-.login .micro-hint { font-size: .82rem; color: #475569; }
-.hidden { display: none; } /* на случай, если в файле нет */
 
-/* Гарантированно скрывает любые элементы с атрибутом hidden */
-[hidden] { display: none !important; }
+/* Служебное */
+[hidden] {
+  display: none !important;
+}
