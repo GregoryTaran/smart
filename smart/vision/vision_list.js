@@ -1,4 +1,4 @@
-// --- API HELPERS (как в твоём проекте) ---
+// --- API HELPERS ---
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error("GET " + url);
@@ -16,20 +16,20 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// Ждём, пока прогрузится авторизация
+// Ждём авторизации
 document.addEventListener("sv:auth-ready", () => {
   loadVisionList();
   setupCreateButton();
 });
 
-// Загрузить список визий
+// Загрузка списка визий
 function loadVisionList() {
   apiGet("/api/vision/list")
     .then(data => renderList(data.visions || []))
     .catch(err => console.error("Ошибка загрузки визий", err));
 }
 
-// Рендер списка
+// Рендер списка визий
 function renderList(visions) {
   const box = document.getElementById("visionList");
   box.innerHTML = "";
@@ -43,17 +43,17 @@ function renderList(visions) {
     const item = document.createElement("div");
     item.className = "vision-list-item";
     item.innerHTML = `
-      <div class="vision-list-title">${v.name}</div>
+      <div class="vision-list-title">${v.title}</div>
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
     item.onclick = () => {
-      window.location.href = `vision.html?vision_id=${v.id}`;
+      window.location.href = `vision.html?vision_id=${v.vision_id}`;
     };
     box.appendChild(item);
   });
 }
 
-// Создание новой визии
+// Создание визии
 function setupCreateButton() {
   const btn = document.getElementById("newVisionBtn");
   if (!btn) return;
@@ -61,11 +61,8 @@ function setupCreateButton() {
   btn.addEventListener("click", () => {
     apiPost("/api/vision/create", {})
       .then(data => {
-        const id = data.vision_id;
-        window.location.href = `vision.html?vision_id=${id}`;
+        window.location.href = `vision.html?vision_id=${data.vision_id}`;
       })
-      .catch(err => {
-        console.error("Ошибка создания визии", err);
-      });
+      .catch(err => console.error("Ошибка создания визии", err));
   });
 }
