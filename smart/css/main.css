@@ -54,7 +54,7 @@ button { font: inherit; }
 .topbar-inner .login-link{ justify-self: end; align-self: center; }
 
 /* === Меню === */
-.menu{ padding: 12px 0; }
+.menu{ padding: 0px 0; }
 .menu ul{ list-style: none; margin: 0; padding: 0; }
 .menu li{ border-top: 1px solid #eee; }
 .menu li:last-child{ border-bottom: 1px solid #eee; }
