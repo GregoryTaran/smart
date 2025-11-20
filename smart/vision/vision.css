@@ -202,9 +202,9 @@ button.vision-btn:disabled,
 
 /* Общий контейнер блока "Мои визии" */
 .vision-list-block {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid #d4d4d4;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* Заголовок блока (если нужен отдельно от .vision-title-main) */
