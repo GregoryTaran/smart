@@ -158,11 +158,20 @@
 
 <script defer src="js/footer.js?v=2"></script>
 
+<!-- PROD-ВАРИАНТ (оставляем в комментарии)
 <script type="module">
   import { requireLevel } from "./js/guards.js";
   import "./vision/vision.js";
   requireLevel({ level: 2 });
 </script>
+-->
+
+<!-- DEV-ВАРИАНТ ДЛЯ ЛОКАЛКИ -->
+<script type="module">
+  import "./vision/vision.js";
+  // никакой guards.js, чистый дизайн
+</script>
+
 
 
 </body>
