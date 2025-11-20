@@ -9,6 +9,16 @@ function redirectToIndex() {
 }
 // === /redirect helper ===
 
+const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+
+function clearAuthCache() {
+  try {
+    localStorage.removeItem(AUTH_CACHE_KEY);
+  } catch (e) {
+    console.warn('clearAuthCache failed', e);
+  }
+}
+
 /* topbar.module.js — версия под новую авторизацию
    БЭКЕНД: /api/auth/session (читаем в <head>), /api/auth/logout (здесь вызываем)
    ФРОНТ: читает window.SV_AUTH и слушает событие document 'sv:auth-ready'
@@ -127,7 +137,9 @@ async function logoutRequest() {
   } catch (e) {
     console.warn('Logout request failed', e);
   } finally {
-    redirectToIndex();
+    // Чистим клиентский кэш и оповещаем всех слушателей
+    clearAuthCache();
+    window.dispatchEvent(new Event('sv:logout'));
   }
 }
 
@@ -294,5 +306,15 @@ export async function initPage({
   });
 }
 
-// На всякий случай: если где-то в коде ты сам вызовешь logout и кинешь это событие
-window.addEventListener('sv:logout', () => redirectToIndex());
+// Если где-то в коде ты сам вызовешь logout и кинешь это событие
+window.addEventListener('sv:logout', () => {
+  clearAuthCache();
+  redirectToIndex();
+});
+
+// Опционально: если другая вкладка удалила кэш авторизации — реагируем
+window.addEventListener('storage', (e) => {
+  if (e.key === AUTH_CACHE_KEY && e.newValue === null) {
+    redirectToIndex();
+  }
+});
