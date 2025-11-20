@@ -16,18 +16,10 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// -----------------------------------------------------
-// Получаем ID визии из URL
-// -----------------------------------------------------
+// Получаем ID визии
 const params = new URLSearchParams(location.search);
 const visionId = params.get("vision_id");
 
-if (!visionId) {
-  document.getElementById("visionTitle").innerText = "Ошибка: визия не выбрана";
-  disableInput();
-}
-
-// Ждём авторизацию
 document.addEventListener("sv:auth-ready", () => {
   if (visionId) {
     loadVision();
@@ -36,13 +28,11 @@ document.addEventListener("sv:auth-ready", () => {
   }
 });
 
-// -----------------------------------------------------
 // Загрузка визии
-// -----------------------------------------------------
 function loadVision() {
   apiGet(`/api/vision/${visionId}`)
     .then(data => {
-      document.getElementById("visionTitle").innerText = data.name;
+      document.getElementById("visionTitle").innerText = data.title;
       renderMessages(data.steps || []);
       enableInput();
     })
@@ -52,9 +42,7 @@ function loadVision() {
     });
 }
 
-// -----------------------------------------------------
-// Показ сообщений
-// -----------------------------------------------------
+// Рендер сообщений
 function renderMessages(steps) {
   const box = document.getElementById("messages");
   box.innerHTML = "";
@@ -63,16 +51,16 @@ function renderMessages(steps) {
     const userMsg = document.createElement("div");
     userMsg.className = "vision-message vision-message-user";
     userMsg.innerHTML = `
-      <div class="vision-message-text">${step.text}</div>
+      <div class="vision-message-text">${step.user_text}</div>
       <div class="vision-message-time">${new Date(step.created_at).toLocaleString()}</div>
     `;
     box.appendChild(userMsg);
 
-    if (step.response) {
+    if (step.ai_text) {
       const aiMsg = document.createElement("div");
       aiMsg.className = "vision-message vision-message-ai";
       aiMsg.innerHTML = `
-        <div class="vision-message-text">${step.response}</div>
+        <div class="vision-message-text">${step.ai_text}</div>
         <div class="vision-message-time">${new Date(step.created_at).toLocaleString()}</div>
       `;
       box.appendChild(aiMsg);
@@ -82,9 +70,7 @@ function renderMessages(steps) {
   box.scrollTop = box.scrollHeight;
 }
 
-// -----------------------------------------------------
 // Отправка шага
-// -----------------------------------------------------
 function setupForm() {
   const form = document.getElementById("messageForm");
   form.addEventListener("submit", e => {
@@ -102,30 +88,27 @@ function sendStep() {
 
   apiPost("/api/vision/step", {
     vision_id: visionId,
-    text
+    user_text: text
   })
-    .then(() => {
-      loadVision();
-    })
+    .then(() => loadVision())
     .catch(err => {
       console.error("Ошибка отправки шага", err);
       showError("Не удалось отправить шаг");
     });
 }
 
-// -----------------------------------------------------
 // Переименование визии
-// -----------------------------------------------------
 function setupRename() {
   const btn = document.getElementById("renameVisionBtn");
   btn.disabled = false;
+
   btn.onclick = () => {
     const newName = prompt("Введите новое название визии:");
     if (!newName) return;
 
     apiPost("/api/vision/rename", {
       vision_id: visionId,
-      new_name: newName
+      title: newName
     })
       .then(() => loadVision())
       .catch(err => {
@@ -135,14 +118,7 @@ function setupRename() {
   };
 }
 
-// -----------------------------------------------------
-// Управление UI
-// -----------------------------------------------------
-function disableInput() {
-  document.getElementById("userInput").disabled = true;
-  document.getElementById("sendBtn").disabled = true;
-}
-
+// UI helpers
 function enableInput() {
   document.getElementById("userInput").disabled = false;
   document.getElementById("sendBtn").disabled = false;
