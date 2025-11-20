@@ -1,6 +1,6 @@
 // /smart/login/login.js
-// Аутентификатор страницы (register / login / reset) поверх backend API.
-// /api/auth/register, /api/auth/login, /api/auth/reset.
+// Аутентификатор страницы (register / login / reset) поверх НОВОГО backend API.
+// Теперь работаем через /api/auth/register, /api/auth/login, /api/auth/reset.
 // Валидация email: только наличие '@'.
 
 (function () {
@@ -87,7 +87,21 @@
     }
   }
 
-  // Управление состоянием (какой экран показывать)
+  function injectClearButton(form) {
+    if (!form) return;
+    const wrap = form.querySelector('.login__links') || form;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'login__link';
+    btn.textContent = 'Очистить поля';
+    btn.addEventListener('click', () => {
+      clearForm(form);
+      showStatus('Поля очищены.', 'info');
+      if (form === formReset) showResetResult('');
+    });
+    wrap.appendChild(btn);
+  }
+
   function setState(next) {
     state = next;
     setHidden(formRegister, state !== 'register');
@@ -141,18 +155,11 @@
     const email = (regEmail?.value || '').trim();
     const pass  = regPass?.value || '';
 
-    if (!name) {
-      showStatus('Введите имя.', 'error');
-      return;
-    }
+    if (!name) { showStatus('Введите имя.', 'error'); return; }
     if (!email || !hasAtSymbol(email)) {
-      showStatus('Email должен содержать "@".', 'error');
-      return;
+      showStatus('Email должен содержать "@".', 'error'); return;
     }
-    if (!pass) {
-      showStatus('Введите пароль.', 'error');
-      return;
-    }
+    if (!pass) { showStatus('Введите пароль.', 'error'); return; }
 
     const btn = findSubmitButton(formRegister);
     disableButton(btn, true);
@@ -165,16 +172,9 @@
 
       showStatus('Регистрация успешна. Добро пожаловать!', 'success');
 
-      // Чистим форму регистрации
       clearForm(formRegister);
 
-      // ТВОЁ ПРАВИЛО:
-      // email переносим на форму входа, пароль не трогаем
-      if (email && loginEmail) {
-        loginEmail.value = email;
-      }
-
-      // Переключаемся на экран входа
+      if (email && loginEmail) loginEmail.value = email;
       setTimeout(() => setState('login'), 250);
     } catch (err) {
       showStatus(err?.message || 'Ошибка регистрации.', 'error');
@@ -192,13 +192,9 @@
     const pass  = loginPass?.value || '';
 
     if (!email || !hasAtSymbol(email)) {
-      showStatus('Email должен содержать "@".', 'error');
-      return;
+      showStatus('Email должен содержать "@".', 'error'); return;
     }
-    if (!pass) {
-      showStatus('Введите пароль.', 'error');
-      return;
-    }
+    if (!pass) { showStatus('Введите пароль.', 'error'); return; }
 
     const btn = findSubmitButton(formLogin);
     disableButton(btn, true);
@@ -253,24 +249,17 @@
   qa('[data-action]').forEach((el) => {
     el.addEventListener('click', () => {
       const action = el.getAttribute('data-action');
-
-      if (action === 'to-login') {
-        // При ручном переходе на Вход — чистим форму входа
-        clearForm(formLogin);
-        setState('login');
-      } else if (action === 'to-reset') {
-        clearForm(formReset);
-        setState('reset');
-      } else if (action === 'to-register') {
-        clearForm(formRegister);
-        setState('register');
-      }
+      if (action === 'to-login') setState('login');
+      else if (action === 'to-reset') setState('reset');
+      else if (action === 'to-register') setState('register');
     });
   });
 
   // Инициализация
   document.addEventListener('DOMContentLoaded', () => {
     setState('login');
-    // Больше НИКАКИХ "Очистить поля" не добавляем 👋
+    injectClearButton(formRegister);
+    injectClearButton(formLogin);
+    injectClearButton(formReset);
   });
 })();
