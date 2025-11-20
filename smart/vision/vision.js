@@ -42,7 +42,7 @@ function loadVision() {
     });
 }
 
-// Рендер сообщений
+// Сообщения
 function renderMessages(steps) {
   const box = document.getElementById("messages");
   box.innerHTML = "";
@@ -118,7 +118,6 @@ function setupRename() {
   };
 }
 
-// UI helpers
 function enableInput() {
   document.getElementById("userInput").disabled = false;
   document.getElementById("sendBtn").disabled = false;

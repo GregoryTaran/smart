@@ -16,7 +16,6 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// Ждём авторизации
 document.addEventListener("sv:auth-ready", () => {
   loadVisionList();
   setupCreateButton();
@@ -29,7 +28,7 @@ function loadVisionList() {
     .catch(err => console.error("Ошибка загрузки визий", err));
 }
 
-// Рендер списка визий
+// Рендер списка
 function renderList(visions) {
   const box = document.getElementById("visionList");
   box.innerHTML = "";
@@ -47,7 +46,7 @@ function renderList(visions) {
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
     item.onclick = () => {
-      window.location.href = `vision.html?vision_id=${v.vision_id}`;
+      window.location.href = `/vision/vision.html?vision_id=${v.vision_id}`;
     };
     box.appendChild(item);
   });
@@ -61,7 +60,7 @@ function setupCreateButton() {
   btn.addEventListener("click", () => {
     apiPost("/api/vision/create", {})
       .then(data => {
-        window.location.href = `vision.html?vision_id=${data.vision_id}`;
+        window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
       })
       .catch(err => console.error("Ошибка создания визии", err));
   });
