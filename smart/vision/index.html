@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <base href="../" />
-  <title>Путь по визии</title>
+  <title>Мои визии</title>
   <link rel="icon" href="assets/logo400.jpg" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="vision/vision.css" />
 
-  <!-- Авторизация — идентичная той же -->
+  <!-- Авторизация (как в оригинале) -->
   <script>
-    /* тот же bootstrap auth, что в index.html */
+    /* полностью копирую bootstrap auth как в vision.html */
     (function () {
       const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
@@ -56,7 +56,9 @@
         try {
           const raw = localStorage.getItem(AUTH_CACHE_KEY);
           return raw ? JSON.parse(raw) : null;
-        } catch { return null; }
+        } catch {
+          return null;
+        }
       }
 
       function writeCache(session) {
@@ -105,42 +107,23 @@
 
       <main id="main">
         <section class="vision-page">
+
           <div class="vision-panel">
 
-            <section class="vision-chat-block">
+            <section class="vision-list-block">
+              <h2 class="vision-title">Мои визии</h2>
 
-              <button onclick="history.back()" class="vision-btn vision-btn-secondary">
-                ← Назад
-              </button>
-
-              <h1 class="vision-title-main">ПУТЬ ПО ВИЗИИ</h1>
-
-              <div class="vision-chat-title-row">
-                <div id="visionTitle" class="vision-title-current">
-                  Загрузка...
-                </div>
-                <div class="vision-title-actions">
-                  <button id="renameVisionBtn" class="vision-rename-link" disabled>
-                    Переименовать
-                  </button>
-                </div>
+              <div class="vision-list-header">
+                <button id="newVisionBtn" class="vision-btn vision-btn-secondary">
+                  Создать новую визию
+                </button>
               </div>
 
-              <div id="messages" class="vision-messages"></div>
-
-              <form id="messageForm" class="vision-form">
-                <textarea id="userInput" class="vision-input" rows="3"
-                  placeholder="Введите шаг..."></textarea>
-                <button type="submit" id="sendBtn" class="vision-btn">
-                  Отправить
-                </button>
-              </form>
-
-              <div id="visionError" class="vision-error vision-hidden"></div>
-
+              <div id="visionList" class="vision-list"></div>
             </section>
 
           </div>
+
         </section>
       </main>
 
@@ -150,7 +133,7 @@
 
   <script defer src="js/footer.js?v=2"></script>
 
-  <!-- JS для конкретной визии -->
-  <script type="module" src="vision/vision.js"></script>
+  <!-- JS для списка визий -->
+  <script type="module" src="vision/vision_list.js"></script>
 </body>
 </html>
