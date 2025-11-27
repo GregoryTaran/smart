@@ -88,14 +88,14 @@
   });
 </script>
 
-<!-- Identity guard -->
-<script defer src="js/identity-guard.js"></script>
 
 <!-- Разрешения -->
 <script defer src="js/zaprosrazreshenijbrauzera.js"></script>
 
 <!-- Гео-виджет -->
 <script defer src="js/footer.geo.bundle.js"></script>
+
+<script type="module" src="js/super-informer.js"></script>
 
 </head>
 
@@ -146,49 +146,75 @@
 
       <!-- КАРТОЧКА 3: БОЛЬШОЙ ИНФОРМЕР -->
       <section class="card">
-        <h2>Большой информер</h2>
+            <h2>Большой информер</h2>
 
-        <div id="about-informer" class="big-informer">Загрузка...</div>
+            <div id="about-informer" class="big-informer">
+              Загрузка супер-информера...
+            </div>
 
-        <script>
-          function renderFull() {
-            const sva  = window.SV_AUTH;
-            const sess = window.SV?.session || null;
-            const user = window.SV?.user || null;
+            <script type="module">
+              import { collectSuperInfo } from "./js/super-informer.js";
 
-            const html = `
-              <h3>SV_AUTH</h3>
-              <pre>${JSON.stringify(sva, null, 2)}</pre>
+              async function renderSuper() {
+                const info = await collectSuperInfo();
 
-              <h3>Supabase session</h3>
-              <pre>${JSON.stringify(sess, null, 2)}</pre>
+                document.querySelector("#about-informer").innerHTML = `
+                  <div class="inf-group">
+                    <h3>SV_AUTH</h3>
+                    <pre>${JSON.stringify(info.svAuth, null, 2)}</pre>
+                  </div>
 
-              <h3>Supabase user</h3>
-              <pre>${JSON.stringify(user, null, 2)}</pre>
+                  <div class="inf-group">
+                    <h3>Public IP</h3>
+                    <pre>${JSON.stringify(info.publicIP, null, 2)}</pre>
+                  </div>
 
-              <h3>LocalStorage</h3>
-              <pre>${JSON.stringify(localStorage, null, 2)}</pre>
+                  <div class="inf-group">
+                    <h3>Permissions</h3>
+                    <pre>${JSON.stringify(info.permissions, null, 2)}</pre>
+                  </div>
 
-              <h3>SessionStorage</h3>
-              <pre>${JSON.stringify(sessionStorage, null, 2)}</pre>
+                  <div class="inf-group">
+                    <h3>Battery</h3>
+                    <pre>${JSON.stringify(info.battery, null, 2)}</pre>
+                  </div>
 
-              <h3>Navigator</h3>
-              <pre>${JSON.stringify({
-                userAgent: navigator.userAgent,
-                language: navigator.language,
-                platform: navigator.platform,
-                online: navigator.onLine,
-                permissions: navigator.permissions ? 'supported' : 'no'
-              }, null, 2)}</pre>
-            `;
+                  <div class="inf-group">
+                    <h3>Device</h3>
+                    <pre>${JSON.stringify(info.device, null, 2)}</pre>
+                  </div>
 
-            document.querySelector('#about-informer').innerHTML = html;
-          }
+                  <div class="inf-group">
+                    <h3>Screen</h3>
+                    <pre>${JSON.stringify(info.screen, null, 2)}</pre>
+                  </div>
 
-          document.addEventListener('sv:auth-ready', renderFull);
-          window.SV?.ready?.then(renderFull);
-        </script>
-      </section>
+                  <div class="inf-group">
+                    <h3>Network</h3>
+                    <pre>${JSON.stringify(info.network, null, 2)}</pre>
+                  </div>
+
+                  <div class="inf-group">
+                    <h3>Storage</h3>
+                    <pre>${JSON.stringify(info.storage, null, 2)}</pre>
+                  </div>
+
+                  <div class="inf-group">
+                    <h3>WebGL (GPU)</h3>
+                    <pre>${JSON.stringify(info.webgl, null, 2)}</pre>
+                  </div>
+
+                  <div class="inf-group">
+                    <h3>Timestamp</h3>
+                    <pre>${JSON.stringify(info.timestamp, null, 2)}</pre>
+                  </div>
+                `;
+              }
+
+              document.addEventListener("sv:auth-ready", renderSuper);
+            </script>
+          </section>
+
 
     </main>
   </div>
