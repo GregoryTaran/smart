@@ -1,43 +1,19 @@
-# render.yaml
-# Render.com service definition for SMART (backend)
-# This configuration avoids Poetry interference and installs system ffmpeg.
-# Place in repository root (replace existing render.yaml).
-
 services:
   - type: web
-    name: smart-backend
+    name: smartvision-backend
     env: python
-    branch: main
-
-    build:
-      command: |
-        echo "[render build] start"
-        # defensive remove poetry installers left-over (ok if absent)
-        rm -rf /opt/render/project/poetry || true
-        rm -rf /root/.cache/pypoetry || true
-        rm -rf ~/.cache/pypoetry || true
-
-        # install system ffmpeg (needed for audio processing)
-        apt-get update -y || true
-        apt-get install -y ffmpeg || true
-
-        # clean pip cache and upgrade base tools to avoid old wheel/build issues
-        rm -rf /root/.cache/pip || true
-        python -m pip install --upgrade pip setuptools wheel
-
-        # install server requirements (prefer binary wheels to avoid compilation)
-        python -m pip install --no-cache-dir --prefer-binary -r server/requirements.txt
-
-        echo "[render build] done"
-
-    startCommand: uvicorn server.main:app --host 0.0.0.0 --port $PORT
-
-    plan: free # change to your plan if needed
-
-    # Environment variables: ADD OPENAI_API_KEY as a secret in Render Dashboard (do NOT put secret in repo)
+    plan: starter
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r server/requirements.txt
+    startCommand: |
+      uvicorn server.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ENV
-        value: production
-
-    healthCheckPath: /health
-    autoDeploy: true
+        value: dev
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
