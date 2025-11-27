@@ -1,11 +1,14 @@
 import os
 import uuid
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any, Dict
+from typing import Optional
 
 from fastapi import APIRouter, Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
 from supabase import create_client, Client
+from pydantic import BaseModel, EmailStr
 
 # -------------------------------------------------
 # Конфиг
@@ -204,12 +207,86 @@ def deactivate_session(session_id: str):
 # -------------------------------------------------
 # Модели запросов
 # -------------------------------------------------
-from pydantic import BaseModel, EmailStr
-
-
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class RegisterRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+
+class ResetRequest(BaseModel):
+    email: EmailStr
+
+
+# -------------------------------------------------
+# /api/auth/register
+# -------------------------------------------------
+@router.post("/register")
+async def register_endpoint(payload: RegisterRequest):
+    """
+    Регистрация нового пользователя:
+    - email должен быть уникален
+    - пароль сохраняем в поле users.password (plain text)
+    - можно потом начать заполнять password_hash
+    - level = 2 (обычный пользователь)
+    """
+    supabase = get_supabase()
+
+    # Проверяем, нет ли пользователя с таким email
+    try:
+        existing_resp = (
+            supabase.table("users")
+            .select("user_id")
+            .eq("email", payload.email)
+            .execute()
+        )
+        existing = getattr(existing_resp, "data", None) or []
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Пользователь с таким email уже существует",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Если проверка сломалась, лучше явно сказать пользователю
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при проверке существующего пользователя",
+        )
+
+    user_id = str(uuid.uuid4())
+    now_dt = now_utc()
+
+    # Вставляем пользователя
+    try:
+        (
+            supabase.table("users")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "email": payload.email,
+                    "password": payload.password,
+                    # password_hash можно заполнить позже, когда уйдём от plain
+                    "password_hash": None,
+                    "display_name": payload.name,
+                    "level": 2,  # обычный пользователь
+                    "created_at": iso(now_dt),
+                }
+            )
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось создать пользователя: {e}",
+        )
+
+    return {"ok": True, "user_id": user_id}
 
 
 # -------------------------------------------------
@@ -284,6 +361,79 @@ async def logout_endpoint(request: Request, response: Response):
     )
 
     return {"ok": True}
+
+
+# -------------------------------------------------
+# /api/auth/reset
+# -------------------------------------------------
+def generate_password(length: int = 10) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+@router.post("/reset")
+async def reset_password_endpoint(payload: ResetRequest):
+    """
+    Сброс пароля:
+    - ищем пользователя по email
+    - генерируем новый пароль
+    - пишем его в users.password (plain text)
+    - возвращаем new_password в ответе
+    """
+    supabase = get_supabase()
+
+    # Ищем пользователя
+    try:
+        user_resp = (
+            supabase.table("users")
+            .select("user_id, email")
+            .eq("email", payload.email)
+            .single()
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь с таким email не найден",
+        )
+
+    user = getattr(user_resp, "data", None)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь с таким email не найден",
+        )
+
+    user_id = user.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Пользователь повреждён (нет user_id)",
+        )
+
+    new_password = generate_password(10)
+
+    # Обновляем пароль в базе (plain text)
+    try:
+        (
+            supabase.table("users")
+            .update(
+                {
+                    "password": new_password,
+                    # password_hash можно будет обновлять, когда перейдем на bcrypt
+                    "password_hash": None,
+                }
+            )
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось обновить пароль: {e}",
+        )
+
+    return {"ok": True, "new_password": new_password}
 
 
 # -------------------------------------------------
