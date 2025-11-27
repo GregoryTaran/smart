@@ -52,3 +52,27 @@
   white-space: pre;
   color: #334155;
 }
+/* ===== SUPER INFORMER GROUPS ===== */
+
+.inf-group {
+  margin-bottom: 28px;
+}
+
+.inf-group h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.inf-group pre {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  color: #334155;
+}
