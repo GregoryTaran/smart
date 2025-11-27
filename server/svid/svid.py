@@ -1,308 +1,296 @@
-import os
-import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Any, Dict
-
-from fastapi import APIRouter, Request, Response, HTTPException, status
+# server/svid/svid.py — стабильная версия с фиксом под Supabase v2.x
+from __future__ import annotations
+import os, uuid, hashlib, hmac, secrets
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, Tuple
+from fastapi import FastAPI, APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from supabase import create_client, Client
+from pydantic import BaseModel, Field, validator
 
-# -------------------------------------------------
-# Конфиг
-# -------------------------------------------------
-SESSION_COOKIE_NAME = "sv_session"
-SESSION_TTL_HOURS = 24  # сколько живёт сессия
+# ---------- Supabase ----------
+try:
+    from supabase import create_client, Client  # type: ignore
+except Exception:
+    create_client = None
+    Client = None
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_ANON_KEY", "")).strip()
+_SB_ERR = None if (SUPABASE_URL and SUPABASE_KEY) else "Supabase credentials not configured (SUPABASE_URL / SERVICE_KEY)"
 
-if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-    raise RuntimeError("Supabase env vars are not set (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)")
+T_USERS = "users"
+T_VISITOR = "visitor"
+T_VAULT = "auth_vault"
 
-_supabase: Optional[Client] = None
+app = FastAPI()
+router = APIRouter(prefix="/api/svid", tags=["svid"])
 
+# ---------- Helpers ----------
+def _sb() -> Client:
+    if _SB_ERR:
+        raise HTTPException(500, detail=_SB_ERR)
+    if create_client is None:
+        raise HTTPException(500, detail="Supabase client library not available")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_supabase() -> Client:
-    global _supabase
-    if _supabase is None:
-        _supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    return _supabase
+def _normalize_email(email: str) -> str:
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(400, detail="Invalid email")
+    return email
 
+def _extract_data(r) -> list:
+    """Универсальный извлекатель данных из supabase-пакета."""
+    if r is None:
+        return []
+    if isinstance(r, list):
+        return r
+    if hasattr(r, "data") and isinstance(r.data, list):
+        return r.data
+    if hasattr(r, "json") and isinstance(r.json, dict) and "data" in r.json:
+        return r.json["data"]
+    if isinstance(r, dict) and "data" in r:
+        return r["data"]
+    return []
 
-router = APIRouter(tags=["svid-auth"])
+def _hash_password(password: str) -> Dict[str, Any]:
+    if not password or len(password) < 6:
+        raise HTTPException(400, detail="Password must be at least 6 characters")
+    salt = secrets.token_bytes(16)
+    iters = 120_000
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters)
+    return {"hash": {"algo": "pbkdf2_sha256", "salt": salt.hex(), "iters": iters, "hash": dk.hex()}}
 
-
-# -------------------------------------------------
-# Вспомогательное: уровень → код
-# -------------------------------------------------
-def level_to_code(level: int) -> str:
-    if level <= 1:
-        return "guest"
-    if level == 2:
-        return "user"
-    if level == 3:
-        return "paid"
-    if level >= 4:
-        return "super"
-    return "user"
-
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def iso(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).isoformat()
-
-
-# -------------------------------------------------
-# Миддлварь: на каждый запрос подтягиваем auth
-# -------------------------------------------------
-async def auth_middleware(request: Request, call_next):
-    """
-    Читает sv_session из куки, ищет сессию в auth_sessions,
-    подтягивает пользователя из users и кладёт данные в request.state.auth
-    """
-    supabase = get_supabase()
-
-    # Значения по умолчанию: гость
-    guest_auth = {
-        "is_authenticated": False,
-        "user_id": None,
-        "level": 1,
-        "level_code": "guest",
-        "email": None,
-        "display_name": None,
-    }
-    request.state.user = None
-    request.state.auth = guest_auth
-
-    session_id = request.cookies.get(SESSION_COOKIE_NAME)
-    if not session_id:
-        # Нет куки → гость
-        response = await call_next(request)
-        return response
-
+def _verify_password(password: str, spec: Dict[str, Any]) -> bool:
     try:
-        # Проверяем сессию
-        now_iso = iso(now_utc())
-        sess_resp = (
-            supabase.table("auth_sessions")
-            .select("*")
-            .eq("session_id", session_id)
-            .eq("is_active", True)
-            .gt("expires_at", now_iso)
-            .single()
-            .execute()
-        )
-
-        session = getattr(sess_resp, "data", None)
-        if not session:
-            # нет валидной сессии → гость
-            response = await call_next(request)
-            return response
-
-        user_id = session.get("user_id")
-        if not user_id:
-            response = await call_next(request)
-            return response
-
-        # Подтягиваем пользователя
-        user_resp = (
-            supabase.table("users")
-            .select("user_id, email, level, display_name")
-            .eq("user_id", user_id)
-            .single()
-            .execute()
-        )
-        user = getattr(user_resp, "data", None)
-        if not user:
-            response = await call_next(request)
-            return response
-
-        level = user.get("level") or 1
-        if not isinstance(level, int):
-            try:
-                level = int(level)
-            except Exception:
-                level = 1
-
-        auth_obj = {
-            "is_authenticated": True,
-            "user_id": user.get("user_id"),
-            "level": level,
-            "level_code": level_to_code(level),
-            "email": user.get("email"),
-            "display_name": user.get("display_name"),
-        }
-
-        request.state.user = user
-        request.state.auth = auth_obj
-
-        # Обновим last_seen_at асинхронно (не ждём)
-        try:
-            supabase.table("auth_sessions").update(
-                {"last_seen_at": now_iso}
-            ).eq("session_id", session_id).execute()
-        except Exception:
-            pass
-
+        h = spec["hash"]
+        iters = int(h["iters"])
+        salt = bytes.fromhex(h["salt"])
+        expected = bytes.fromhex(h["hash"])
     except Exception:
-        # Любая ошибка → не ломаем запрос, просто гость
-        request.state.user = None
-        request.state.auth = guest_auth
+        return False
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iters)
+    return hmac.compare_digest(dk, expected)
 
-    response = await call_next(request)
-    return response
-
-
-# -------------------------------------------------
-# Хелперы для сессий
-# -------------------------------------------------
-def create_session_record(user_id: str, request: Request) -> str:
-    supabase = get_supabase()
-    session_id = str(uuid.uuid4())
-    now_dt = now_utc()
-    expires_dt = now_dt + timedelta(hours=SESSION_TTL_HOURS)
-
-    ip = request.client.host if request.client else None
-    ua = request.headers.get("user-agent")
-
-    _ = (
-        supabase.table("auth_sessions")
-        .insert(
-            {
-                "session_id": session_id,
-                "user_id": user_id,
-                "created_at": iso(now_dt),
-                "last_seen_at": iso(now_dt),
-                "expires_at": iso(expires_dt),
-                "ip_address": ip,
-                "user_agent": ua,
-                "is_active": True,
-            }
-        )
-        .execute()
-    )
-
-    return session_id
-
-
-def deactivate_session(session_id: str):
-    supabase = get_supabase()
+def _safe_execute(call):
     try:
-        (
-            supabase.table("auth_sessions")
-            .update({"is_active": False})
-            .eq("session_id", session_id)
-            .execute()
-        )
+        return call()
+    except Exception as e:
+        raise HTTPException(400, detail=f"DB error: {e}")
+
+def _get_user_by_email(sb: Client, email: str) -> Optional[Dict[str, Any]]:
+    r = _safe_execute(sb.table(T_USERS).select("*").eq("email", email).limit(1).execute)
+    data = _extract_data(r)
+    return data[0] if data else None
+
+def _get_user_by_id(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
+    r = _safe_execute(sb.table(T_USERS).select("*").eq("user_id", user_id).limit(1).execute)
+    data = _extract_data(r)
+    return data[0] if data else None
+
+def _store_password_hash(sb: Client, user_id: str, spec: Dict[str, Any]) -> None:
+    _safe_execute(sb.table(T_VAULT).insert({
+        "artifact_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "provider": "email",
+        "kind": "password_hash",
+        "status": "active",
+        "payload": spec,
+    }).execute)
+
+def _get_password_hash_spec(sb: Client, user_id: str) -> Optional[Dict[str, Any]]:
+    r = _safe_execute(sb.table(T_VAULT)
+                      .select("payload")
+                      .eq("user_id", user_id)
+                      .eq("kind", "password_hash")
+                      .order("created_at", desc=True)
+                      .limit(1)
+                      .execute)
+    data = _extract_data(r)
+    return (data[0] or {}).get("payload") if data else None
+
+def _ensure_visitor(sb: Client, visitor_id: Optional[str], tz: Optional[str]) -> Tuple[str, int]:
+    if visitor_id:
+        r = _safe_execute(sb.table(T_VISITOR).select("*").eq("visitor_id", visitor_id).limit(1).execute)
+        data = _extract_data(r)
+        if data:
+            lvl = int(data[0].get("level") or 1)
+            return visitor_id, lvl
+    vid = str(uuid.uuid4())
+    _safe_execute(sb.table(T_VISITOR).insert({"visitor_id": vid, "level": 1, "timezone_guess": tz}).execute)
+    return vid, 1
+
+def _make_dev_jwt(user_id: str) -> str:
+    ts = int(datetime.now(tz=timezone.utc).timestamp())
+    return f"svid.{user_id}.{ts}"
+
+def _extract_user_id_from_dev_jwt(auth_header: Optional[str]) -> Optional[str]:
+    if not auth_header or not auth_header.lower().startswith("bearer "):
+        return None
+    token = auth_header.split(" ", 1)[1].strip()
+    parts = token.split(".")
+    if len(parts) != 3 or parts[0] != "svid":
+        return None
+    return parts[1] or None
+
+# ---------- Schemas ----------
+class IdentifyIn(BaseModel):
+    visitor_id: Optional[str] = None
+    tz: Optional[str] = None
+
+class IdentifyOut(BaseModel):
+    ok: bool = True
+    visitor_id: str
+    level: int = 1
+
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+    display_name: Optional[str] = Field(None, alias="name")
+    visitor_id: Optional[str] = None
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+class ResetIn(BaseModel):
+    email: str
+    password: Optional[str] = None
+
+class UserOut(BaseModel):
+    ok: bool = True
+    user_id: str
+    jwt: Optional[str] = None
+    user: Dict[str, Any]
+    visitor: Optional[Dict[str, Any]] = None
+
+class MeOut(BaseModel):
+    ok: bool = True
+    user_id: str
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    level: int = 2
+
+class OkOut(BaseModel):
+    ok: bool = True
+    new_password: Optional[str] = None
+
+# ---------- Routes ----------
+@router.get("/health")
+def health():
+    return {"ok": True, "ts": int(datetime.now(tz=timezone.utc).timestamp())}
+
+@router.post("/identify", response_model=IdentifyOut)
+def identify(body: IdentifyIn):
+    sb = _sb()
+    visitor_id, level = _ensure_visitor(sb, body.visitor_id, body.tz)
+    return IdentifyOut(visitor_id=visitor_id, level=level)
+
+@router.post("/register", response_model=UserOut)
+def register(body: RegisterIn):
+    sb = _sb()
+    email = _normalize_email(body.email)
+    display_name = (body.display_name or email.split("@", 1)[0]).strip()
+    if _get_user_by_email(sb, email):
+        raise HTTPException(409, detail="User already exists")
+
+    user_id = str(uuid.uuid4())
+    _safe_execute(sb.table(T_USERS).insert({
+        "user_id": user_id,
+        "email": email,
+        "display_name": display_name,
+        "level": 2,
+        "email_verified": False,
+        "phone_verified": False,
+    }).execute)
+
+    _store_password_hash(sb, user_id, _hash_password(body.password))
+    visitor_id, vlevel = _ensure_visitor(sb, body.visitor_id, None)
+    try:
+        _safe_execute(sb.table(T_VISITOR).update({
+            "user_id": user_id, "linked_to_user": True,
+            "linked_at": datetime.now(timezone.utc)
+        }).eq("visitor_id", visitor_id).execute)
     except Exception:
         pass
 
+    jwt = _make_dev_jwt(user_id)
+    return UserOut(
+        user_id=user_id, jwt=jwt,
+        user={"email": email, "display_name": display_name, "level": 2},
+        visitor={"visitor_id": visitor_id, "level": vlevel}
+    )
 
-# -------------------------------------------------
-# Модели запросов
-# -------------------------------------------------
-from pydantic import BaseModel, EmailStr
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-# -------------------------------------------------
-# /api/auth/login
-# -------------------------------------------------
-@router.post("/login")
-async def login_endpoint(payload: LoginRequest, request: Request, response: Response):
-    """
-    Логин по email + password.
-
-    ВАЖНО: сейчас проверяем пароль по полю users.password (plain text),
-    как ты и просил. Позже можно будет переключиться на password_hash/bcrypt.
-    """
-    supabase = get_supabase()
-
-    # 1. Ищем пользователя по email
-    try:
-        user_resp = (
-            supabase.table("users")
-            .select("user_id, email, level, password")
-            .eq("email", payload.email)
-            .single()
-            .execute()
-        )
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    user = getattr(user_resp, "data", None)
+@router.post("/login", response_model=UserOut)
+def login(body: LoginIn):
+    sb = _sb()
+    email = _normalize_email(body.email)
+    user = _get_user_by_email(sb, email)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(401, detail="Invalid credentials")
 
-    # 2. Сравниваем пароль (plain text)
-    stored_pw = user.get("password") or ""
-    if stored_pw != payload.password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    spec = _get_password_hash_spec(sb, user["user_id"])
+    if not spec or not _verify_password(body.password, spec):
+        raise HTTPException(401, detail="Invalid credentials")
 
-    user_id = user.get("user_id")
+    jwt = _make_dev_jwt(user["user_id"])
+    return UserOut(
+        user_id=str(user["user_id"]),
+        jwt=jwt,
+        user={"email": user["email"], "display_name": user.get("display_name"), "level": int(user.get("level") or 2)}
+    )
+
+@router.post("/reset", response_model=OkOut)
+def reset(body: ResetIn):
+    sb = _sb()
+    email = _normalize_email(body.email)
+    user = _get_user_by_email(sb, email)
+    if not user:
+        return OkOut(ok=True)
+
+    if body.password and body.password.strip():
+        _store_password_hash(sb, user["user_id"], _hash_password(body.password.strip()))
+        return OkOut(ok=True)
+
+    rnd = secrets.token_urlsafe(10)
+    _store_password_hash(sb, user["user_id"], _hash_password(rnd))
+    return OkOut(ok=True, new_password=rnd)
+
+@router.get("/me", response_model=MeOut)
+def me(request: Request):
+    user_id = _extract_user_id_from_dev_jwt(request.headers.get("Authorization"))
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User has no ID")
-
-    # 3. Создаём сессию
-    session_id = create_session_record(user_id, request)
-
-    # 4. Ставим куку
-    secure_flag = request.url.scheme == "https"
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=session_id,
-        httponly=True,
-        secure=secure_flag,
-        samesite="lax",
-        max_age=SESSION_TTL_HOURS * 3600,
-        path="/",
+        raise HTTPException(401, detail="No or invalid dev token")
+    sb = _sb()
+    user = _get_user_by_id(sb, user_id)
+    if not user:
+        raise HTTPException(404, detail="User not found")
+    return MeOut(
+        user_id=str(user["user_id"]),
+        display_name=user.get("display_name"),
+        email=user.get("email"),
+        level=int(user.get("level") or 2),
     )
 
-    return {"ok": True}
+@router.post("/logout", response_model=OkOut)
+def logout():
+    return OkOut(ok=True)
 
+# ---------- Error handlers ----------
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-# -------------------------------------------------
-# /api/auth/logout
-# -------------------------------------------------
-@router.post("/logout")
-async def logout_endpoint(request: Request, response: Response):
-    session_id = request.cookies.get(SESSION_COOKIE_NAME)
-    if session_id:
-        deactivate_session(session_id)
+@app.exception_handler(HTTPException)
+async def http_exc_handler(request: Request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
 
-    # Стираем куку
-    response.delete_cookie(
-        key=SESSION_COOKIE_NAME,
-        path="/",
-    )
+@app.exception_handler(StarletteHTTPException)
+async def starlette_exc_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"ok": False, "detail": exc.detail})
 
-    return {"ok": True}
+@app.exception_handler(RequestValidationError)
+async def val_exc_handler(request: Request, exc: RequestValidationError):
+    msg = "; ".join([e.get("msg", "validation error") for e in exc.errors()]) or "Invalid payload"
+    return JSONResponse(status_code=422, content={"ok": False, "detail": msg})
 
-
-# -------------------------------------------------
-# /api/auth/session
-# -------------------------------------------------
-@router.get("/session")
-async def session_endpoint(request: Request):
-    """
-    Возвращает объект авторизации для фронта.
-    То, что читает твой скрипт в <head> и кладёт в window.SV_AUTH.
-    """
-    auth = getattr(request.state, "auth", None)
-    if not auth:
-        auth = {
-            "is_authenticated": False,
-            "user_id": None,
-            "level": 1,
-            "level_code": "guest",
-            "email": None,
-            "display_name": None,
-        }
-    return JSONResponse(auth)
+app.include_router(router)
