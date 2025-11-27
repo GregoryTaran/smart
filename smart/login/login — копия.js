@@ -1,5 +1,7 @@
-// /smart/login/login.js (оптимизированная версия)
-// Мгновенное меню после логина + подготовка локального кэша SV_AUTH
+// /smart/login/login.js
+// Аутентификатор страницы (register / login / reset) поверх backend API.
+// /api/auth/register, /api/auth/login, /api/auth/reset.
+// Валидация email: только наличие '@'.
 
 (function () {
   const q  = (sel) => document.querySelector(sel);
@@ -25,7 +27,10 @@
   // Поля сброса
   const resetEmail = q('#reset-email');
 
+  // Состояния: register | login | reset
   let state = 'login';
+
+  // --------- Утилиты ---------
 
   function hasAtSymbol(email) {
     return typeof email === 'string' && email.includes('@');
@@ -34,7 +39,7 @@
   function showStatus(message, type = 'info') {
     if (!statusBox) return;
     statusBox.textContent = message || '';
-    statusBox.dataset.type = type;
+    statusBox.dataset.type = type; // [data-type="error|success|info"]
   }
 
   function showResetResult(message) {
@@ -72,6 +77,7 @@
     });
   }
 
+  // Универсальный редирект на index.html с учётом <base>
   function redirectToIndex() {
     try {
       const url = new URL('index.html', document.baseURI).href;
@@ -81,6 +87,7 @@
     }
   }
 
+  // Управление состоянием (какой экран показывать)
   function setState(next) {
     state = next;
     setHidden(formRegister, state !== 'register');
@@ -97,16 +104,22 @@
     activeForm?.querySelector('input, select, textarea')?.focus();
   }
 
+  // --------- Работа с backend /api/auth/... ---------
+
   async function apiPost(path, payload) {
     const res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
+      credentials: 'include', // важно для установки/отправки куки
       body: JSON.stringify(payload || {}),
     });
 
     let data = null;
-    try { data = await res.json(); } catch (_) { data = null; }
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = null;
+    }
 
     if (!res.ok) {
       const msg =
@@ -117,7 +130,9 @@
     return data || {};
   }
 
-  // ====== Регистрация ==========================================================
+  // --------- Обработчики форм ---------
+
+  // Регистрация: /api/auth/register
   formRegister?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
@@ -126,13 +141,21 @@
     const email = (regEmail?.value || '').trim();
     const pass  = regPass?.value || '';
 
-    if (!name) { showStatus('Введите имя.', 'error'); return; }
-    if (!email || !hasAtSymbol(email)) { showStatus('Email должен содержать "@".', 'error'); return; }
-    if (!pass) { showStatus('Введите пароль.', 'error'); return; }
+    if (!name) {
+      showStatus('Введите имя.', 'error');
+      return;
+    }
+    if (!email || !hasAtSymbol(email)) {
+      showStatus('Email должен содержать "@".', 'error');
+      return;
+    }
+    if (!pass) {
+      showStatus('Введите пароль.', 'error');
+      return;
+    }
 
     const btn = findSubmitButton(formRegister);
     disableButton(btn, true);
-
     try {
       await apiPost('/api/auth/register', {
         name,
@@ -141,12 +164,17 @@
       });
 
       showStatus('Регистрация успешна. Добро пожаловать!', 'success');
+
+      // Чистим форму регистрации
       clearForm(formRegister);
 
+      // ТВОЁ ПРАВИЛО:
+      // email переносим на форму входа, пароль не трогаем
       if (email && loginEmail) {
         loginEmail.value = email;
       }
 
+      // Переключаемся на экран входа
       setTimeout(() => setState('login'), 250);
     } catch (err) {
       showStatus(err?.message || 'Ошибка регистрации.', 'error');
@@ -155,7 +183,7 @@
     }
   });
 
-  // ====== ВХОД (ОПТИМИЗИРОВАНО) ================================================
+  // Вход: /api/auth/login
   formLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
@@ -174,31 +202,13 @@
 
     const btn = findSubmitButton(formLogin);
     disableButton(btn, true);
-
     try {
-      const data = await apiPost('/api/auth/login', { email, password: pass });
-
-      // ====== НОВОЕ — ПОДГОТОВКА КЭША SV_AUTH ДО редиректа =======
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
-      const level = Number(data?.user?.level || data?.level || 2);
-
-      const session = {
-        isAuthenticated: true,
-        userId: data?.user_id || data?.user?.id || null,
-        level,
-        levelCode: level === 1 ? 'guest' : 'user',
-        email,
-        displayName: data?.user?.display_name || null,
-        loaded: true
-      };
-
-      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
-      // ============================================================
+      await apiPost('/api/auth/login', { email, password: pass });
 
       showStatus('Вход выполнен. Добро пожаловать!', 'success');
       clearForm(formLogin);
-      redirectToIndex();
 
+      redirectToIndex();
     } catch (err) {
       showStatus(err?.message || 'Ошибка входа. Проверьте данные.', 'error');
     } finally {
@@ -206,7 +216,7 @@
     }
   });
 
-  // ===== Сброс пароля ==========================================================
+  // Сброс пароля: /api/auth/reset
   formReset?.addEventListener('submit', async (e) => {
     e.preventDefault();
     showStatus('');
@@ -220,7 +230,6 @@
 
     const btn = findSubmitButton(formReset);
     disableButton(btn, true);
-
     try {
       const data = await apiPost('/api/auth/reset', { email });
       const newPassword = data?.new_password;
@@ -233,7 +242,6 @@
       );
 
       clearForm(formReset);
-
     } catch (err) {
       showStatus(err?.message || 'Ошибка сброса пароля.', 'error');
     } finally {
@@ -241,12 +249,13 @@
     }
   });
 
-  // ===== Переключатели =========================================================
+  // Переключатели состояний
   qa('[data-action]').forEach((el) => {
     el.addEventListener('click', () => {
       const action = el.getAttribute('data-action');
 
       if (action === 'to-login') {
+        // При ручном переходе на Вход — чистим форму входа
         clearForm(formLogin);
         setState('login');
       } else if (action === 'to-reset') {
@@ -259,7 +268,9 @@
     });
   });
 
+  // Инициализация
   document.addEventListener('DOMContentLoaded', () => {
     setState('login');
+    // Больше НИКАКИХ "Очистить поля" не добавляем 👋
   });
 })();
