@@ -348,9 +348,9 @@ body.menu-open #overlay { display: block; }
 
 /* яркая кнопка в топбаре, когда пользователь залогинен */
 .login-link.login-link--active {
-  background: #2563eb;
+  background: #8b909b;
   color: #ffffff;
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: 5px;
   font-weight: 600;
 }

@@ -96,3 +96,29 @@
 .perm-status.is-ok     { color: #198754; }  /* зелёный */
 .perm-status.is-warn   { color: #d39e00; }  /* жёлтый */
 .perm-status.is-error  { color: #dc3545; }  /* красный */
+
+
+.hero-vision {
+  text-align: center;
+  padding: 80px 24px;
+}
+
+.hero-vision h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #0f172a;
+}
+
+.hero-vision p {
+  font-size: 20px;
+  line-height: 1.45;
+  color: #334155;
+  margin-bottom: 28px;
+}
+
+.hero-vision .hero-author {
+  font-size: 16px;
+  color: #64748b;
+  font-style: italic;
+}
