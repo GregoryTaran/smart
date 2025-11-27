@@ -12,6 +12,14 @@
 <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css" />
 <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
 
+<!-- SVID — правильный путь -->
+<script src="../svid/svid.js" defer></script>
+
+
+<!-- APP_READY -->
+<script src="js/app-ready.js" defer></script>
+
+<!-- AUTH BOOTSTRAP -->
 <script>
   (function () {
     const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
@@ -57,7 +65,6 @@
       try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(x)); } catch {}
     }
 
-    // 1) Из кэша мгновенно
     (function () {
       const c = read();
       if (!c) return;
@@ -65,7 +72,6 @@
       dispatch();
     })();
 
-    // 2) В фоне с сервера
     fetch('/api/auth/session', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
@@ -78,6 +84,7 @@
   })();
 </script>
 
+<!-- topbar -->
 <script type="module">
   import { initPage } from './js/topbar.module.js';
   initPage({
@@ -97,7 +104,6 @@
 
     <main id="main">
 
-      <!-- 🎤 ЕДИНАЯ КАРТОЧКА ДЛЯ ДИКТОФОНА -->
       <section class="card">
         <h2 class="card-title">Диктофон</h2>
 
@@ -126,14 +132,32 @@
 
 <div id="overlay" hidden></div>
 
+<!-- REQUIRE LEVEL -->
 <script type="module">
   import { requireLevel } from "./js/guards.js";
-  import "./voicerecorder/voicerecorder.js";
+
+  if (window.APP_READY) {
+    await window.APP_READY;
+  }
+
   requireLevel({ level: 2 });
 </script>
 
+<!-- MAIN RECORDER -->
 <script type="module">
-  // Мягкое получение разрешения на микрофон
+  if (window.APP_READY) {
+    await window.APP_READY;
+  }
+
+  import "./voicerecorder/voicerecorder.js";
+</script>
+
+<!-- MICROPHONE PERMISSIONS -->
+<script type="module">
+  if (window.APP_READY) {
+    await window.APP_READY;
+  }
+
   const statusEl = document.getElementById('status');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
@@ -171,5 +195,6 @@
 </script>
 
 <script defer src="js/footer.js?v=2"></script>
+
 </body>
 </html>

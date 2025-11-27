@@ -5,9 +5,9 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 import logging, os
 from pathlib import Path
-
 from vision.router import router as vision_router
 from svid.svid import router as svid_router, auth_middleware
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
@@ -29,7 +29,6 @@ app.add_middleware(
         "http://localhost:8000",
         "http://localhost:5173",
         "http://127.0.0.1:8000",
-        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -38,9 +37,9 @@ app.add_middleware(
 
 # --- маршруты ---
 app.include_router(vision_router, prefix="/api")
+app.include_router(svid_router, prefix="/api/auth")  # ⬅ новый блок для логина/сессий
 
-# 🟩 FIX: правильный prefix для SVID
-app.include_router(svid_router, prefix="/api/svid", tags=["svid"])   # ← FIXED
+
 
 # ------------------------ API/WS (как было) ----------------------
 try:
@@ -55,7 +54,7 @@ try:
 except Exception as e:
     log.warning(f"Auth module not loaded: {e}")
 
-# WebSocket для диктофона
+# ✅ WebSocket для диктофона — оставляем как было
 try:
     from voicerecorder.ws_voicerecorder import router as voicerecorder_ws_router
     app.include_router(voicerecorder_ws_router, prefix="", tags=["voicerecorder-ws"])
@@ -63,7 +62,7 @@ try:
 except Exception as e:
     log.info("voicerecorder WS router not mounted: %s", e)
 
-# HTTP API для диктофона
+# ✅ HTTP-роутер диктофона через APIRouter (даёт /api/voicerecorder/*)
 try:
     from voicerecorder.voicerecorder_api import router as vr_upload_router
     app.include_router(vr_upload_router)
@@ -71,7 +70,8 @@ try:
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
-# Саб-приложение диктофона (по умолчанию выключено)
+# ❗ Саб‑приложение оставляем в коде, но ВЫКЛЮЧЕНО по умолчанию.
+# Включить можно, если поставить VR_USE_SUBAPP=1 (тогда займёт весь /api/*)
 try:
     if os.getenv("VR_USE_SUBAPP") == "1":
         from voicerecorder.voicerecorder import app as voicerecorder_app
@@ -107,6 +107,7 @@ try:
 except Exception as e:
     log.warning(f"Identity VISITOR not mounted: {e}")
 
+
 # ------------------------ Health ----------------------
 @app.get("/health")
 def health():
@@ -124,7 +125,7 @@ def info():
         "env": os.environ.get("ENV", "dev"),
     })
 
-# ------------------------ /data -----------------------
+# ------------------------ /data (как было) -----------------------
 DATA_DIR = Path(os.getcwd()).resolve() / "data"
 VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
 try:
@@ -140,14 +141,12 @@ MOUNT_PATH = os.environ.get("SMART_MOUNT_PATH", "/").strip() or "/"
 cwd_root = (Path(os.getcwd()).resolve() / "smart")
 fallback1 = (Path(__file__).resolve().parents[1] / "smart")
 fallback2 = (Path(__file__).resolve().parents[1] / "Smart")
-
 candidates = [
     Path(SMART_FRONT_ROOT) if SMART_FRONT_ROOT else None,
     cwd_root,
     fallback1,
     fallback2,
 ]
-
 STATIC_ROOT = next((p.resolve() for p in candidates if p and p.exists()), None)
 
 if STATIC_ROOT and STATIC_ROOT.exists():
@@ -161,3 +160,4 @@ else:
 @app.get("/api/debug/routes")
 def _routes():
     return sorted([getattr(r, "path", str(r)) for r in app.routes])
+
