@@ -11,8 +11,7 @@
     <link rel="stylesheet" href="css/main.css"/>
     <link rel="stylesheet" href="login/login.css"/>
 
-    <!-- ===================== AUTH BOOTSTRAP ===================== -->
-    <!-- ВЗЯТО ИЗ ТВОЕГО login.html. Полностью совместимо с новым AUTH. -->
+    <!-- ===================== AUTH BOOTSTRAP (НОВЫЙ) ===================== -->
     <script>
       (function () {
         const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
@@ -24,27 +23,28 @@
           level: 1,
           displayName: null,
           loaded: false,
+          levelCode: 'guest',
           _resolve: null,
           ready: null,
         };
 
-        window.SV_AUTH.ready = new Promise((resolve) => {
-          window.SV_AUTH._resolve = resolve;
-        });
+        window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-        (async function bootstrapAuth() {
+        async function bootstrapAuth() {
           try {
+            // Используем КЭШ
             const cached = localStorage.getItem(AUTH_CACHE_KEY);
             if (cached) {
               const data = JSON.parse(cached);
-              Object.assign(window.SV_AUTH, data);
 
+              Object.assign(window.SV_AUTH, data);
               window.SV_AUTH.loaded = true;
               window.SV_AUTH._resolve(window.SV_AUTH);
               return;
             }
 
-            const resp = await fetch("/api/auth/session", {
+            // Новый endpoint (ВМЕСТО /api/auth/session)
+            const resp = await fetch("/api/auth/me", {
               method: "GET",
               credentials: "include"
             });
@@ -52,11 +52,14 @@
             if (resp.ok) {
               const data = await resp.json();
 
-              window.SV_AUTH.isAuthenticated = true;
-              window.SV_AUTH.userId = data.userId || null;
-              window.SV_AUTH.email = data.email || null;
-              window.SV_AUTH.level = data.level || 1;
-              window.SV_AUTH.displayName = data.displayName || null;
+              if (data.loggedIn) {
+                window.SV_AUTH.isAuthenticated = true;
+                window.SV_AUTH.userId = data.user_merged?.id || null;
+                window.SV_AUTH.email = data.user_merged?.email || null;
+                window.SV_AUTH.displayName = data.user_merged?.name || null;
+                window.SV_AUTH.level = 2;
+                window.SV_AUTH.levelCode = "user";
+              }
             }
 
             window.SV_AUTH.loaded = true;
@@ -66,21 +69,22 @@
             window.SV_AUTH.loaded = true;
             window.SV_AUTH._resolve(window.SV_AUTH);
           }
-        })();
+        }
+
+        bootstrapAuth();
       })();
     </script>
-    <!-- =========================================================== -->
+    <!-- =============================================================== -->
 
     <!-- Topbar -->
     <script type="module">
         import { initPage } from './js/topbar.module.js';
         initPage({
           fragments: [['menu.html', '#sidebar']],
-          cacheBust: false,
           topbar: {
             state: {
               logoHref: 'index.html',
-              logoSrc: 'assets/logo400.jpg',
+              logoSrc: 'assets/logo400.jpg'
             }
           }
         });
@@ -104,7 +108,6 @@
 
           <!-- ==================== РЕГИСТРАЦИЯ ==================== -->
           <form id="form-register" class="login__form" novalidate>
-
             <label class="login__label">
               Имя
               <input class="login__input" id="reg-name" type="text" autocomplete="name" required>
@@ -125,7 +128,7 @@
             <p class="micro-hint">или</p>
 
             <div class="login__links">
-              <button class="login__btn login__btn--ghost" data-action="to-login" type="button">
+              <button class="login__btn login__btn--ghost" type="button" data-action="to-login">
                 ВОЙТИ
               </button>
             </div>
