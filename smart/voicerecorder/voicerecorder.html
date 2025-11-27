@@ -5,177 +5,135 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <base href="../" />
 <title>Диктофон</title>
+
 <link rel="icon" href="assets/logo400.jpg" />
 <link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="css/main.css" />
 <link rel="stylesheet" href="voicerecorder/mic-indicator/mic-indicator.css" />
 <link rel="stylesheet" href="voicerecorder/voicerecorder.css" />
 
- <!--
-    🧠 Глобальный bootstrap авторизации с кэшем.
-    1) Пробует прочитать кэш из localStorage (моментальный ответ для UI)
-    2) В фоне дёргает /api/auth/session, обновляет window.SV_AUTH и кэш
-    3) Всегда работает поверх куки sv_session (сервер остаётся источником правды)
-  -->
-  <script>
-    (function () {
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+<script>
+  (function () {
+    const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-      // Базовое состояние: гость
-      window.SV_AUTH = {
-        isAuthenticated: false,
-        userId: null,
-        level: 1,
-        levelCode: 'guest',
-        email: null,
-        displayName: null,
-        loaded: false
+    window.SV_AUTH = {
+      isAuthenticated: false,
+      userId: null,
+      level: 1,
+      levelCode: 'guest',
+      email: null,
+      displayName: null,
+      loaded: false
+    };
+
+    function norm(data) {
+      data = data || {};
+      const isAuth = !!data.is_authenticated;
+      let level = Number(data.level);
+      if (!Number.isFinite(level) || level <= 0) level = isAuth ? 2 : 1;
+      return {
+        isAuthenticated: isAuth,
+        userId: data.user_id ?? null,
+        level,
+        levelCode: data.level_code || (level === 1 ? 'guest' : 'user'),
+        email: data.email ?? null,
+        displayName: data.display_name ?? null,
+        loaded: true
       };
+    }
 
-      function normalizeSession(data) {
-        data = data || {};
-        const isAuth = !!data.is_authenticated;
-        let level = Number(data.level);
-        if (!Number.isFinite(level) || level <= 0) {
-          level = isAuth ? 2 : 1;
-        }
-        const levelCode = data.level_code || (level === 1 ? 'guest' : 'user');
+    function dispatch() {
+      document.dispatchEvent(new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH }));
+    }
 
-        return {
-          isAuthenticated: isAuth,
-          userId: data.user_id ?? null,
-          level: level,
-          levelCode: levelCode,
-          email: data.email ?? null,
-          displayName: data.display_name ?? null,
-          loaded: true
-        };
-      }
+    function read() {
+      try {
+        const raw = localStorage.getItem(AUTH_CACHE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
 
-      function dispatchAuthReady() {
-        try {
-          document.dispatchEvent(
-            new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
-          );
-        } catch (e) {
-          console.warn('sv:auth-ready dispatch failed', e);
-        }
-      }
+    function write(x) {
+      try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(x)); } catch {}
+    }
 
-      function readCache() {
-        try {
-          const raw = localStorage.getItem(AUTH_CACHE_KEY);
-          if (!raw) return null;
-          const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== 'object') return null;
-          return parsed;
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function writeCache(session) {
-        try {
-          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
-        } catch (e) {
-          // localStorage может быть недоступен — тихо игнорируем
-        }
-      }
-
-      // 1) Пытаемся моментально поднять состояние из кэша
-      (function hydrateFromCache() {
-        const cached = readCache();
-        if (!cached) return;
-        // Считаем кэш уже нормализованным объектом SV_AUTH
-        window.SV_AUTH = Object.assign({}, cached, { loaded: true });
-        dispatchAuthReady();
-      })();
-
-      // 2) В фоне тянем свежую сессию с бэкенда
-      fetch('/api/auth/session', {
-        method: 'GET',
-        credentials: 'include'
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error('Auth check failed');
-          return res.json();
-        })
-        .then(function (data) {
-          const session = normalizeSession(data);
-          window.SV_AUTH = session;
-          writeCache(session);
-          dispatchAuthReady();
-        })
-        .catch(function (err) {
-          console.warn('Auth bootstrap failed', err);
-          // Если кэша не было и мы всё ещё не загружены — остаёмся гостем
-          if (!window.SV_AUTH.loaded) {
-            const guest = normalizeSession({});
-            window.SV_AUTH = guest;
-            writeCache(guest);
-            dispatchAuthReady();
-          }
-        });
+    // 1) Из кэша мгновенно
+    (function () {
+      const c = read();
+      if (!c) return;
+      window.SV_AUTH = Object.assign({}, c, { loaded: true });
+      dispatch();
     })();
-  </script>
 
-  <!-- Инициализация топбара/меню как и раньше -->
-  <script type="module">
-    import { initPage } from './js/topbar.module.js';
-    initPage({
-      fragments: [['menu.html', '#sidebar']],
-      cacheBust: false,
-      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
-    });
-  </script>
+    // 2) В фоне с сервера
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        const s = norm(d);
+        window.SV_AUTH = s;
+        write(s);
+        dispatch();
+      })
+      .catch(() => dispatch());
+  })();
+</script>
 
-
-
+<script type="module">
+  import { initPage } from './js/topbar.module.js';
+  initPage({
+    fragments: [['menu.html', '#sidebar']],
+    cacheBust: false,
+    topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+  });
+</script>
 </head>
+
 <body>
 <div id="page">
-  <aside id="sidebar" aria-label="Основное меню"></aside>
+  <aside id="sidebar"></aside>
+
   <div id="app">
-    <header id="topbar" role="banner"></header>
-    <main id="main" role="main">
+    <header id="topbar"></header>
 
-<section class="vr-root">
-  <div class="vr-container sv-center-700">
-    <div class="demo">
-      <h3>Mic Indicator — тест (Start / Pause / Stop)</h3>
+    <main id="main">
 
-      <!-- ВАЖНО: правильный контейнер для индикатора -->
-      <div aria-hidden="true" class="mic-box">
-        <div id="vc-level"></div>
-      </div>
+      <!-- 🎤 ЕДИНАЯ КАРТОЧКА ДЛЯ ДИКТОФОНА -->
+      <section class="card">
+        <h2 class="card-title">Диктофон</h2>
 
-      <div class="controls">
-        <button id="startBtn">Start</button>
-        <button id="pauseBtn" disabled>Pause</button>
-        <button id="stopBtn" disabled>Stop</button>
+        <div class="mic-box" aria-hidden="true">
+          <div id="vc-level"></div>
+        </div>
+
+        <div class="controls">
+          <button id="startBtn" class="btn-purple">Start</button>
+          <button id="pauseBtn" class="btn-purple" disabled>Pause</button>
+          <button id="stopBtn" class="btn-purple" disabled>Stop</button>
+        </div>
 
         <audio id="sv-player" class="sv-player sv-player--disabled" controls preload="metadata"></audio>
 
-        <span class="status" id="status">idle</span>
+        <div class="status" id="status" style="margin-top:10px;">idle</div>
 
         <ul id="record-list" style="margin-top:1em;font-family:monospace;"></ul>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
     </main>
-    <footer id="footer" role="contentinfo"></footer>
+
+    <footer id="footer"></footer>
   </div>
 </div>
 
 <div id="overlay" hidden></div>
 
-
-
-
-<!-- Мягкое получение разрешения на микрофон -->
 <script type="module">
+  import { requireLevel } from "./js/guards.js";
+  import "./voicerecorder/voicerecorder.js";
+  requireLevel({ level: 2 });
+</script>
+
+<script type="module">
+  // Мягкое получение разрешения на микрофон
   const statusEl = document.getElementById('status');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
@@ -189,7 +147,7 @@
         try {
           const perm = await navigator.permissions.query({ name: 'microphone' });
           if (perm.state === 'granted') { setStatus('microphone: granted'); return true; }
-          if (perm.state === 'denied')  { setStatus('microphone: denied');  return false; }
+          if (perm.state === 'denied')  { setStatus('microphone: denied'); return false; }
         } catch {}
       }
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -213,15 +171,5 @@
 </script>
 
 <script defer src="js/footer.js?v=2"></script>
-
-<script type="module">
-  import { requireLevel } from "./js/guards.js";
-  import "./voicerecorder/voicerecorder.js";
-  requireLevel({ level: 2 });
-</script>
-
-
-
-
 </body>
 </html>
