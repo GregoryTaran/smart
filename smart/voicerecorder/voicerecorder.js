@@ -141,28 +141,43 @@ async function stop() {
 
   setStatus("stopping…");
 
-  // сбрасываем индикатор
-  if (indicator) {
-    indicator.baselineOnly(); // baseline, но без freeze()!
-  }
+  indicator?.baselineOnly();
 
+  // 1. Останавливаем сегментацию
   segmenter?.stop();
+
+  // 2. Ждём, пока последний сегмент уйдёт по WS
+  await new Promise(res => setTimeout(res, 250));
+
+  // 3. Шлём END
   await stopWS();
+
+  // 4. Ждём закрытия WS и получения SAVED
+  await new Promise(res => {
+    const check = setInterval(() => {
+      if (!ws || ws.readyState === WebSocket.CLOSED) {
+        clearInterval(check);
+        res();
+      }
+    }, 50);
+  });
+
+  // 5. Останавливаем аудио
   core.stop();
 
+  // cleanup
   core = null;
   segmenter = null;
-  ws = null;
   recordingId = null;
-  paused = false;
+  ws = null;
 
   startBtn.removeAttribute("disabled");
   pauseBtn.setAttribute("disabled", "true");
   stopBtn.setAttribute("disabled", "true");
-  pauseBtn.textContent = "Pause";
 
   setStatus("idle");
 }
+
 
 // ---------- Init ----------
 document.addEventListener("DOMContentLoaded", () => {
