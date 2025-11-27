@@ -8,14 +8,9 @@ from pathlib import Path
 
 # ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
+from svid.svid import router as svid_router          # новый SVID (правильный)
+from auth.api_auth import router as auth_router      # AUTH (email/password)
 
-# ❗ Новый правильный SVID — импорт ТОЛЬКО router
-from svid.svid import router as svid_router
-
-# ❗ AUTH из отдельного модуля (не из SVID!)
-from auth.api_auth import router as auth_router, auth_middleware
-
-# ------------------------ LOGGING ------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
 
@@ -24,8 +19,7 @@ app = FastAPI(title="SMART Backend", version="0.1.0")
 # ------------------------ MIDDLEWARE ------------------------
 app.add_middleware(GZipMiddleware)
 
-# ❗ Правильный auth_middleware — из auth.api_auth (НЕ из SVID)
-app.middleware("http")(auth_middleware)
+# ❗ auth_middleware удалён, так как его нет в новом AUTH v3
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,22 +37,15 @@ app.add_middleware(
 
 # ------------------------ API ROUTES ------------------------
 
-# 🎯 Vision API
+# Vision API
 app.include_router(vision_router, prefix="/api")
 
-# 🎯 AUTH (email/password)
+# AUTH (email/password)
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
-# 🎯 SVID (visitor/session/identify)
-# ❗ НЕ под /api/auth! Новый SVID сам имеет prefix="/api/svid"
+# SVID (visitor/session/identify)
+# SVID уже содержит prefix="/api/svid" внутри себя
 app.include_router(svid_router)
-
-# ------------------------ OPTIONAL ROUTERS ------------------------
-try:
-    from core.api_testserver import router as testserver_router
-    app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
-except Exception as e:
-    log.warning(f"API module not loaded: {e}")
 
 # WebSocket диктофона
 try:
@@ -68,7 +55,7 @@ try:
 except Exception as e:
     log.info("voicerecorder WS not mounted: %s", e)
 
-# HTTP диктофон API
+# HTTP API диктофона
 try:
     from voicerecorder.voicerecorder_api import router as vr_upload_router
     app.include_router(vr_upload_router)
@@ -76,7 +63,7 @@ try:
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
-# Саб-приложение диктофона (не трогаем, всё ок)
+# Саб-приложение диктофона (оставляем, оно полезное!)
 try:
     if os.getenv("VR_USE_SUBAPP") == "1":
         from voicerecorder.voicerecorder import app as voicerecorder_app
@@ -100,7 +87,7 @@ try:
 except Exception as e:
     log.warning(f"Records API not loaded: {e}")
 
-# Visitor (оставляем)
+# Visitor router (оставляем)
 try:
     from identity.visitor import router as visitor_router
     app.include_router(visitor_router)
