@@ -1,6 +1,5 @@
-// === Voice Recorder (SVID-safe final version) ===
-// Работает даже если visitor_id НЕ создан, но user_id есть всегда
-// Если вдруг user_id = null → создаём временный UUID для записи
+// === Voice Recorder (final integrated version) ===
+// Готовая версия, полностью совместимая с MicIndicator
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
@@ -25,31 +24,13 @@ const setStatus = (s) => {
   if (statusEl) statusEl.textContent = s;
 };
 
-// ============ USER ID (SVID SAFE VERSION) ============
-async function getUserIdSafe() {
-  // ждём пока SVID загрузится
-  if (window.SVID?.ready) {
-    try { await window.SVID.ready; } catch (e) {}
-  }
-
-  const s = window.SVID?.getState?.() || {};
-
-  // если есть залогиненный юзер — используем
-  if (s.user_id) return s.user_id;
-
-  // если есть visitor — используем
-  if (s.visitor_id) return s.visitor_id;
-
-  // fallback: создаём временный UUID, чтобы запись не поломалась
-  const temp = crypto.randomUUID();
-  console.warn("⚠️ SVID: ни user_id ни visitor_id — создаём временный:", temp);
-  return temp;
-}
-
 // ---------- WS ----------
 async function connectWS(recId) {
-  const userId = await getUserIdSafe();   // <—— ВАЖНО!
+  const state = (window.SVID && typeof SVID.getState === "function")
+    ? SVID.getState()
+    : {};
 
+  const userId = state.user_id || state.visitor_id || "anon";
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const url = `${proto}://${location.host}/ws/voicerecorder`;
 
@@ -88,6 +69,7 @@ async function start() {
   setStatus("starting…");
   recordingId = crypto.randomUUID();
 
+  // индикатор активируем заранее
   if (indicator) indicator.unfreeze();
 
   core = new SVAudioCore({
@@ -101,6 +83,7 @@ async function start() {
     await indicator.connectStream(stream);
   }
 
+  // === Segmenter ===
   segmenter = new WavSegmenter({
     sampleRate: core.getContext()?.sampleRate || 48000,
     segmentSeconds: 2,
@@ -133,16 +116,21 @@ async function pause() {
   if (!core) return;
 
   if (!paused) {
+    // ставим запись на паузу
     core.pauseCapture();
     paused = true;
     pauseBtn.textContent = "Resume";
     setStatus("paused");
+
     if (indicator) indicator.freeze();
+
   } else {
+    // снимаем паузу
     core.resumeCapture();
     paused = false;
     pauseBtn.textContent = "Pause";
     setStatus("recording");
+
     if (indicator) indicator.unfreeze();
   }
 }
@@ -155,25 +143,29 @@ async function stop() {
 
   indicator?.baselineOnly();
 
+  // 1. Останавливаем сегментацию
   segmenter?.stop();
 
-  // ждём пока сегмент дойдёт по WS
+  // 2. Ждём, пока последний сегмент уйдёт по WS
   await new Promise(res => setTimeout(res, 250));
 
+  // 3. Шлём END
   await stopWS();
 
-  // ждём пока сокет закроется
+  // 4. Ждём закрытия WS и получения SAVED
   await new Promise(res => {
-    const f = setInterval(() => {
+    const check = setInterval(() => {
       if (!ws || ws.readyState === WebSocket.CLOSED) {
-        clearInterval(f);
+        clearInterval(check);
         res();
       }
     }, 50);
   });
 
+  // 5. Останавливаем аудио
   core.stop();
 
+  // cleanup
   core = null;
   segmenter = null;
   recordingId = null;
@@ -182,15 +174,15 @@ async function stop() {
   startBtn.removeAttribute("disabled");
   pauseBtn.setAttribute("disabled", "true");
   stopBtn.setAttribute("disabled", "true");
-  pauseBtn.textContent = "Pause";
 
   setStatus("idle");
 }
 
+
 // ---------- Init ----------
 document.addEventListener("DOMContentLoaded", () => {
   indicator = new MicIndicator(micIndicatorEl);
-  indicator.baselineOnly();
+  indicator.baselineOnly(); // baseline при загрузке
 
   startBtn.addEventListener("click", start);
   pauseBtn.addEventListener("click", pause);
