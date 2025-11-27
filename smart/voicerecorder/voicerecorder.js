@@ -80,7 +80,11 @@ async function stopWS() {
 
 // ---------- Lifecycle ----------
 async function start() {
-  if (core) return;
+  // Start только первый раз, пока нет core
+  if (core) {
+    console.log("⏯ [START] core already exists, ignoring click");
+    return;
+  }
 
   recordingId = crypto.randomUUID();
   console.log("🎬 [START] recId =", recordingId);
@@ -103,6 +107,8 @@ async function start() {
   const stream = core.getStream ? core.getStream() : null;
   if (indicator && stream) {
     await indicator.connectStream(stream);
+    // при старте явно говорим индикатору, что мы в работе
+    indicator._state = "working";
   }
 
   // === Segmenter ===
@@ -146,16 +152,30 @@ async function start() {
 
 async function pause() {
   if (!core) return;
+
   if (!paused) {
+    // === ПАУЗА ===
     core.pauseCapture();
     paused = true;
     pauseBtn.textContent = "Resume";
     setStatus("paused");
+
+    // ⛔ ФРИЗИМ индикатор (вариант B: заморозка картинки)
+    if (indicator) {
+      indicator._state = "pause";
+    }
+
   } else {
+    // === РЕЗЮМ ===
     core.resumeCapture();
     paused = false;
     pauseBtn.textContent = "Pause";
     setStatus("recording");
+
+    // ▶️ Возобновляем движение bars
+    if (indicator) {
+      indicator._state = "working";
+    }
   }
 }
 
@@ -163,7 +183,12 @@ async function stop() {
   if (!core) return;
 
   setStatus("stopping…");
-  indicator?.setInactive();
+
+  // аккуратно гасим индикатор
+  if (indicator) {
+    indicator.setInactive();   // сброс буфера + baseline
+    indicator._state = "initial";
+  }
 
   segmenter?.stop();
   await stopWS();
