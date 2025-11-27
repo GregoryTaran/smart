@@ -5,23 +5,28 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 import logging, os
 from pathlib import Path
+
+# ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
-from svid.svid import router as svid_router, auth_middleware
 
+# ❗ Новый правильный SVID — импорт ТОЛЬКО router
+from svid.svid import router as svid_router
 
+# ❗ AUTH из отдельного модуля (не из SVID!)
+from auth.api_auth import router as auth_router, auth_middleware
+
+# ------------------------ LOGGING ------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.1.0")
 
-# --- middleware: gzip + наша авторизация (сессии/куки) ---
+# ------------------------ MIDDLEWARE ------------------------
 app.add_middleware(GZipMiddleware)
 
-# auth_middleware будет жить в svid.svid — он будет на каждом запросе
-# читать куку, искать сессию и класть юзера в request.state.user
+# ❗ Правильный auth_middleware — из auth.api_auth (НЕ из SVID)
 app.middleware("http")(auth_middleware)
 
-# --- CORS: чтобы фронт мог отправлять куки ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -29,40 +34,41 @@ app.add_middleware(
         "http://localhost:8000",
         "http://localhost:5173",
         "http://127.0.0.1:8000",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- маршруты ---
+# ------------------------ API ROUTES ------------------------
+
+# 🎯 Vision API
 app.include_router(vision_router, prefix="/api")
-app.include_router(svid_router, prefix="/api/auth")  # ⬅ новый блок для логина/сессий
 
+# 🎯 AUTH (email/password)
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 
+# 🎯 SVID (visitor/session/identify)
+# ❗ НЕ под /api/auth! Новый SVID сам имеет prefix="/api/svid"
+app.include_router(svid_router)
 
-# ------------------------ API/WS (как было) ----------------------
+# ------------------------ OPTIONAL ROUTERS ------------------------
 try:
     from core.api_testserver import router as testserver_router
     app.include_router(testserver_router, prefix="/api/testserver", tags=["testserver"])
 except Exception as e:
     log.warning(f"API module not loaded: {e}")
 
-try:
-    from auth.api_auth import router as auth_router
-    app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
-except Exception as e:
-    log.warning(f"Auth module not loaded: {e}")
-
-# ✅ WebSocket для диктофона — оставляем как было
+# WebSocket диктофона
 try:
     from voicerecorder.ws_voicerecorder import router as voicerecorder_ws_router
     app.include_router(voicerecorder_ws_router, prefix="", tags=["voicerecorder-ws"])
     log.info("voicerecorder WS router mounted")
 except Exception as e:
-    log.info("voicerecorder WS router not mounted: %s", e)
+    log.info("voicerecorder WS not mounted: %s", e)
 
-# ✅ HTTP-роутер диктофона через APIRouter (даёт /api/voicerecorder/*)
+# HTTP диктофон API
 try:
     from voicerecorder.voicerecorder_api import router as vr_upload_router
     app.include_router(vr_upload_router)
@@ -70,8 +76,7 @@ try:
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
-# ❗ Саб‑приложение оставляем в коде, но ВЫКЛЮЧЕНО по умолчанию.
-# Включить можно, если поставить VR_USE_SUBAPP=1 (тогда займёт весь /api/*)
+# Саб-приложение диктофона (не трогаем, всё ок)
 try:
     if os.getenv("VR_USE_SUBAPP") == "1":
         from voicerecorder.voicerecorder import app as voicerecorder_app
@@ -82,6 +87,7 @@ try:
 except Exception as e:
     log.warning(f"Voicerecorder sub-app mount skipped: {e}")
 
+# DB routers
 try:
     from database.api_db import router as db_router
     app.include_router(db_router, prefix="/api/db", tags=["db"])
@@ -94,12 +100,7 @@ try:
 except Exception as e:
     log.warning(f"Records API not loaded: {e}")
 
-try:
-    from database.api_testserver import router as testserver_router2
-    app.include_router(testserver_router2, prefix="/api/testserver", tags=["testserver"])
-except Exception as e:
-    log.warning(f"TestServer API not loaded: {e}")
-
+# Visitor (оставляем)
 try:
     from identity.visitor import router as visitor_router
     app.include_router(visitor_router)
@@ -107,8 +108,7 @@ try:
 except Exception as e:
     log.warning(f"Identity VISITOR not mounted: {e}")
 
-
-# ------------------------ Health ----------------------
+# ------------------------ HEALTH ------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -125,7 +125,7 @@ def info():
         "env": os.environ.get("ENV", "dev"),
     })
 
-# ------------------------ /data (как было) -----------------------
+# ------------------------ STATIC DATA ------------------------
 DATA_DIR = Path(os.getcwd()).resolve() / "data"
 VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
 try:
@@ -156,8 +156,7 @@ else:
     tried = [str(p) for p in candidates if p]
     log.warning("[static] Front root not found. Tried: %s", tried)
 
-# ------------------------ DEBUG ----------------------
+# ------------------------ DEBUG ------------------------
 @app.get("/api/debug/routes")
 def _routes():
     return sorted([getattr(r, "path", str(r)) for r in app.routes])
-
