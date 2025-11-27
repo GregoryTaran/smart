@@ -1,51 +1,10 @@
-// === Global redirect to index after logout (respects <base>) ===
-function redirectToIndex() {
-  try {
-    const url = new URL('index.html', document.baseURI).href;
-    location.replace(url);
-  } catch (e) {
-    location.replace('index.html');
-  }
-}
-// === /redirect helper ===
+// /smart/js/topbar.module.js — OPTIMIZED VERSION
+// Мгновенное меню + тихое обновление после sv:auth-ready
 
 const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-function clearAuthCache() {
-  try {
-    localStorage.removeItem(AUTH_CACHE_KEY);
-  } catch (e) {
-    console.warn('clearAuthCache failed', e);
-  }
-}
-
-/* topbar.module.js — версия под новую авторизацию
-   БЭКЕНД: /api/auth/session (читаем в <head>), /api/auth/logout (здесь вызываем)
-   ФРОНТ: читает window.SV_AUTH и слушает событие document 'sv:auth-ready'
-*/
-
-const MENU = [
-  { id: 'home',  title: 'Главная',                     href: 'index.html',                       allow: [1, 2] },
-  { id: 'about', title: 'О проекте',                   href: 'about/about.html',                 allow: [1, 2] },
-  { id: 'priv',  title: 'Политика конфиденциальности', href: 'privacy/privacy.html',             allow: [1, 2] },
-  { id: 'terms', title: 'Условия использования',       href: 'terms/terms.html',                 allow: [1, 2] },
-
-  { id: 'login', title: 'Вход/регистрация',            href: 'login/login.html',                 allow: [1] },
-
-  { id: 'ts',    title: 'Проверка сервера',            href: 'testserver/testserver.html',       allow: [2] },
-  { id: 'rec',   title: 'Диктофон',                    href: 'voicerecorder/voicerecorder.html', allow: [2] },
-  { id: 'vision',   title: 'Путь по визии',            href: 'vision/index.html',               allow: [2] },
-  { id: 'app',   title: 'Мобильное приложение',        href: 'app/app.html',                     allow: [1, 2] },
-  { id: 'logout',title: 'Выйти',                       href: '#logout', action: 'logout',        allow: [2] },
-];
-
-/* === Утилиты для чтения авторизации из window.SV_AUTH === */
-
 function getAuthState() {
-  // Структура, которую заполняет скрипт в <head>
-  if (window.SV_AUTH && typeof window.SV_AUTH === 'object') {
-    return window.SV_AUTH;
-  }
+  if (window.SV_AUTH && typeof window.SV_AUTH === 'object') return window.SV_AUTH;
   return {
     isAuthenticated: false,
     userId: null,
@@ -63,155 +22,49 @@ function getLevel() {
   return Number.isFinite(lvl) && lvl > 0 ? lvl : 1;
 }
 
-/* === Диагностический бейдж уровня (низ справа) === */
-function ensureLevelDebugBadge(levelValue = getLevel()) {
-  let el = document.getElementById('svid-level-badge');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'svid-level-badge';
-    el.style.cssText = [
-      'position:fixed','right:12px','bottom:12px','z-index:2147483647',
-      'padding:6px 10px','border-radius:8px','background:rgba(0,0,0,.75)',
-      'color:#fff','font:12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
-      'box-shadow:0 2px 6px rgba(0,0,0,.3)','pointer-events:none','user-select:none'
-    ].join(';');
-    document.body.appendChild(el);
-  }
-  el.textContent = `level ${levelValue}`;
-}
-/* === /бейдж === */
-
-function toggleMenu() {
-  const body = document.body;
-  const overlay = document.querySelector('#overlay');
-  const btn = document.querySelector('#topbar .menu-toggle');
-
-  const opened = !body.classList.contains('menu-open');
-  body.classList.toggle('menu-open', opened);
-  btn?.setAttribute('aria-expanded', opened ? 'true' : 'false');
-  if (overlay) overlay.hidden = !opened;
-
-  if (opened) {
-    body.dataset.prevOverflow = body.style.overflow || '';
-    body.style.overflow = 'hidden';
-  } else {
-    body.style.overflow = body.dataset.prevOverflow || '';
-    delete body.dataset.prevOverflow;
-  }
+// Служебные утилиты
+function clearAuthCache() {
+  try { localStorage.removeItem(AUTH_CACHE_KEY); } catch (e) {}
 }
 
-function closeMenu() {
-  const body = document.body;
-  if (!body.classList.contains('menu-open')) return;
-  const overlay = document.querySelector('#overlay');
-  const btn = document.querySelector('#topbar .menu-toggle');
-  body.classList.remove('menu-open');
-  btn?.setAttribute('aria-expanded', 'false');
-  if (overlay) overlay.hidden = true;
-  body.style.overflow = body.dataset.prevOverflow || '';
-  delete body.dataset.prevOverflow;
+function redirectToIndex() {
+  try { location.replace(new URL('index.html', document.baseURI).href); }
+  catch { location.replace('index.html'); }
 }
 
-function initMenuControls() {
-  document.querySelector('#overlay')?.addEventListener('click', closeMenu);
-  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
-  window.addEventListener('popstate', closeMenu);
-  document.querySelector('#sidebar')?.addEventListener('click', (e) => {
-    const a = e.target.closest('a[href]');
-    if (!a) return;
-    const href = a.getAttribute('href') || '';
-    if (!href.startsWith('#')) closeMenu();
-  });
-}
+// ======== MENU ===============================================================
 
-/* === Логин/Логаут в правом верхнем углу === */
+const MENU = [
+  { id: 'home',  title: 'Главная', href: 'index.html', allow: [1, 2] },
+  { id: 'about', title: 'О проекте', href: 'about/about.html', allow: [1, 2] },
+  { id: 'priv',  title: 'Политика конфиденциальности', href: 'privacy/privacy.html', allow: [1, 2] },
+  { id: 'terms', title: 'Условия использования', href: 'terms/terms.html', allow: [1, 2] },
 
-async function logoutRequest() {
-  try {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-  } catch (e) {
-    console.warn('Logout request failed', e);
-  } finally {
-    // Чистим клиентский кэш и оповещаем всех слушателей
-    clearAuthCache();
-    window.dispatchEvent(new Event('sv:logout'));
-  }
-}
+  { id: 'login', title: 'Вход/регистрация', href: 'login/login.html', allow: [1] },
 
-function bindAuthLink() {
-  const a = document.getElementById('auth-link');
-  if (!a) return;
-  a.addEventListener('click', async (e) => {
-    const lvl = getLevel();
-    if (lvl >= 2) {
-      // Залогинен → это кнопка "Выйти"
-      e.preventDefault();
-      await logoutRequest();
-    }
-    // если не залогинен — обычный переход на страницу логина
-  });
-}
+  { id: 'ts',    title: 'Проверка сервера', href: 'testserver/testserver.html', allow: [2] },
+  { id: 'rec',   title: 'Диктофон', href: 'voicerecorder/voicerecorder.html', allow: [2] },
+  { id: 'vision',title: 'Путь по визии', href: 'vision/index.html', allow: [2] },
 
-function syncAuthLink(lvl) {
-  let a = document.getElementById('auth-link');
-  if (!a) {
-    // Подождём появления topbar в DOM
-    setTimeout(() => syncAuthLink(lvl), 50);
-    return;
-  }
+  { id: 'app',   title: 'Мобильное приложение', href: 'app/app.html', allow: [1, 2] },
 
-  if (lvl >= 2) {
-    // LOGGED IN -> show Logout (blue filled)
-    a.textContent = 'Выйти';
-    a.setAttribute('href', '#logout');
-    a.setAttribute('data-action', 'logout');
-    a.classList.add('is-logout');
+  { id: 'logout',title: 'Выйти', href: '#logout', action: 'logout', allow: [2] }
+];
 
-    a.style.background = '#007bff';
-    a.style.color = '#fff';
-    a.style.border = 'none';
-    a.style.borderRadius = '8px';
-    a.style.fontWeight = '700';
-    a.style.padding = '6px 12px';
-    a.style.transition = 'background 0.2s ease';
-    a.onmouseover = () => (a.style.background = '#0056b3');
-    a.onmouseout  = () => (a.style.background = '#007bff');
-
-  } else {
-    // NOT LOGGED IN -> show Login
-    a.textContent = 'Логин';
-    a.setAttribute('href', 'login/login.html#login');
-    a.removeAttribute('data-action');
-    a.classList.remove('is-logout');
-
-    a.style.background = '#fff';
-    a.style.color = '#000';
-    a.style.border = '2px solid #333';
-    a.style.borderRadius = '8px';
-    a.style.fontWeight = '600';
-    a.style.padding = '6px 12px';
-    a.style.transition = 'none';
-    a.onmouseover = a.onmouseout = null;
-  }
-}
-
-/* === Меню слева === */
-
-function renderMenu(currentLevel = getLevel()) {
+// ======== MENU RENDERING =====================================================
+function renderMenu(level = getLevel()) {
   const host = document.querySelector('[data-svid-menu]');
   if (!host) return;
-  const items = MENU.filter(i => i.allow.includes(currentLevel));
+
+  const items = MENU.filter(i => i.allow.includes(level));
+
   host.innerHTML = `<ul>${
     items.map(i =>
       `<li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>`
     ).join('')
   }</ul>`;
 
+  // Привязка logout
   (host.querySelectorAll?.('[data-action="logout"]') || []).forEach(a => {
     a.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -221,49 +74,27 @@ function renderMenu(currentLevel = getLevel()) {
 }
 
 function highlightActive() {
-  // Текущий путь страницы, без хвостовых слешей
   let currentPath = location.pathname.toLowerCase();
-  if (currentPath === '/') {
-    currentPath = '/index.html';
-  }
+  if (currentPath === '/') currentPath = '/index.html';
 
   document.querySelectorAll('[data-svid-menu] a[href]').forEach(a => {
     const rawHref = a.getAttribute('href') || '';
-
-    // Не подсвечиваем служебные ссылки типа #logout
     if (!rawHref || rawHref.startsWith('#')) {
       a.classList.remove('is-active');
       return;
     }
 
     let hrefPath;
-    try {
-      // Делаем абсолютный путь, независимый от <base>
-      hrefPath = new URL(rawHref, window.location.origin).pathname.toLowerCase();
-    } catch {
-      hrefPath = rawHref.toLowerCase();
-    }
+    try { hrefPath = new URL(rawHref, window.location.origin).pathname.toLowerCase(); }
+    catch { hrefPath = rawHref.toLowerCase(); }
 
-    // Нормализуем "корень" тоже в index.html
-    if (hrefPath === '/') {
-      hrefPath = '/index.html';
-    }
+    if (hrefPath === '/') hrefPath = '/index.html';
 
-    const ok = currentPath === hrefPath;
-    a.classList.toggle('is-active', ok);
+    a.classList.toggle('is-active', currentPath === hrefPath);
   });
 }
 
-
-async function loadFragment(url, sel) {
-  const el = document.querySelector(sel);
-  if (!el) return;
-  const html = await (await fetch(url, { cache: 'no-cache' })).text();
-  el.innerHTML = html;
-}
-
-/* === Рендер топбара === */
-
+// ======== TOPBAR ==============================================================
 function renderTopbar(state = {}) {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
@@ -286,57 +117,123 @@ function renderTopbar(state = {}) {
   syncAuthLink(getLevel());
 }
 
-/* === Главная инициализация страницы === */
+// ===== AUTH-LINK ==============================================================
+async function logoutRequest() {
+  try {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  } catch {}
 
+  clearAuthCache();
+  window.dispatchEvent(new Event('sv:logout'));
+}
+
+function bindAuthLink() {
+  const a = document.getElementById('auth-link');
+  if (!a) return;
+  a.addEventListener('click', async (e) => {
+    if (getLevel() >= 2) {
+      e.preventDefault();
+      await logoutRequest();
+    }
+  });
+}
+
+function syncAuthLink(level) {
+  let a = document.getElementById('auth-link');
+  if (!a) return;
+
+  if (level >= 2) {
+    a.textContent = 'Выйти';
+    a.href = '#logout';
+    a.setAttribute('data-action', 'logout');
+  } else {
+    a.textContent = 'Логин';
+    a.href = 'login/login.html#login';
+    a.removeAttribute('data-action');
+  }
+}
+
+// ====== MENU CONTROLS =========================================================
+function toggleMenu() {
+  const body = document.body;
+  const overlay = document.querySelector('#overlay');
+  const btn = document.querySelector('#topbar .menu-toggle');
+
+  const opened = !body.classList.contains('menu-open');
+  body.classList.toggle('menu-open', opened);
+  btn?.setAttribute('aria-expanded', opened ? 'true' : 'false');
+  if (overlay) overlay.hidden = !opened;
+}
+
+function closeMenu() {
+  const body = document.body;
+  if (!body.classList.contains('menu-open')) return;
+  const overlay = document.querySelector('#overlay');
+  const btn = document.querySelector('#topbar .menu-toggle');
+  body.classList.remove('menu-open');
+  btn?.setAttribute('aria-expanded', 'false');
+  if (overlay) overlay.hidden = true;
+}
+
+function initMenuControls() {
+  document.querySelector('#overlay')?.addEventListener('click', closeMenu);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  window.addEventListener('popstate', closeMenu);
+}
+
+// ====== MAIN INIT =============================================================
 export async function initPage({
   fragments = [['menu.html', '#sidebar']],
   cacheBust = false,
   topbar = { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
 } = {}) {
+
   renderTopbar(topbar.state);
 
+  // Загружаем фрагменты (sidebar)
   for (const [url, sel] of fragments) {
     await loadFragment(cacheBust ? `${url}?_=${Date.now()}` : url, sel);
   }
 
   initMenuControls();
 
-  // 1) Попробуем сразу взять текущий уровень (если SV_AUTH уже загружен)
-  let lvl = getLevel();
+  // ===== мгновенная отрисовка меню =====
+  const lvl = getLevel();
   syncAuthLink(lvl);
   renderMenu(lvl);
   highlightActive();
-  ensureLevelDebugBadge(lvl);
 
-  // 2) Подписываемся на событие, которое кидает скрипт в <head>, когда /api/auth/session ответил
+  // ===== тихое обновление меню после ответа сервера =====
   document.addEventListener('sv:auth-ready', (event) => {
     const detail = event?.detail || getAuthState();
     const newLevel = Number(detail.level) || 1;
-    syncAuthLink(newLevel);
-    renderMenu(newLevel);
-    highlightActive();
-    ensureLevelDebugBadge(newLevel);
+
+    // 🔥 тихое обновление (без блокировки интерфейса)
+    setTimeout(() => {
+      syncAuthLink(newLevel);
+      renderMenu(newLevel);
+      highlightActive();
+    }, 0);
   });
 
-  // 3) На всякий случай при возвращении из bfcache — обновим бейдж и меню
+  // bfcache support
   window.addEventListener('pageshow', () => {
     const cur = getLevel();
     syncAuthLink(cur);
     renderMenu(cur);
     highlightActive();
-    ensureLevelDebugBadge(cur);
   });
 }
 
-// Если где-то в коде ты сам вызовешь logout и кинешь это событие
-window.addEventListener('sv:logout', () => {
-  clearAuthCache();
-  redirectToIndex();
-});
-
-// Опционально: если другая вкладка удалила кэш авторизации — реагируем
-window.addEventListener('storage', (e) => {
-  if (e.key === AUTH_CACHE_KEY && e.newValue === null) {
-    redirectToIndex();
-  }
-});
+// ===== Load HTML fragment ======================================================
+async function loadFragment(url, sel) {
+  const el = document.querySelector(sel);
+  if (!el) return;
+  const html = await (await fetch(url, { cache: 'no-cache' })).text();
+  el.innerHTML = html;
+}
