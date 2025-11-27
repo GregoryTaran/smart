@@ -187,12 +187,15 @@ function syncAuthLink(level) {
     a.textContent = 'Выйти';
     a.href = '#logout';
     a.setAttribute('data-action', 'logout');
+    a.classList.add('login-link--active');   // 🟦 <— добавляем класс при логине
   } else {
     a.textContent = 'Логин';
     a.href = 'login/login.html#login';
     a.removeAttribute('data-action');
+    a.classList.remove('login-link--active'); // убираем класс при выходе
   }
 }
+
 
 // ====================== MENU CONTROLS ============================
 function toggleMenu() {

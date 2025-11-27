@@ -346,3 +346,11 @@ body.menu-open #overlay { display: block; }
 /* Горизонтальный ряд кнопок/контролов с gap (по желанию) */
 .btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
 
+/* яркая кнопка в топбаре, когда пользователь залогинен */
+.login-link.login-link--active {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+}
