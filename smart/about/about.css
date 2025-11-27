@@ -1,1 +1,54 @@
-.about{padding:24px;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+/* ===== Общая карточка ===== */
+.card {
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  margin-bottom: 32px;
+}
+
+/* ===== Заголовки ===== */
+.card h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.card p {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 16px;
+}
+
+.card h2 {
+  font-size: 22px;
+  margin-bottom: 16px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+/* ===== Большой информер ===== */
+.big-informer {
+  display: block;
+  margin-top: 12px;
+}
+
+.big-informer h3 {
+  margin: 24px 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.big-informer pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  color: #334155;
+}

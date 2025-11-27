@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="../" />
+<title>О проекте</title>
+
+<link rel="icon" href="assets/logo400.jpg" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="css/main.css" />
+<link rel="stylesheet" href="about/about.css" />
+ 
+
+
+ <!--
+    🧠 Глобальный bootstrap авторизации с кэшем.
+    1) Пробует прочитать кэш из localStorage (моментальный ответ для UI)
+    2) В фоне дёргает /api/auth/session, обновляет window.SV_AUTH и кэш
+    3) Всегда работает поверх куки sv_session (сервер остаётся источником правды)
+  -->
+  <script>
+    (function () {
+      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+
+      // Базовое состояние: гость
+      window.SV_AUTH = {
+        isAuthenticated: false,
+        userId: null,
+        level: 1,
+        levelCode: 'guest',
+        email: null,
+        displayName: null,
+        loaded: false
+      };
+
+      function normalizeSession(data) {
+        data = data || {};
+        const isAuth = !!data.is_authenticated;
+        let level = Number(data.level);
+        if (!Number.isFinite(level) || level <= 0) {
+          level = isAuth ? 2 : 1;
+        }
+        const levelCode = data.level_code || (level === 1 ? 'guest' : 'user');
+
+        return {
+          isAuthenticated: isAuth,
+          userId: data.user_id ?? null,
+          level: level,
+          levelCode: levelCode,
+          email: data.email ?? null,
+          displayName: data.display_name ?? null,
+          loaded: true
+        };
+      }
+
+      function dispatchAuthReady() {
+        try {
+          document.dispatchEvent(
+            new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
+          );
+        } catch (e) {
+          console.warn('sv:auth-ready dispatch failed', e);
+        }
+      }
+
+      function readCache() {
+        try {
+          const raw = localStorage.getItem(AUTH_CACHE_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') return null;
+          return parsed;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function writeCache(session) {
+        try {
+          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
+        } catch (e) {
+          // localStorage может быть недоступен — тихо игнорируем
+        }
+      }
+
+      // 1) Пытаемся моментально поднять состояние из кэша
+      (function hydrateFromCache() {
+        const cached = readCache();
+        if (!cached) return;
+        // Считаем кэш уже нормализованным объектом SV_AUTH
+        window.SV_AUTH = Object.assign({}, cached, { loaded: true });
+        dispatchAuthReady();
+      })();
+
+      // 2) В фоне тянем свежую сессию с бэкенда
+      fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include'
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error('Auth check failed');
+          return res.json();
+        })
+        .then(function (data) {
+          const session = normalizeSession(data);
+          window.SV_AUTH = session;
+          writeCache(session);
+          dispatchAuthReady();
+        })
+        .catch(function (err) {
+          console.warn('Auth bootstrap failed', err);
+          // Если кэша не было и мы всё ещё не загружены — остаёмся гостем
+          if (!window.SV_AUTH.loaded) {
+            const guest = normalizeSession({});
+            window.SV_AUTH = guest;
+            writeCache(guest);
+            dispatchAuthReady();
+          }
+        });
+    })();
+  </script>
+
+  <!-- Инициализация топбара/меню как и раньше -->
+  <script type="module">
+    import { initPage } from './js/topbar.module.js';
+    initPage({
+      fragments: [['menu.html', '#sidebar']],
+      cacheBust: false,
+      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+    });
+  </script>
+
+
+
+</head>
+
+
+
+
+
+<body>
+<div id="page">
+  <aside id="sidebar" aria-label="Основное меню"></aside>
+  <div id="app">
+    <header id="topbar" role="banner"></header>
+    <main id="main" role="main">
+      
+      
+      <section class="about">
+        <h1>О проекте</h1>
+        <p>SMART VISION — коллекция микросервисов и страниц проекта..</p>
+      </section>
+
+<br>
+<section class="card stack-16" aria-label="Разрешения приложения">
+  <h2>Разрешения</h2>
+
+  <div class="stack-16">
+    <button class="btn-purple" id="btnMic"  type="button">Разрешить микрофон</button>
+    <button class="btn-purple" id="btnCam"  type="button">Разрешить камеру</button>
+    <button class="btn-purple" id="btnNoti" type="button">Разрешить уведомления</button>
+    <button class="btn-purple" id="btnGeo"  type="button">Разрешить геолокацию</button>
+  </div>
+
+  <p id="permStatus">status: idle</p>
+</section>
+  <br>
+ <div id="home-geo-footer"></div>
+  <br>
+<section class="card stack-16" aria-label="Информер">
+  <h2>Информер</h2>
+
+  <!-- ВАЖНО: informer.js ищет #footer -->
+  <div id="footer" class="informer-root"></div>
+
+  <!-- просто подключаем скрипт -->
+  <script defer src="js/informer.js"></script>
+</section>
+</main>
+
+ <footer id="footer" role="contentinfo"></footer>
+
+
+  </div>
+</div>
+
+<div id="overlay" hidden></div>
+
+<!-- общие скрипты -->
+
+<script defer src="js/footer.js?v=2"></script>
+<!-- <script defer src="js/register-sw.js"></script> -->
+
+<script defer src="about/about.js"></script>
+<script defer src="js/zaprosrazreshenijbrauzera.js"></script>
+<script defer src="js/footer.geo.bundle.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function () {
+      var targetId = 'home-geo-footer';
+      if (window.SVFooter && document.getElementById(targetId)) {
+        try { SVFooter.mount(targetId); } catch (e) { console.warn(e); }
+      }
+    });
+  </script>
+
+
+
+
+
+
+</body>
+</html>
