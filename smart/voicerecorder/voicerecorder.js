@@ -1,6 +1,7 @@
-// === Voice Recorder (SVID-safe final version) ===
-// Работает даже если visitor_id НЕ создан, но user_id есть всегда
-// Если вдруг user_id = null → создаём временный UUID для записи
+// === Voice Recorder (STRICT SVID VERSION — NO TEMP IDs) ===
+// Запись невозможна без user_id или visitor_id.
+// Если идентификатор не готов — кнопка Start заблокирована,
+// запись не стартует, WS не открывается.
 
 import SVAudioCore from "./audiocore/sv-audio-core.js";
 import WavSegmenter from "./audiocore/wav-segmenter.js";
@@ -25,30 +26,37 @@ const setStatus = (s) => {
   if (statusEl) statusEl.textContent = s;
 };
 
-// ============ USER ID (SVID SAFE VERSION) ============
-async function getUserIdSafe() {
-  // ждём пока SVID загрузится
+// ================================================================
+// 🔥 ЖЕСТКАЯ ВЕРСИЯ: user_id/visitor_id ОБЯЗАТЕЛЕН
+// ================================================================
+async function ensureUserId() {
+  // Ждём APP_READY, если есть
+  if (window.APP_READY) {
+    try { await window.APP_READY; } catch {}
+  }
+
+  // Ждём SVID.ready
   if (window.SVID?.ready) {
-    try { await window.SVID.ready; } catch (e) {}
+    try { await window.SVID.ready; } catch {}
   }
 
   const s = window.SVID?.getState?.() || {};
 
-  // если есть залогиненный юзер — используем
+  // ✔︎ допускаем user_id
   if (s.user_id) return s.user_id;
 
-  // если есть visitor — используем
+  // ✔︎ допускаем visitor_id (аноним, но постоянный)
   if (s.visitor_id) return s.visitor_id;
 
-  // fallback: создаём временный UUID, чтобы запись не поломалась
-  const temp = crypto.randomUUID();
-  console.warn("⚠️ SVID: ни user_id ни visitor_id — создаём временный:", temp);
-  return temp;
+  // ❌ ID нет — приложение ещё не готово
+  throw new Error("SVID_ID_MISSING");
 }
 
-// ---------- WS ----------
+// ================================================================
+// 🔥 WebSocket (но открываем только когда есть ID)
+// ================================================================
 async function connectWS(recId) {
-  const userId = await getUserIdSafe();   // <—— ВАЖНО!
+  const userId = await ensureUserId();  // гарантированно есть
 
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const url = `${proto}://${location.host}/ws/voicerecorder`;
@@ -81,9 +89,20 @@ async function stopWS() {
   }
 }
 
-// ---------- START ----------
+// ================================================================
+// 🔥 START — запись запрещена без ID
+// ================================================================
 async function start() {
   if (core) return;
+
+  // 1) Проверяем ID до начала записи
+  try {
+    await ensureUserId();
+  } catch {
+    setStatus("Нет user_id / visitor_id — запись невозможна");
+    console.error("Диктофон: нет ID — блокировка старта");
+    return;
+  }
 
   setStatus("starting…");
   recordingId = crypto.randomUUID();
@@ -118,6 +137,7 @@ async function start() {
     if (segmenter) segmenter.pushFrame(f32);
   };
 
+  // 2) WS Открываем только когда ID точно есть
   await connectWS(recordingId);
 
   paused = false;
@@ -128,7 +148,9 @@ async function start() {
   setStatus("recording");
 }
 
-// ---------- PAUSE ----------
+// ================================================================
+// 🔥 PAUSE
+// ================================================================
 async function pause() {
   if (!core) return;
 
@@ -137,17 +159,19 @@ async function pause() {
     paused = true;
     pauseBtn.textContent = "Resume";
     setStatus("paused");
-    if (indicator) indicator.freeze();
+    indicator?.freeze();
   } else {
     core.resumeCapture();
     paused = false;
     pauseBtn.textContent = "Pause";
     setStatus("recording");
-    if (indicator) indicator.unfreeze();
+    indicator?.unfreeze();
   }
 }
 
-// ---------- STOP ----------
+// ================================================================
+// 🔥 STOP
+// ================================================================
 async function stop() {
   if (!core) return;
 
@@ -157,12 +181,9 @@ async function stop() {
 
   segmenter?.stop();
 
-  // ждём пока сегмент дойдёт по WS
   await new Promise(res => setTimeout(res, 250));
-
   await stopWS();
 
-  // ждём пока сокет закроется
   await new Promise(res => {
     const f = setInterval(() => {
       if (!ws || ws.readyState === WebSocket.CLOSED) {
@@ -187,10 +208,34 @@ async function stop() {
   setStatus("idle");
 }
 
-// ---------- Init ----------
-document.addEventListener("DOMContentLoaded", () => {
+// ================================================================
+// 🔥 INIT — ждём ID, если нет — кнопка Start заблокирована
+// ================================================================
+document.addEventListener("DOMContentLoaded", async () => {
   indicator = new MicIndicator(micIndicatorEl);
   indicator.baselineOnly();
+
+  // Изначально блокируем Start
+  startBtn.setAttribute("disabled", "true");
+
+  // Проверяем ID (может быть уже есть)
+  try {
+    await ensureUserId();
+    startBtn.removeAttribute("disabled");
+    setStatus("ready");
+  } catch {
+    setStatus("Инициализация идентификатора…");
+
+    // Пробуем раз в 300мс
+    const interval = setInterval(async () => {
+      try {
+        await ensureUserId();
+        startBtn.removeAttribute("disabled");
+        setStatus("ready");
+        clearInterval(interval);
+      } catch {}
+    }, 300);
+  }
 
   startBtn.addEventListener("click", start);
   pauseBtn.addEventListener("click", pause);
