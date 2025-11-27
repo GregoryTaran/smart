@@ -1,4 +1,4 @@
-// /smart/js/topbar.module.js — FIXED FULL VERSION (logout works everywhere)
+// /smart/js/topbar.module.js — FIXED FULL VERSION (AUTH v3 + SVID v2)
 
 const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
@@ -33,7 +33,7 @@ function redirectToIndex() {
   }
 }
 
-// ====================== LOGOUT (FULL FIX) ============================
+// ====================== LOGOUT ============================
 async function logoutRequest() {
   try {
     await fetch('/api/auth/logout', {
@@ -46,7 +46,6 @@ async function logoutRequest() {
 
   clearAuthCache();
 
-  // Обновляем локальное состояние
   window.SV_AUTH = {
     isAuthenticated: false,
     userId: null,
@@ -57,18 +56,15 @@ async function logoutRequest() {
     loaded: true
   };
 
-  // UI обновить
   syncAuthLink(1);
   renderMenu(1);
   highlightActive();
-
-  // Закрыть меню, если открыто
   closeMenu();
 
   redirectToIndex();
 }
 
-// ====================== MENU SYSTEM ============================
+// ====================== MENU ITEMS ============================
 const MENU = [
   { id: 'home', title: 'Главная', href: 'index.html', allow: [1, 2] },
   { id: 'about', title: 'О проекте', href: 'about/about.html', allow: [1, 2] },
@@ -86,7 +82,7 @@ const MENU = [
   { id: 'logout', title: 'Выйти', href: '#logout', action: 'logout', allow: [2] }
 ];
 
-// ====================== RENDER MENU ============================
+// ====================== MENU RENDER ============================
 function renderMenu(level = getLevel()) {
   const host = document.querySelector('[data-svid-menu]');
   if (!host) return;
@@ -94,35 +90,29 @@ function renderMenu(level = getLevel()) {
   const items = MENU.filter(i => i.allow.includes(level));
 
   host.innerHTML = `<ul>${
-    items
-      .map(i =>
-        `<li>
-          <a href="${i.href}" 
-             data-id="${i.id}" 
-             ${i.action ? `data-action="${i.action}"` : ""}>
-             ${i.title}
-          </a>
-        </li>`
-      )
-      .join("")
+    items.map(i =>
+      `<li>
+        <a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a>
+      </li>`
+    ).join('')
   }</ul>`;
 
-  // ACTIONS
   host.querySelectorAll('[data-action="logout"]').forEach(a => {
-    a.addEventListener('click', async (e) => {
+    a.addEventListener('click', async e => {
       e.preventDefault();
       await logoutRequest();
     });
   });
 }
 
-// ====================== ACTIVE LINK ============================
+// ====================== ACTIVE HIGHLIGHT ============================
 function highlightActive() {
   let currentPath = location.pathname.toLowerCase();
   if (currentPath === '/') currentPath = '/index.html';
 
   document.querySelectorAll('[data-svid-menu] a[href]').forEach(a => {
     const rawHref = a.getAttribute('href') || '';
+
     if (!rawHref || rawHref.startsWith('#')) {
       a.classList.remove('is-active');
       return;
@@ -141,7 +131,7 @@ function highlightActive() {
   });
 }
 
-// ====================== TOPBAR ============================
+// ====================== TOPBAR RENDER ============================
 function renderTopbar(state = {}) {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
@@ -167,6 +157,7 @@ function renderTopbar(state = {}) {
   syncAuthLink(getLevel());
 }
 
+// ====================== AUTH LINK ============================
 function bindAuthLink() {
   const a = document.getElementById('auth-link');
   if (!a) return;
@@ -180,22 +171,21 @@ function bindAuthLink() {
 }
 
 function syncAuthLink(level) {
-  let a = document.getElementById('auth-link');
+  const a = document.getElementById('auth-link');
   if (!a) return;
 
   if (level >= 2) {
     a.textContent = 'Выйти';
     a.href = '#logout';
     a.setAttribute('data-action', 'logout');
-    a.classList.add('login-link--active');   // 🟦 <— добавляем класс при логине
+    a.classList.add('login-link--active');
   } else {
     a.textContent = 'Логин';
     a.href = 'login/login.html#login';
     a.removeAttribute('data-action');
-    a.classList.remove('login-link--active'); // убираем класс при выходе
+    a.classList.remove('login-link--active');
   }
 }
-
 
 // ====================== MENU CONTROLS ============================
 function toggleMenu() {
@@ -211,13 +201,12 @@ function toggleMenu() {
 }
 
 function closeMenu() {
-  const body = document.body;
-  if (!body.classList.contains('menu-open')) return;
+  if (!document.body.classList.contains('menu-open')) return;
 
   const overlay = document.querySelector('#overlay');
   const btn = document.querySelector('#topbar .menu-toggle');
 
-  body.classList.remove('menu-open');
+  document.body.classList.remove('menu-open');
   btn?.setAttribute('aria-expanded', 'false');
   if (overlay) overlay.hidden = true;
 }
@@ -228,7 +217,7 @@ function initMenuControls() {
   window.addEventListener('popstate', closeMenu);
 }
 
-// ====================== INIT PAGE ============================
+// ====================== INIT ============================
 export async function initPage({
   fragments = [['menu.html', '#sidebar']],
   cacheBust = false,
@@ -237,7 +226,6 @@ export async function initPage({
 
   renderTopbar(topbar.state);
 
-  // Поддержка URL #logout
   if (location.hash === '#logout') {
     await logoutRequest();
     return;
@@ -269,7 +257,7 @@ export async function initPage({
   });
 }
 
-// ====================== FRAGMENT LOADER ============================
+// ====================== LOAD FRAGMENT ============================
 async function loadFragment(url, sel) {
   const el = document.querySelector(sel);
   if (!el) return;
