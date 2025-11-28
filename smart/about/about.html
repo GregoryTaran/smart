@@ -1,212 +1,174 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<base href="../" />
-<title>О проекте</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>О проекте</title>
 
-<link rel="icon" href="assets/logo400.jpg" />
-<link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="css/main.css" />
-<link rel="stylesheet" href="about/about.css" />
+  <base href="/" />
 
-<!-- 🧠 Глобальный bootstrap авторизации -->
-<script>
-  (function () {
-    const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+  <!-- Основные стили -->
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/about/about.css" />
+</head>
 
-    window.SV_AUTH = {
-      isAuthenticated: false,
-      userId: null,
-      email: null,
-      displayName: null,
-      level: 1,
-      levelCode: 'guest',
-      loaded: false,
-      _resolve: null,
-      ready: null,
-    };
+<body>
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
 
-    window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
+    <div id="app">
+      <header id="topbar"></header>
 
-    async function bootstrap() {
-      try {
-        const cached = localStorage.getItem(AUTH_CACHE_KEY);
-        if (cached) Object.assign(window.SV_AUTH, JSON.parse(cached));
+      <main id="main">
 
-        const resp = await fetch("/api/auth/me", { method: "GET", credentials: "include" });
-        const data = await resp.json();
+        <!-- КАРТОЧКА 0 -->
+        <section class="card">
+          <h1>О проекте</h1>
+          <p>Диагностическая страница SMART VISION. Здесь можно проверить работу браузера, разрешения и параметры устройства.</p>
+        </section>
 
-        if (data.loggedIn) {
-          const u = data.user_merged || {};
-          window.SV_AUTH.isAuthenticated = true;
-          window.SV_AUTH.userId = u.id || null;
-          window.SV_AUTH.email = u.email || null;
-          window.SV_AUTH.displayName = u.name || null;
-          window.SV_AUTH.level = data.level || 2;
-          window.SV_AUTH.levelCode = data.level_code || "user";
-        } else {
-          window.SV_AUTH.isAuthenticated = false;
-          window.SV_AUTH.userId = null;
-          window.SV_AUTH.level = 1;
-          window.SV_AUTH.levelCode = "guest";
-        }
 
-        localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
-      } catch (err) { console.warn("AUTH bootstrap error:", err); }
+        <!-- КАРТОЧКА 1: Разрешения -->
+        <section class="card">
+          <h2>Разрешения</h2>
 
-      window.SV_AUTH.loaded = true;
-      window.SV_AUTH._resolve(window.SV_AUTH);
-    }
+          <div class="stack-16">
+            <button class="btn-purple" id="btnMic">Разрешить микрофон</button>
+            <button class="btn-purple" id="btnCam">Разрешить камеру</button>
+            <button class="btn-purple" id="btnNoti">Разрешить уведомления</button>
+            <button class="btn-purple" id="btnGeo">Разрешить геолокацию</button>
+          </div>
 
-    bootstrap();
-  })();
-  </script>
+          <p id="permStatus">status: idle</p>
+        </section>
 
-<!-- topbar/menu -->
+
+        <!-- КАРТОЧКА 2: Геолокация -->
+        <section class="card">
+          <h2>Геолокация</h2>
+          <div id="geo-card"></div>
+
+          <script>
+            document.addEventListener("DOMContentLoaded", () => {
+              try { SVFooter.mount("geo-card"); } 
+              catch(e) { console.warn("geo mount:", e); }
+            });
+          </script>
+        </section>
+
+
+        <!-- КАРТОЧКА 3: Супер-информер -->
+        <section class="card">
+          <h2>Большой информер</h2>
+
+          <div id="about-informer" class="big-informer">
+            Загрузка супер-информера...
+          </div>
+
+          <script type="module">
+            import { collectSuperInfo } from "/js/super-informer.js";
+
+            async function renderSuper() {
+              const info = await collectSuperInfo();
+
+              const root = document.querySelector("#about-informer");
+              if (!root) return;
+
+              root.innerHTML = `
+                ${block("SV_AUTH", info.svAuth)}
+                ${block("Public IP", info.publicIP)}
+                ${block("Permissions", info.permissions)}
+                ${block("Battery", info.battery)}
+                ${block("Device", info.device)}
+                ${block("Screen", info.screen)}
+                ${block("Network", info.network)}
+                ${block("Storage", info.storage)}
+                ${block("WebGL (GPU)", info.webgl)}
+                ${block("Timestamp", info.timestamp)}
+              `;
+            }
+
+            function block(title, data) {
+              return `
+                <div class="inf-group">
+                  <h3>${title}</h3>
+                  <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+              `;
+            }
+
+            document.addEventListener("sv:auth-ready", renderSuper);
+          </script>
+        </section>
+
+      </main>
+
+      <footer id="footer"></footer>
+    </div>
+  </div>
+
+  <div id="overlay"></div>
+<!-- 1. Глобальный инициализатор — рендер меню, футера, топбара -->
+<script type="module" src="/js/smartid.init.js"></script>
+
+<!-- 2. Супер-информер — модуль -->
 <script type="module">
-  import { initPage } from './js/topbar.module.js';
-  initPage({
-    fragments: [['menu.html', '#sidebar']],
-    cacheBust: false,
-    topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+import { collectSuperInfo } from "/js/super-informer.js";
+
+async function renderSuper() {
+  const info = await collectSuperInfo();
+  const root = document.querySelector("#about-informer");
+
+  root.innerHTML = `
+    ${block("SV_AUTH", info.svAuth)}
+    ${block("Public IP", info.publicIP)}
+    ${block("Permissions", info.permissions)}
+    ${block("Battery", info.battery)}
+    ${block("Device", info.device)}
+    ${block("Screen", info.screen)}
+    ${block("Storage", info.storage)}
+    ${block("WebGL", info.webgl)}
+    ${block("Network", info.network)}
+    ${block("Timestamp", info.timestamp)}
+  `;
+}
+
+function block(title, data) {
+  return `
+    <div class="inf-group">
+      <h3>${title}</h3>
+      <pre>${JSON.stringify(data, null, 2)}</pre>
+    </div>
+  `;
+}
+
+document.addEventListener("DOMContentLoaded", renderSuper);
+</script>
+
+<!-- 3. Старый JS — запросы разрешений (правильный — defer) -->
+<script defer src="/js/zaprosrazreshenijbrauzera.js"></script>
+
+<!-- 4. about.js — твой модуль -->
+<script type="module" src="/about/about.js"></script>
+
+
+
+<!-- FOOTER GEO WIDGET -->
+<script defer src="/js/footer.geo.bundle.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    try {
+      SVFooter.mount("geo-card"); 
+    } catch(e) {
+      console.warn("SVFooter mount error:", e);
+    }
   });
 </script>
 
 
-<!-- Разрешения -->
-<script defer src="js/zaprosrazreshenijbrauzera.js"></script>
-
-<!-- Гео-виджет -->
-<script defer src="js/footer.geo.bundle.js"></script>
-
-<script type="module" src="js/super-informer.js"></script>
-
-</head>
-
-<body>
-<div id="page">
-  <aside id="sidebar"></aside>
-
-  <div id="app">
-    <header id="topbar"></header>
-
-    <main id="main">
-
-      <!-- КАРТОЧКА 0: О ПРОЕКТЕ -->
-      <section class="card about-card">
-        <h1>О проекте</h1>
-        <p>Диагностическая страница.</p>
-      </section>
 
 
-      <!-- КАРТОЧКА 1: РАЗРЕШЕНИЯ -->
-      <section class="card">
-        <h2>Разрешения</h2>
 
-        <div class="stack-16">
-          <button class="btn-purple" id="btnMic">Разрешить микрофон</button>
-          <button class="btn-purple" id="btnCam">Разрешить камеру</button>
-          <button class="btn-purple" id="btnNoti">Разрешить уведомления</button>
-          <button class="btn-purple" id="btnGeo">Разрешить геолокацию</button>
-        </div>
-
-        <p id="permStatus">status: idle</p>
-      </section>
-
-
-      <!-- КАРТОЧКА 2: ГЕОЛОКАЦИЯ -->
-      <section class="card">
-        <h2>Геолокация</h2>
-
-        <div id="geo-card"></div>
-
-        <script>
-          document.addEventListener("DOMContentLoaded", () => {
-            try { SVFooter.mount("geo-card"); } catch(e) { console.warn(e); }
-          });
-        </script>
-      </section>
-
-
-      <!-- КАРТОЧКА 3: БОЛЬШОЙ ИНФОРМЕР -->
-      <section class="card">
-            <h2>Большой информер</h2>
-
-            <div id="about-informer" class="big-informer">
-              Загрузка супер-информера...
-            </div>
-
-            <script type="module">
-              import { collectSuperInfo } from "../js/super-informer.js";
-
-              async function renderSuper() {
-                const info = await collectSuperInfo();
-
-                document.querySelector("#about-informer").innerHTML = `
-                  <div class="inf-group">
-                    <h3>SV_AUTH</h3>
-                    <pre>${JSON.stringify(info.svAuth, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Public IP</h3>
-                    <pre>${JSON.stringify(info.publicIP, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Permissions</h3>
-                    <pre>${JSON.stringify(info.permissions, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Battery</h3>
-                    <pre>${JSON.stringify(info.battery, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Device</h3>
-                    <pre>${JSON.stringify(info.device, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Screen</h3>
-                    <pre>${JSON.stringify(info.screen, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Network</h3>
-                    <pre>${JSON.stringify(info.network, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Storage</h3>
-                    <pre>${JSON.stringify(info.storage, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>WebGL (GPU)</h3>
-                    <pre>${JSON.stringify(info.webgl, null, 2)}</pre>
-                  </div>
-
-                  <div class="inf-group">
-                    <h3>Timestamp</h3>
-                    <pre>${JSON.stringify(info.timestamp, null, 2)}</pre>
-                  </div>
-                `;
-              }
-
-              document.addEventListener("sv:auth-ready", renderSuper);
-            </script>
-          </section>
-
-
-    </main>
-  </div>
-</div>
-
-<div id="overlay" hidden></div>
 
 </body>
 </html>

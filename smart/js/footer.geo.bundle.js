@@ -104,15 +104,15 @@
       '<div class="sv-footer">',
         '<div class="sv-footer__inner">',
           '<div class="sv-footer__section">',
-            '<div class="sv-footer__title">SMART VISION</div>',
-            '<div class="sv-footer__text">© ', new Date().getFullYear(), ' — Платформа</div>',
+            '<div class="sv-footer__title"></div>',
+            '<div class="sv-footer__text">SMART VISION © ', new Date().getFullYear(), ' @</div>',
           '</div>',
           '<div class="sv-footer__section" id="svFooterGeo">',
             // geowidget renders here
           '</div>',
           '<div class="sv-footer__section">',
             '<div class="sv-footer__text">Сделано с ☕️ и JS</div>',
-            '<div class="sv-footer__small">Ничего никуда не отправляем — все данные остаются у вас на устройстве.</div>',
+            '<div class="sv-footer__small">Проверка работы геолокации.</div>',
           '</div>',
         '</div>',
       '</div>'
