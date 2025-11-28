@@ -122,26 +122,20 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-# ------------------------ FRONTEND STATIC ------------------------
-SMART_FRONT_ROOT = os.environ.get("SMART_FRONT_ROOT", "").strip()
-MOUNT_PATH = os.environ.get("SMART_MOUNT_PATH", "/").strip() or "/"
-cwd_root = (Path(os.getcwd()).resolve() / "smart")
-fallback1 = (Path(__file__).resolve().parents[1] / "smart")
-fallback2 = (Path(__file__).resolve().parents[1] / "Smart")
-candidates = [
-    Path(SMART_FRONT_ROOT) if SMART_FRONT_ROOT else None,
-    cwd_root,
-    fallback1,
-    fallback2,
-]
-STATIC_ROOT = next((p.resolve() for p in candidates if p and p.exists()), None)
 
-if STATIC_ROOT and STATIC_ROOT.exists():
-    app.mount(MOUNT_PATH, StaticFiles(directory=str(STATIC_ROOT), html=True), name="frontend")
-    log.info(f"[static] Mounted {MOUNT_PATH} from: {STATIC_ROOT}")
+# ------------------------ FRONTEND STATIC (ФИНАЛЬНАЯ ВЕРСИЯ) ------------------------
+# Фронтенд ВСЕГДА физически лежит в папке "smart" рядом с корнем проекта.
+# И ВСЕГДА монтируется в КОРЕНЬ сайта "/".
+# Никаких переменных окружения, никаких MOUNT_PATH, никаких танцев.
+
+STATIC_ROOT = (Path(__file__).resolve().parents[1] / "smart").resolve()
+
+if STATIC_ROOT.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_ROOT), html=True), name="frontend")
+    log.info(f"[static] Mounted / from: {STATIC_ROOT}")
 else:
-    tried = [str(p) for p in candidates if p]
-    log.warning("[static] Front root not found. Tried: %s", tried)
+    log.warning(f"[static] Front root not found: {STATIC_ROOT}")
+
 
 # ------------------------ DEBUG ------------------------
 @app.get("/api/debug/routes")
