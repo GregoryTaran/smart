@@ -5,31 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SMART VISION</title>
 
+  <!-- ЕДИНАЯ И СТАБИЛЬНАЯ СХЕМА: ВСЁ В /smart/, сервер монтирует в "/" -->
+  <base href="/" />
+
   <!-- CSS -->
-  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="/css/main.css" />
 </head>
 
 <body>
   <div id="page">
 
-    <!-- SIDEBAR -->
-    <aside id="sidebar"></aside>
+    <!-- SIDEBAR (пустой — JS сам заполнит) -->
+    <aside id="sidebar" data-svid-menu></aside>
     <div id="overlay"></div>
 
     <!-- TOPBAR -->
-    <header id="topbar">
-      <div class="topbar-inner">
-        <button class="menu-toggle" onclick="document.body.classList.add('menu-open')">≡</button>
-
-        <div class="logo">
-          <a href="/smart/index.html">
-            <img src="assets/logo400.jpg" alt="Smart Vision">
-          </a>
-        </div>
-
-        <div class="login-link" id="topbar-login"></div>
-      </div>
-    </header>
+    <header id="topbar"></header>
 
     <!-- MAIN -->
     <main id="main">
@@ -49,13 +40,13 @@
 
   </div>
 
-  <!-- JS -->
-  <!-- SmartID сначала -->
-  <script type="module" src="js/smartid.init.js"></script>
+  <!-- APP LOGIC -->
 
-  <!-- затем модули интерфейса -->
-  <script type="module" src="js/topbar.module.js"></script>
-  <script type="module" src="js/footer.js"></script>
+  <!-- 1) SmartID — грузит session ОДИН РАЗ и передает всё в UI -->
+  <script type="module" src="/js/smartid.init.js"></script>
+
+  <!-- 2) topbar + menu + footer подключаются ЧЕРЕЗ SmartID.init.js -->
+  <!-- НЕ НАДО повторно подключать topbar.module.js/footer.js здесь, SmartID уже делает import() -->
 
 </body>
 </html>
