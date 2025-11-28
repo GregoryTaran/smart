@@ -1,7 +1,6 @@
-// ===========================================================
-// TOPBAR + MENU (SmartID Edition)
-// Чистая версия
-// ===========================================================
+/* ===========================================================
+   TOPBAR + MENU — версия под SMART AUTH
+   =========================================================== */
 
 // --------------------------- MENU DATA ---------------------
 export const MENU = [
@@ -9,11 +8,15 @@ export const MENU = [
   { id: 'about',  title: 'О проекте', href: 'about/about.html', allow: [1, 2] },
   { id: 'priv',   title: 'Политика', href: 'privacy/privacy.html', allow: [1, 2] },
   { id: 'terms',  title: 'Условия', href: 'terms/terms.html', allow: [1, 2] },
+
   { id: 'login',  title: 'Вход/регистрация', href: 'login/login.html#login', allow: [1] },
+
   { id: 'ts',     title: 'Проверка сервера', href: 'testserver/testserver.html', allow: [2] },
   { id: 'rec',    title: 'Диктофон', href: 'voicerecorder/voicerecorder.html', allow: [2] },
   { id: 'vision', title: 'Путь по визии', href: 'vision/index.html', allow: [2] },
+
   { id: 'app',    title: 'Мобильное приложение', href: 'app/app.html', allow: [1, 2] },
+
   { id: 'logout', title: 'Выйти', href: '#logout', action: 'logout', allow: [2] }
 ];
 
@@ -29,7 +32,7 @@ export function renderTopbar(session) {
 
   topbar.innerHTML = `
     <div class="topbar-inner">
-      <button class="menu-toggle" aria-controls="sidebar" aria-expanded="false">☰</button>
+      <button class="menu-toggle">☰</button>
 
       <a class="logo" href="${logoHref}">
         <img src="${logoSrc}" alt="SMART VISION" />
@@ -40,47 +43,6 @@ export function renderTopbar(session) {
   `;
 
   syncAuthLink(session);
-}
-
-// ===========================================================
-// ГЛОБАЛЬНОЕ УПРАВЛЕНИЕ МЕНЮ
-// ===========================================================
-export function initMenuControls() {
-  const body = document.body;
-  const overlay = document.getElementById('overlay');
-  const sidebar = document.getElementById('sidebar');
-  const menuBtn = document.querySelector('.menu-toggle');
-
-  if (!sidebar || !overlay) return;
-
-  // открытие меню
-  menuBtn?.addEventListener('click', () => {
-    body.classList.add('menu-open');
-  });
-
-  // закрытие при клике по overlay
-  overlay.addEventListener('click', () => {
-    body.classList.remove('menu-open');
-  });
-
-  // закрытие при клике по пункту меню
-  sidebar.addEventListener('click', (e) => {
-    if (e.target.tagName === 'A') {
-      body.classList.remove('menu-open');
-    }
-  });
-
-  // ESC
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') body.classList.remove('menu-open');
-  });
-
-  // ресайз
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 900) {
-      body.classList.remove('menu-open');
-    }
-  });
 }
 
 // ===========================================================
@@ -107,7 +69,7 @@ function syncAuthLink(session) {
 // MENU RENDER
 // ===========================================================
 export function renderMenu(level) {
-  const host = document.querySelector('[data-svid-menu], #sidebar nav, #sidebar');
+  const host = document.querySelector('#sidebar') || document.querySelector('[data-svid-menu]');
   if (!host) return;
 
   const items = MENU.filter(i => i.allow.includes(level));
@@ -133,16 +95,40 @@ export function renderMenu(level) {
 }
 
 // ===========================================================
+// MENU CONTROLS
+// ===========================================================
+export function initMenuControls() {
+  const body = document.body;
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.querySelector('.menu-toggle');
+
+  if (!sidebar || !btn) return;
+
+  btn.addEventListener('click', () => {
+    body.classList.add('menu-open');
+  });
+
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') {
+      body.classList.remove('menu-open');
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 900) {
+      body.classList.remove('menu-open');
+    }
+  });
+}
+
+// ===========================================================
 // LOGOUT
 // ===========================================================
 async function logout() {
   try {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
   } catch (e) {
-    console.warn('Logout error:', e);
+    console.warn("Logout error:", e);
   }
   location.href = 'index.html';
 }
@@ -155,14 +141,7 @@ export function highlightActive() {
   if (currentPath === '/') currentPath = '/index.html';
 
   document.querySelectorAll('[data-svid-menu] a[href]').forEach(a => {
-    const href = a.getAttribute('href') || '';
-    let hrefPath;
-    try {
-      hrefPath = new URL(href, window.location.origin).pathname.toLowerCase();
-    } catch {
-      hrefPath = href.toLowerCase();
-    }
-    if (hrefPath === '/') hrefPath = '/index.html';
+    const hrefPath = new URL(a.href, location.origin).pathname.toLowerCase();
     a.classList.toggle('is-active', hrefPath === currentPath);
   });
 }

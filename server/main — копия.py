@@ -8,16 +8,18 @@ from pathlib import Path
 
 # ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
-from auth.smart_auth import router as smart_auth_router  # новый AUTH
-
+from svid.svid import router as svid_router          # новый SVID (правильный)
+from auth.api_auth import router as auth_router      # AUTH (email/password)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
 
-app = FastAPI(title="SMART Backend", version="0.2.0")
+app = FastAPI(title="SMART Backend", version="0.1.0")
 
 # ------------------------ MIDDLEWARE ------------------------
 app.add_middleware(GZipMiddleware)
+
+# ❗ auth_middleware удалён, так как его нет в новом AUTH v3
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,11 +37,15 @@ app.add_middleware(
 
 # ------------------------ API ROUTES ------------------------
 
-# Vision API (твоя главная бизнес-логика)
+# Vision API
 app.include_router(vision_router, prefix="/api")
 
-# Новый SMART AUTH
-app.include_router(smart_auth_router, prefix="/api/auth", tags=["auth"])
+# AUTH (email/password)
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+
+# SVID (visitor/session/identify)
+# SVID уже содержит prefix="/api/svid" внутри себя
+app.include_router(svid_router)
 
 # WebSocket диктофона
 try:
@@ -57,7 +63,18 @@ try:
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
-# Database routers (если нужны)
+# Саб-приложение диктофона (оставляем, оно полезное!)
+try:
+    if os.getenv("VR_USE_SUBAPP") == "1":
+        from voicerecorder.voicerecorder import app as voicerecorder_app
+        app.mount("/api", voicerecorder_app)
+        log.info("Voicerecorder sub-app mounted at /api (VR_USE_SUBAPP=1)")
+    else:
+        log.info("Voicerecorder sub-app NOT mounted (VR_USE_SUBAPP!=1)")
+except Exception as e:
+    log.warning(f"Voicerecorder sub-app mount skipped: {e}")
+
+# DB routers
 try:
     from database.api_db import router as db_router
     app.include_router(db_router, prefix="/api/db", tags=["db"])
@@ -69,6 +86,14 @@ try:
     app.include_router(records_router, prefix="/api/db", tags=["records"])
 except Exception as e:
     log.warning(f"Records API not loaded: {e}")
+
+# Visitor router (оставляем)
+try:
+    from identity.visitor import router as visitor_router
+    app.include_router(visitor_router)
+    log.info("identity.visitor mounted")
+except Exception as e:
+    log.warning(f"Identity VISITOR not mounted: {e}")
 
 # ------------------------ HEALTH ------------------------
 @app.get("/health")
@@ -90,7 +115,6 @@ def info():
 # ------------------------ STATIC DATA ------------------------
 DATA_DIR = Path(os.getcwd()).resolve() / "data"
 VOICE_DATA_DIR = DATA_DIR / "voicerecorder"
-
 try:
     VOICE_DATA_DIR.mkdir(parents=True, exist_ok=True)
     app.mount("/data", StaticFiles(directory=str(DATA_DIR)), name="data")
@@ -98,7 +122,12 @@ try:
 except Exception as e:
     log.warning("Could not mount data dir as static: %s", e)
 
-# ------------------------ FRONTEND STATIC ------------------------
+
+# ------------------------ FRONTEND STATIC (ФИНАЛЬНАЯ ВЕРСИЯ) ------------------------
+# Фронтенд ВСЕГДА физически лежит в папке "smart" рядом с корнем проекта.
+# И ВСЕГДА монтируется в КОРЕНЬ сайта "/".
+# Никаких переменных окружения, никаких MOUNT_PATH, никаких танцев.
+
 STATIC_ROOT = (Path(__file__).resolve().parents[1] / "smart").resolve()
 
 if STATIC_ROOT.exists():
@@ -106,6 +135,7 @@ if STATIC_ROOT.exists():
     log.info(f"[static] Mounted / from: {STATIC_ROOT}")
 else:
     log.warning(f"[static] Front root not found: {STATIC_ROOT}")
+
 
 # ------------------------ DEBUG ------------------------
 @app.get("/api/debug/routes")
