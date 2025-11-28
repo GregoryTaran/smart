@@ -3,113 +3,78 @@ from __future__ import annotations
 import os
 from typing import Optional, Dict, Any
 
+import httpx
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-import httpx
+from pydantic import BaseModel, EmailStr
 
-# =========================================================
-# Конфиг
-# =========================================================
 router = APIRouter()
 
+# ---------------------------------------------------------
+# Конфиг
+# ---------------------------------------------------------
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or ""
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""  # если понадобится
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
 
-# Имена куки, как мы договорились
-ACCESS_COOKIE = "sb-access-token"
-REFRESH_COOKIE = "sb-refresh-token"
+HTTP_TIMEOUT = 10.0
 
-# Безопасность куки (на проде secure=True при HTTPS)
-COOKIE_KW = dict(
+# Куки для access/refresh токенов.
+# Если хочешь — можешь переопределить через переменные окружения.
+ACCESS_COOKIE = os.getenv("AUTH_ACCESS_COOKIE", "sv_access_token")
+REFRESH_COOKIE = os.getenv("AUTH_REFRESH_COOKIE", "sv_refresh_token")
+
+COOKIE_DEFAULTS = dict(
     httponly=True,
+    secure=True,
     samesite="lax",
-    secure=True,   # локально можно поменять на False, если без HTTPS
     path="/",
+    max_age=60 * 60 * 24 * 7,  # 7 дней
 )
 
-HTTP_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+# ---------------------------------------------------------
+# Модели запросов
+# ---------------------------------------------------------
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    data: Optional[Dict[str, Any]] = None  # попадёт в user_metadata
 
 
-# =========================================================
-# Helpers
-# =========================================================
-def _require_supabase():
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: Optional[str] = None  # можно не передавать, но лучше передавать
+    new_password: str
+
+
+# ---------------------------------------------------------
+# Вспомогательные функции
+# ---------------------------------------------------------
+def _require_supabase() -> None:
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        raise RuntimeError("SUPABASE_URL / SUPABASE_ANON_KEY not configured")
+        raise HTTPException(status_code=500, detail="Supabase config is not set")
 
-def _normalize_merged(auth_user: Dict[str, Any], db_profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Сжать данные в удобный профиль для UI: id, email, phone, role, name, avatar (+ бизнес-поля из profiles)
-    """
-    umeta = (auth_user.get("user_metadata") or {}) if auth_user else {}
-    ameta = (auth_user.get("app_metadata") or {})  if auth_user else {}
 
-    merged = {
-        "id":    auth_user.get("id"),
-        "email": auth_user.get("email"),
-        "phone": auth_user.get("phone"),
-        "role":  ameta.get("role") or ameta.get("roles") or "user",
-        "name":  umeta.get("name") or umeta.get("full_name") or "",
-        "avatar": umeta.get("avatar_url") or umeta.get("avatar") or "",
+def _get_tokens_from_request(req: Request) -> Dict[str, Optional[str]]:
+    cookies = req.cookies or {}
+    return {
+        "access": cookies.get(ACCESS_COOKIE),
+        "refresh": cookies.get(REFRESH_COOKIE),
     }
-
-    if db_profile:
-        # Переопределяем/добавляем поля из таблицы профилей
-        merged["name"]   = db_profile.get("name")   or merged["name"]
-        merged["avatar"] = db_profile.get("avatar") or merged["avatar"]
-        merged["role"]   = db_profile.get("role")   or merged["role"]
-        for k, v in db_profile.items():
-            if k not in merged and v is not None:
-                merged[k] = v
-
-    return merged
-
-
-async def _sb_auth_user_by_access(access_token: str) -> Optional[Dict[str, Any]]:
-    """
-    GET /auth/v1/user — вернуть полный объект пользователя из Supabase Auth.
-    """
-    _require_supabase()
-    url = f"{SUPABASE_URL}/auth/v1/user"
-    headers = {"Authorization": f"Bearer {access_token}", "apikey": SUPABASE_ANON_KEY}
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        r = await client.get(url, headers=headers)
-        if r.status_code != 200:
-            return None
-        return r.json()
-
-
-async def _sb_fetch_profile_from_table(user_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Опционально: достать профиль из PostgREST таблицы `profiles`.
-    Требует корректной RLS для anon key (или использовать service-role в headers).
-    """
-    if not user_id:
-        return None
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        return None
-
-    url = f"{SUPABASE_URL}/rest/v1/profiles"
-    params = {"select": "*", "id": f"eq.{user_id}", "limit": "1"}
-    headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",  # для RLS на чтение часто хватает anon key
-        "Accept": "application/json",
-    }
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        r = await client.get(url, params=params, headers=headers)
-        if r.status_code != 200:
-            return None
-        data = r.json()
-        if isinstance(data, list) and data:
-            return data[0]
-        return None
 
 
 def _set_auth_cookies(resp: JSONResponse, access_token: str, refresh_token: str) -> None:
-    resp.set_cookie(ACCESS_COOKIE, access_token, **COOKIE_KW)
-    resp.set_cookie(REFRESH_COOKIE, refresh_token, **COOKIE_KW)
+    resp.set_cookie(ACCESS_COOKIE, access_token, **COOKIE_DEFAULTS)
+    resp.set_cookie(REFRESH_COOKIE, refresh_token, **COOKIE_DEFAULTS)
 
 
 def _clear_auth_cookies(resp: JSONResponse) -> None:
@@ -117,88 +82,197 @@ def _clear_auth_cookies(resp: JSONResponse) -> None:
     resp.delete_cookie(REFRESH_COOKIE, path="/")
 
 
-# =========================================================
-# Endpoints
-# =========================================================
+async def _supabase_post(path: str, json: Dict[str, Any]) -> httpx.Response:
+    _require_supabase()
+    url = f"{SUPABASE_URL}{path}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        return await client.post(url, headers=headers, json=json)
+
+
+async def _supabase_get(path: str, headers_extra: Optional[Dict[str, str]] = None) -> httpx.Response:
+    _require_supabase()
+    url = f"{SUPABASE_URL}{path}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Accept": "application/json",
+    }
+    if headers_extra:
+        headers.update(headers_extra)
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        return await client.get(url, headers=headers)
+
+
+async def _supabase_put(path: str, json: Dict[str, Any], headers_extra: Optional[Dict[str, str]] = None) -> httpx.Response:
+    _require_supabase()
+    url = f"{SUPABASE_URL}{path}"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+    }
+    if headers_extra:
+        headers.update(headers_extra)
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        return await client.put(url, headers=headers, json=json)
+
+
+async def _fetch_profile(user_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Чтение профиля из таблицы profiles через PostgREST.
+    Если таблица/правила безопасности не позволяют — тихо возвращаем None.
+    """
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+
+    url = f"{SUPABASE_URL}/rest/v1/profiles"
+    params = {"id": f"eq.{user_id}", "limit": "1", "select": "*"}
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        r = await client.get(url, params=params, headers=headers)
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    if isinstance(data, list) and data:
+        return data[0]
+    return None
+
+
+def _normalize_role(raw_role: Optional[str]) -> str:
+    if not raw_role:
+        return "guest"
+    s = str(raw_role).strip().strip("'\" ").lower()
+    if s in ("user", "authenticated"):
+        return "user"
+    if s in ("admin", "superadmin", "root"):
+        return "admin"
+    return "guest"
+
+
+def _compute_level(role: str) -> Dict[str, Any]:
+    """
+    Простая карта уровней.
+    guest: 1
+    user: 2
+    admin: 10
+    """
+    if role == "admin":
+        return {"level": 10, "level_code": "admin"}
+    if role == "user":
+        return {"level": 2, "level_code": "user"}
+    return {"level": 1, "level_code": "guest"}
+
+
+def _merge_user(auth_user: Dict[str, Any], profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    uid = auth_user.get("id")
+    email = auth_user.get("email") or (auth_user.get("user_metadata") or {}).get("email")
+    name = (auth_user.get("user_metadata") or {}).get("name") or email
+
+    profile = profile or {}
+    role = _normalize_role(profile.get("role") or (auth_user.get("user_metadata") or {}).get("role"))
+    is_guest = bool(profile.get("is_guest", False))
+
+    merged = {
+        "id": uid,
+        "email": email or "",
+        "phone": auth_user.get("phone") or "",
+        "role": role,
+        "name": name or "",
+        "avatar": (auth_user.get("user_metadata") or {}).get("avatar") or "",
+        "is_guest": is_guest,
+        "created_at": profile.get("created_at") or auth_user.get("created_at"),
+    }
+
+    return merged
+
+
+# ---------------------------------------------------------
+# ENDPOINTS
+# ---------------------------------------------------------
+
+
 @router.post("/register")
-async def register(payload: Dict[str, Any]):
+async def register(req: RegisterRequest):
     """
     Регистрация пользователя через Supabase.
-    Ожидаем JSON: { "email": "...", "password": "...", "data": { ...user_metadata... } }
-    Email-верификация в вашем проекте выключена — аккаунт активен сразу.
+    В Supabase создаётся пользователь, в user_metadata попадут данные из req.data.
     """
     _require_supabase()
-    email = (payload or {}).get("email")
-    password = (payload or {}).get("password")
-    user_data = (payload or {}).get("data") or {}
 
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="email and password are required")
+    payload = {
+        "email": req.email,
+        "password": req.password,
+    }
+    if req.data:
+        payload["data"] = req.data
 
-    url = f"{SUPABASE_URL}/auth/v1/signup"
-    headers = {"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"}
-    body = {"email": email, "password": password, "data": user_data}
+    r = await _supabase_post("/auth/v1/signup", payload)
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        r = await client.post(url, headers=headers, json=body)
-
-    # Supabase при signup НЕ всегда возвращает токены; обычно просто user.
     if r.status_code not in (200, 201):
-        raise HTTPException(status_code=r.status_code, detail=r.text)
+        try:
+            data = r.json()
+            msg = data.get("msg") or data.get("message") or data.get("error_description") or str(data)
+        except Exception:
+            msg = r.text
+        raise HTTPException(status_code=r.status_code, detail=msg)
 
-    # Возвращаем что прислал Supabase (user), а логин делаем отдельным шагом.
-    resp = JSONResponse({"ok": True, "signup": r.json()})
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return {"ok": True, "signup": r.json()}
 
 
 @router.post("/login")
-async def login(payload: Dict[str, Any]):
+async def login(req: LoginRequest):
     """
-    Логин по email+password: ставим HttpOnly куки с access/refresh,
-    возвращаем компактный профиль для удобства (по желанию фронта).
-    Ожидаем JSON: { "email": "...", "password": "..." }
+    Логин: email + password.
+    Возвращает user_auth, user_profile, user_merged и ставит куки с токенами.
     """
     _require_supabase()
-    email = (payload or {}).get("email")
-    password = (payload or {}).get("password")
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="email and password are required")
 
-    # 1) получить токены
-    token_url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
-    headers = {"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"}
-    body = {"email": email, "password": password}
+    # 1) Получаем access/refresh токены
+    token_url = "/auth/v1/token?grant_type=password"
+    r = await _supabase_post(token_url, {"email": req.email, "password": req.password})
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        tr = await client.post(token_url, headers=headers, json=body)
+    if r.status_code not in (200, 201):
+        try:
+            data = r.json()
+            msg = data.get("msg") or data.get("message") or data.get("error_description") or str(data)
+        except Exception:
+            msg = r.text
+        raise HTTPException(status_code=401, detail=msg)
 
-    if tr.status_code != 200:
-        raise HTTPException(status_code=401, detail="invalid email or password")
-
-    tokens = tr.json()  # содержит access_token, refresh_token, token_type, expires_in, user
-    access_token = tokens.get("access_token")
-    refresh_token = tokens.get("refresh_token")
+    token_data = r.json()
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
 
     if not access_token or not refresh_token:
-        raise HTTPException(status_code=500, detail="auth tokens not returned")
+        raise HTTPException(status_code=500, detail="Auth tokens not received from Supabase")
 
-    # 2) получить полный профиль из /auth/v1/user
-    auth_user = await _sb_auth_user_by_access(access_token)
-    if not auth_user:
-        raise HTTPException(status_code=401, detail="unable to fetch user profile")
+    # 2) Получаем данные пользователя (auth)
+    r_user = await _supabase_get("/auth/v1/user", headers_extra={"Authorization": f"Bearer {access_token}"})
+    if r_user.status_code != 200:
+        raise HTTPException(status_code=500, detail="Cannot fetch user from Supabase")
+    user_auth = r_user.json()
 
-    # 3) опционально — профиль из таблицы
-    db_profile = await _sb_fetch_profile_from_table(auth_user.get("id"))
-    merged = _normalize_merged(auth_user, db_profile)
+    # 3) Пытаемся достать профиль
+    user_id = user_auth.get("id")
+    user_profile = await _fetch_profile(user_id) if user_id else None
 
-    # 4) ответ + куки
-    resp = JSONResponse({
-        "ok": True,
-        "user_auth": auth_user,
-        "user_profile": db_profile,
-        "user_merged": merged,
-    })
+    # 4) Собираем merged
+    user_merged = _merge_user(user_auth, user_profile)
+
+    resp = JSONResponse(
+        {
+            "ok": True,
+            "user_auth": user_auth,
+            "user_profile": user_profile,
+            "user_merged": user_merged,
+        }
+    )
     _set_auth_cookies(resp, access_token, refresh_token)
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -207,81 +281,62 @@ async def login(payload: Dict[str, Any]):
 @router.get("/me")
 async def me(request: Request):
     """
-    Главный источник правды для фронта.
-    Возвращает состояние авторизации:
-      - loggedIn: True/False
-      - user_merged: объект пользователя (email, name, avatar, role)
-      - level, level_code: числовой и текстовый уровни доступа
+    Возвращает информацию о текущем пользователе на основе access-токена в куках.
     """
+    tokens = _get_tokens_from_request(request)
+    access = tokens["access"]
 
-    # 1) Достаём access токен из HttpOnly-cookie
-    access = request.cookies.get(ACCESS_COOKIE)
     if not access:
-        return JSONResponse(
-            {"loggedIn": False},
-            headers={"Cache-Control": "no-store"}
-        )
+        return {
+            "loggedIn": False,
+            "level": 1,
+            "level_code": "guest",
+            "user_merged": None,
+            "user_auth": None,
+            "user_profile": None,
+        }
 
-    # 2) Проверяем access_token в Supabase
-    auth_user = await _sb_auth_user_by_access(access)
-    if not auth_user:
-        return JSONResponse(
-            {"loggedIn": False},
-            headers={"Cache-Control": "no-store"}
-        )
+    r_user = await _supabase_get("/auth/v1/user", headers_extra={"Authorization": f"Bearer {access}"})
 
-    # 3) Опционально: достаём профиль из таблицы profiles
-    db_profile = await _sb_fetch_profile_from_table(auth_user.get("id"))
+    if r_user.status_code != 200:
+        # токен протух → считаем гостем
+        return {
+            "loggedIn": False,
+            "level": 1,
+            "level_code": "guest",
+            "user_merged": None,
+            "user_auth": None,
+            "user_profile": None,
+        }
 
-    # 4) Склеиваем их в единый профиль
-    merged = _normalize_merged(auth_user, db_profile)
+    user_auth = r_user.json()
+    user_profile = await _fetch_profile(user_auth.get("id")) if user_auth.get("id") else None
+    user_merged = _merge_user(user_auth, user_profile)
 
-    # ------------------------------------------------------------
-    # 5) Определяем уровни (уровни доступа, как в AUTH SPEC v3)
-    # ------------------------------------------------------------
-    role = (merged.get("role") or "user").lower()
+    role = user_merged["role"]
+    lvl = _compute_level(role)
 
-    ROLE_TO_LEVEL = {
-        "guest": 1,
-        "user": 2,
-        "paid": 3,
-        "super": 4,
-    }
-
-    LEVEL_TO_CODE = {v: k for k, v in ROLE_TO_LEVEL.items()}
-
-    level = ROLE_TO_LEVEL.get(role, 2)
-    level_code = LEVEL_TO_CODE.get(level, "user")
-
-    # ------------------------------------------------------------
-    # 6) Финальный ответ (на него ориентируется весь фронт)
-    # ------------------------------------------------------------
-    resp = JSONResponse({
+    return {
         "loggedIn": True,
-        "level": level,
-        "level_code": level_code,
-        "user_merged": merged,
-        "user_auth": auth_user,
-        "user_profile": db_profile,
-    })
-
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
-
+        **lvl,
+        "user_merged": user_merged,
+        "user_auth": user_auth,
+        "user_profile": user_profile,
+    }
 
 
 @router.post("/logout")
 async def logout(request: Request):
     """
-    Логаут: стираем HttpOnly-куки.
-    Дополнительно пробуем дернуть Supabase /auth/v1/logout с access токеном (мягко).
+    Выход: чистим куки и мягко дергаем Supabase logout.
     """
-    access = request.cookies.get(ACCESS_COOKIE)
+    tokens = _get_tokens_from_request(request)
+    access = tokens["access"]
+
     resp = JSONResponse({"ok": True})
     _clear_auth_cookies(resp)
     resp.headers["Cache-Control"] = "no-store"
 
-    # Мягкая попытка инвалидировать сессию в Supabase (не критично, если не выйдет)
     if access and SUPABASE_URL and SUPABASE_ANON_KEY:
         try:
             url = f"{SUPABASE_URL}/auth/v1/logout"
@@ -289,6 +344,88 @@ async def logout(request: Request):
             async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
                 await client.post(url, headers=headers)
         except Exception:
+            # Это не критично — главное, что куки мы уже стерли
             pass
 
     return resp
+
+
+@router.post("/reset")
+async def reset_password(req: ResetPasswordRequest):
+    """
+    Сброс пароля по email.
+    Supabase отправляет пользователю письмо со ссылкой на сброс.
+    """
+    _require_supabase()
+
+    url = f"{SUPABASE_URL}/auth/v1/recover"
+    headers = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+    }
+    body = {"email": req.email}
+
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        r = await client.post(url, headers=headers, json=body)
+
+    if r.status_code not in (200, 204):
+        try:
+            data = r.json()
+            msg = data.get("msg") or data.get("message") or data.get("error_description") or str(data)
+        except Exception:
+            msg = r.text
+        raise HTTPException(status_code=r.status_code, detail=msg)
+
+    return {"ok": True, "sent": True}
+
+
+@router.post("/change-password")
+async def change_password(request: Request, req: ChangePasswordRequest):
+    """
+    Смена пароля БЕЗ email — по текущей сессии.
+    Логика:
+      1) Берём access-токен из куки.
+      2) Через /auth/v1/user узнаём email.
+      3) Если передан old_password — проверяем его через /token?grant_type=password.
+      4) Делаем PUT /auth/v1/user с новым паролем.
+    """
+    tokens = _get_tokens_from_request(request)
+    access = tokens["access"]
+    if not access:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # 1) Узнаём текущего пользователя
+    r_user = await _supabase_get("/auth/v1/user", headers_extra={"Authorization": f"Bearer {access}"})
+    if r_user.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    user_auth = r_user.json()
+    email = user_auth.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="User email is unknown")
+
+    # 2) Если есть old_password — проверим его
+    if req.old_password:
+        r_check = await _supabase_post(
+            "/auth/v1/token?grant_type=password",
+            {"email": email, "password": req.old_password},
+        )
+        if r_check.status_code not in (200, 201):
+            raise HTTPException(status_code=401, detail="Old password is incorrect")
+
+    # 3) Ставим новый пароль
+    r_change = await _supabase_put(
+        "/auth/v1/user",
+        {"password": req.new_password},
+        headers_extra={"Authorization": f"Bearer {access}"},
+    )
+
+    if r_change.status_code != 200:
+        try:
+            data = r_change.json()
+            msg = data.get("msg") or data.get("message") or data.get("error_description") or str(data)
+        except Exception:
+            msg = r_change.text
+        raise HTTPException(status_code=r_change.status_code, detail=msg)
+
+    return {"ok": True}
