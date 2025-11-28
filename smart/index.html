@@ -1,171 +1,140 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SMART VISION</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <base href="../"/>
 
-  <!-- ЕДИНЫЙ базовый путь для прод/дева -->
-  <base href="./" />
+  <title>SMART VISION — Главная</title>
 
-  <link rel="icon" href="assets/logo400.jpg" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/main.css" />
-  <link rel="stylesheet" href="index/index.css" />
+  <link rel="icon" href="assets/logo400.jpg"/>
+  <link rel="stylesheet" href="css/main.css"/>
+  <link rel="stylesheet" href="index/index.css"/>
 
-  <!--
-    🧠 Глобальный bootstrap авторизации с кэшем.
-    1) Пробует прочитать кэш из localStorage (моментальный ответ для UI)
-    2) В фоне дёргает /api/auth/session, обновляет window.SV_AUTH и кэш
-    3) Всегда работает поверх куки sv_session (сервер остаётся источником правды)
-  -->
+  <!-- ===================== AUTH BOOTSTRAP v3 ===================== -->
   <script>
     (function () {
       const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-      // Базовое состояние: гость
       window.SV_AUTH = {
         isAuthenticated: false,
         userId: null,
-        level: 1,
-        levelCode: 'guest',
         email: null,
+        level: 1,
         displayName: null,
-        loaded: false
+        levelCode: "guest",
+        loaded: false,
+        _resolve: null,
+        ready: null
       };
 
-      function normalizeSession(data) {
-        data = data || {};
-        const isAuth = !!data.is_authenticated;
-        let level = Number(data.level);
-        if (!Number.isFinite(level) || level <= 0) {
-          level = isAuth ? 2 : 1;
-        }
-        const levelCode = data.level_code || (level === 1 ? 'guest' : 'user');
+      window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-        return {
-          isAuthenticated: isAuth,
-          userId: data.user_id ?? null,
-          level: level,
-          levelCode: levelCode,
-          email: data.email ?? null,
-          displayName: data.display_name ?? null,
-          loaded: true
-        };
-      }
-
-      function dispatchAuthReady() {
+      async function bootstrap() {
         try {
-          document.dispatchEvent(
-            new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
-          );
-        } catch (e) {
-          console.warn('sv:auth-ready dispatch failed', e);
-        }
-      }
-
-      function readCache() {
-        try {
-          const raw = localStorage.getItem(AUTH_CACHE_KEY);
-          if (!raw) return null;
-          const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== 'object') return null;
-          return parsed;
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function writeCache(session) {
-        try {
-          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
-        } catch (e) {
-          // localStorage может быть недоступен — тихо игнорируем
-        }
-      }
-
-      // 1) Пытаемся моментально поднять состояние из кэша
-      (function hydrateFromCache() {
-        const cached = readCache();
-        if (!cached) return;
-        // Считаем кэш уже нормализованным объектом SV_AUTH
-        window.SV_AUTH = Object.assign({}, cached, { loaded: true });
-        dispatchAuthReady();
-      })();
-
-      // 2) В фоне тянем свежую сессию с бэкенда
-      fetch('/api/auth/session', {
-        method: 'GET',
-        credentials: 'include'
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error('Auth check failed');
-          return res.json();
-        })
-        .then(function (data) {
-          const session = normalizeSession(data);
-          window.SV_AUTH = session;
-          writeCache(session);
-          dispatchAuthReady();
-        })
-        .catch(function (err) {
-          console.warn('Auth bootstrap failed', err);
-          // Если кэша не было и мы всё ещё не загружены — остаёмся гостем
-          if (!window.SV_AUTH.loaded) {
-            const guest = normalizeSession({});
-            window.SV_AUTH = guest;
-            writeCache(guest);
-            dispatchAuthReady();
+          // 1) пробуем использовать кэш, если есть
+          const cached = localStorage.getItem(AUTH_CACHE_KEY);
+          if (cached) {
+            const data = JSON.parse(cached);
+            Object.assign(window.SV_AUTH, data);
+            window.SV_AUTH.loaded = true;
+            window.SV_AUTH._resolve(window.SV_AUTH);
+            return;
           }
-        });
+
+          // 2) Запрос к backend (НОВЫЙ endpoint вместо /session)
+          const resp = await fetch("/api/auth/me", {
+            method: "GET",
+            credentials: "include"
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+
+            if (data.loggedIn) {
+              window.SV_AUTH.isAuthenticated = true;
+              window.SV_AUTH.userId = data.user_merged?.id || null;
+              window.SV_AUTH.email = data.user_merged?.email || null;
+              window.SV_AUTH.displayName = data.user_merged?.name || null;
+              window.SV_AUTH.level = 2;
+              window.SV_AUTH.levelCode = "user";
+            }
+          }
+
+          window.SV_AUTH.loaded = true;
+          window.SV_AUTH._resolve(window.SV_AUTH);
+
+        } catch (err) {
+          console.warn("Auth bootstrap error:", err);
+          window.SV_AUTH.loaded = true;
+          window.SV_AUTH._resolve(window.SV_AUTH);
+        }
+      }
+
+      bootstrap();
     })();
   </script>
+  <!-- ============================================================== -->
 
-  <!-- Инициализация топбара/меню как и раньше -->
+  <!-- TOPBAR -->
   <script type="module">
     import { initPage } from './js/topbar.module.js';
     initPage({
       fragments: [['menu.html', '#sidebar']],
-      cacheBust: false,
-      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
+      topbar: {
+        state: {
+          logoHref: 'index.html',
+          logoSrc: 'assets/logo400.jpg'
+        }
+      }
     });
   </script>
+
 </head>
 
-
-
-
 <body>
-  <div id="page">
-    <aside id="sidebar" aria-label="Основное меню"></aside>
+<div id="page">
+  <aside id="sidebar"></aside>
 
-    <div id="app">
-      <header id="topbar" role="banner"></header>
+  <div id="app">
+    <header id="topbar"></header>
 
-      <main id="main" role="main">
-            <section class="hero hero-vision">
-              <p>Любая мысль может стать визией.</p>
-              <p>Любая визия может стать дорогой.</p>
-              <p>А дорога — источником внутреннего света.</p>
+    <main id="main">
 
-              <div class="hero-author">
-                Грег Таран &nbsp;|&nbsp; 2025
-              </div>
-            </section>
+      <section class="index">
+        <h1 class="index__title">Добро пожаловать в SMART VISION</h1>
 
-      </main>
+        <p class="index__text">
+          Это главный экран платформы.  
+          Используйте меню слева, чтобы перейти в разделы Визии, Диктофон и другие возможности.
+        </p>
 
-      <div id="home-geo-footer"></div>
-      <footer id="footer" role="contentinfo"></footer>
-    </div>
+        <div id="index-user-status" class="index__status"></div>
+
+      </section>
+
+    </main>
+
+    <footer id="footer"></footer>
   </div>
-  <div id="overlay" hidden></div>
+</div>
 
+<div id="overlay" hidden></div>
 
-  <script defer src="js/footer.js?v=2"></script>
-  <script defer src="index/index.js"></script>
+<script defer src="js/footer.js?v=2"></script>
 
+<script>
+  // Когда bootstrap готов → показать статус
+  window.SV_AUTH.ready.then(auth => {
+    const box = document.getElementById("index-user-status");
 
+    if (auth.isAuthenticated) {
+      box.textContent = `Вы вошли как: ${auth.displayName || auth.email}`;
+    } else {
+      box.textContent = "Вы не авторизованы.";
+    }
+  });
+</script>
 
 </body>
 </html>
