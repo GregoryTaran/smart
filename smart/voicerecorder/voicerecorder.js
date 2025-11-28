@@ -1,243 +1,142 @@
-// === Voice Recorder (STRICT SVID VERSION — NO TEMP IDs) ===
-// Запись невозможна без user_id или visitor_id.
-// Если идентификатор не готов — кнопка Start заблокирована,
-// запись не стартует, WS не открывается.
+// voicerecorder.js — новая версия под AUTH v3 + visitor-only SVID
 
-import SVAudioCore from "./audiocore/sv-audio-core.js";
-import WavSegmenter from "./audiocore/wav-segmenter.js";
-import MicIndicator from "./mic-indicator/mic-indicator.js";
+// -------------------------------------------------------------
+// API HELPERS
+// -------------------------------------------------------------
+async function apiGet(url) {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error("GET " + url + " " + res.status);
+  return await res.json();
+}
 
-const statusEl = document.getElementById("status");
-const startBtn  = document.getElementById("startBtn");
-const pauseBtn  = document.getElementById("pauseBtn");
-const stopBtn   = document.getElementById("stopBtn");
-const playerEl  = document.getElementById("sv-player");
-const listEl    = document.getElementById("record-list");
-const micIndicatorEl = document.getElementById("vc-level");
+async function apiPost(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {})
+  });
+  if (!res.ok) throw new Error("POST " + url + " " + res.status);
+  return await res.json();
+}
 
-let core = null;
-let segmenter = null;
-let ws = null;
-let recordingId = null;
-let paused = false;
-let indicator = null;
-
-const setStatus = (s) => {
-  if (statusEl) statusEl.textContent = s;
-};
-
-// ================================================================
-// 🔥 ЖЕСТКАЯ ВЕРСИЯ: user_id/visitor_id ОБЯЗАТЕЛЕН
-// ================================================================
-async function ensureUserId() {
-  // Ждём APP_READY, если есть
-  if (window.APP_READY) {
-    try { await window.APP_READY; } catch {}
+// -------------------------------------------------------------
+// УНИВЕРСАЛЬНЫЙ ИДЕНТИФИКАТОР
+// userId для авторизованных
+// visitor_id для гостей
+// -------------------------------------------------------------
+async function ensureUniversalId() {
+  // ждём AUTH
+  if (window.SV_AUTH?.ready) {
+    try { await window.SV_AUTH.ready; } catch {}
   }
 
-  // Ждём SVID.ready
+  // ждём SVID
   if (window.SVID?.ready) {
     try { await window.SVID.ready; } catch {}
   }
 
-  const s = window.SVID?.getState?.() || {};
-
-  // ✔︎ допускаем user_id
-  if (s.user_id) return s.user_id;
-
-  // ✔︎ допускаем visitor_id (аноним, но постоянный)
-  if (s.visitor_id) return s.visitor_id;
-
-  // ❌ ID нет — приложение ещё не готово
-  throw new Error("SVID_ID_MISSING");
-}
-
-// ================================================================
-// 🔥 WebSocket (но открываем только когда есть ID)
-// ================================================================
-async function connectWS(recId) {
-  const userId = await ensureUserId();  // гарантированно есть
-
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const url = `${proto}://${location.host}/ws/voicerecorder`;
-
-  ws = new WebSocket(url);
-
-  ws.onopen = () => {
-    ws.send("START " + JSON.stringify({ user_id: userId, rec_id: recId, ext: ".wav" }));
-  };
-
-  ws.onmessage = (ev) => {
-    try {
-      const d = JSON.parse(ev.data);
-      if (d.status === "SAVED") {
-        const li = document.createElement("li");
-        li.innerHTML = `<a href="${d.url}" target="_blank">${d.url}</a>`;
-        listEl.prepend(li);
-
-        playerEl.src = d.url;
-        playerEl.classList.remove("sv-player--disabled");
-        setStatus("saved");
-      }
-    } catch {}
-  };
-}
-
-async function stopWS() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send("END");
-  }
-}
-
-// ================================================================
-// 🔥 START — запись запрещена без ID
-// ================================================================
-async function start() {
-  if (core) return;
-
-  // 1) Проверяем ID до начала записи
-  try {
-    await ensureUserId();
-  } catch {
-    setStatus("Нет user_id / visitor_id — запись невозможна");
-    console.error("Диктофон: нет ID — блокировка старта");
-    return;
+  // 1) если юзер авторизован → возвращаем userId
+  if (window.SV_AUTH?.isAuthenticated && window.SV_AUTH?.userId) {
+    return {
+      id: window.SV_AUTH.userId,
+      type: "user"
+    };
   }
 
-  setStatus("starting…");
-  recordingId = crypto.randomUUID();
-
-  if (indicator) indicator.unfreeze();
-
-  core = new SVAudioCore({
-    chunkSize: 2048,
-    workletUrl: "voicerecorder/audiocore/recorder.worklet.js",
-  });
-  await core.init();
-
-  const stream = core.getStream();
-  if (indicator && stream) {
-    await indicator.connectStream(stream);
+  // 2) иначе → visitor_id
+  const st = window.SVID?.getState?.() || {};
+  if (st.visitor_id) {
+    return {
+      id: st.visitor_id,
+      type: "visitor"
+    };
   }
 
-  segmenter = new WavSegmenter({
-    sampleRate: core.getContext()?.sampleRate || 48000,
-    segmentSeconds: 2,
-    normalize: true,
-    emitBlobPerSegment: true
-  });
-
-  segmenter.onSegment = (seg) => {
-    if (!seg?.blob) return;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(seg.blob);
-  };
-
-  core.onAudioFrame = (f32) => {
-    if (segmenter) segmenter.pushFrame(f32);
-  };
-
-  // 2) WS Открываем только когда ID точно есть
-  await connectWS(recordingId);
-
-  paused = false;
-  startBtn.setAttribute("disabled", "true");
-  pauseBtn.removeAttribute("disabled");
-  stopBtn.removeAttribute("disabled");
-
-  setStatus("recording");
+  throw new Error("NO_VALID_ID");
 }
 
-// ================================================================
-// 🔥 PAUSE
-// ================================================================
-async function pause() {
-  if (!core) return;
-
-  if (!paused) {
-    core.pauseCapture();
-    paused = true;
-    pauseBtn.textContent = "Resume";
-    setStatus("paused");
-    indicator?.freeze();
-  } else {
-    core.resumeCapture();
-    paused = false;
-    pauseBtn.textContent = "Pause";
-    setStatus("recording");
-    indicator?.unfreeze();
-  }
-}
-
-// ================================================================
-// 🔥 STOP
-// ================================================================
-async function stop() {
-  if (!core) return;
-
-  setStatus("stopping…");
-
-  indicator?.baselineOnly();
-
-  segmenter?.stop();
-
-  await new Promise(res => setTimeout(res, 250));
-  await stopWS();
-
-  await new Promise(res => {
-    const f = setInterval(() => {
-      if (!ws || ws.readyState === WebSocket.CLOSED) {
-        clearInterval(f);
-        res();
-      }
-    }, 50);
-  });
-
-  core.stop();
-
-  core = null;
-  segmenter = null;
-  recordingId = null;
-  ws = null;
-
-  startBtn.removeAttribute("disabled");
-  pauseBtn.setAttribute("disabled", "true");
-  stopBtn.setAttribute("disabled", "true");
-  pauseBtn.textContent = "Pause";
-
-  setStatus("idle");
-}
-
-// ================================================================
-// 🔥 INIT — ждём ID, если нет — кнопка Start заблокирована
-// ================================================================
-document.addEventListener("DOMContentLoaded", async () => {
-  indicator = new MicIndicator(micIndicatorEl);
-  indicator.baselineOnly();
-
-  // Изначально блокируем Start
-  startBtn.setAttribute("disabled", "true");
-
-  // Проверяем ID (может быть уже есть)
-  try {
-    await ensureUserId();
-    startBtn.removeAttribute("disabled");
-    setStatus("ready");
-  } catch {
-    setStatus("Инициализация идентификатора…");
-
-    // Пробуем раз в 300мс
-    const interval = setInterval(async () => {
-      try {
-        await ensureUserId();
-        startBtn.removeAttribute("disabled");
-        setStatus("ready");
-        clearInterval(interval);
-      } catch {}
-    }, 300);
-  }
-
-  startBtn.addEventListener("click", start);
-  pauseBtn.addEventListener("click", pause);
-  stopBtn.addEventListener("click", stop);
+// -------------------------------------------------------------
+// РАБОТА С ЗАПИСЯМИ
+// -------------------------------------------------------------
+window.addEventListener("DOMContentLoaded", () => {
+  setupRecorder();
 });
+
+function setupRecorder() {
+  const recordBtn = document.getElementById("recordBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const listBox = document.getElementById("recordsList");
+
+  let mediaRecorder;
+  let chunks = [];
+
+  // --- НАЧАТЬ ЗАПИСЬ ---
+  recordBtn.onclick = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const file = new File([blob], "record.webm", { type: "audio/webm" });
+
+      const id = await ensureUniversalId();
+
+      const form = new FormData();
+      form.append("file", file);
+      form.append("owner_id", id.id);        // userId или visitor_id
+      form.append("owner_type", id.type);    // user | visitor
+
+      const r = await fetch("/api/record/upload", {
+        method: "POST",
+        credentials: "include",
+        body: form
+      });
+
+      if (!r.ok) {
+        alert("Ошибка загрузки записи");
+        return;
+      }
+
+      loadRecords();
+    };
+
+    mediaRecorder.start();
+    recordBtn.disabled = true;
+    stopBtn.disabled = false;
+  };
+
+  // --- ОСТАНОВИТЬ ЗАПИСЬ ---
+  stopBtn.onclick = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      recordBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  };
+
+  // --- ЗАГРУЗИТЬ СПИСОК ---
+  function loadRecords() {
+    apiGet("/api/record/list")
+      .then(data => {
+        listBox.innerHTML = "";
+        (data.records || []).forEach(r => {
+          const el = document.createElement("div");
+          el.className = "record-item";
+          el.innerHTML = `
+            <audio controls src="${r.url}"></audio>
+            <div class="record-date">${new Date(r.created_at).toLocaleString()}</div>
+          `;
+          listBox.appendChild(el);
+        });
+      })
+      .catch(() => {
+        listBox.innerHTML = `<p>Не удалось загрузить записи</p>`;
+      });
+  }
+
+  loadRecords();
+}

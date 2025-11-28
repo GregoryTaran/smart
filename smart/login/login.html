@@ -12,68 +12,72 @@
     <link rel="stylesheet" href="login/login.css"/>
 
     <!-- ===================== AUTH BOOTSTRAP (НОВЫЙ) ===================== -->
-    <script>
-      (function () {
-        const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+<script>
+(function () {
+  const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-        window.SV_AUTH = {
-          isAuthenticated: false,
-          userId: null,
-          email: null,
-          level: 1,
-          displayName: null,
-          loaded: false,
-          levelCode: 'guest',
-          _resolve: null,
-          ready: null,
-        };
+  window.SV_AUTH = {
+    isAuthenticated: false,
+    userId: null,
+    email: null,
+    displayName: null,
+    level: 1,
+    levelCode: 'guest',
+    loaded: false,
+    _resolve: null,
+    ready: null,
+  };
 
-        window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
+  window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-        async function bootstrapAuth() {
-          try {
-            // Используем КЭШ
-            const cached = localStorage.getItem(AUTH_CACHE_KEY);
-            if (cached) {
-              const data = JSON.parse(cached);
+  async function bootstrap() {
+    try {
+      // 1) читаем кэш
+      const cached = localStorage.getItem(AUTH_CACHE_KEY);
+      if (cached) {
+        Object.assign(window.SV_AUTH, JSON.parse(cached));
+      }
 
-              Object.assign(window.SV_AUTH, data);
-              window.SV_AUTH.loaded = true;
-              window.SV_AUTH._resolve(window.SV_AUTH);
-              return;
-            }
+      // 2) спрашиваем сервер
+      const resp = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include"
+      });
 
-            // Новый endpoint (ВМЕСТО /api/auth/session)
-            const resp = await fetch("/api/auth/me", {
-              method: "GET",
-              credentials: "include"
-            });
+      const data = await resp.json();
 
-            if (resp.ok) {
-              const data = await resp.json();
+      if (data.loggedIn) {
+        const u = data.user_merged || {};
+        window.SV_AUTH.isAuthenticated = true;
+        window.SV_AUTH.userId = u.id || null;
+        window.SV_AUTH.email = u.email || null;
+        window.SV_AUTH.displayName = u.name || null;
+        window.SV_AUTH.level = data.level || 2;
+        window.SV_AUTH.levelCode = data.level_code || "user";
+      } else {
+        window.SV_AUTH.isAuthenticated = false;
+        window.SV_AUTH.userId = null;
+        window.SV_AUTH.email = null;
+        window.SV_AUTH.displayName = null;
+        window.SV_AUTH.level = 1;
+        window.SV_AUTH.levelCode = "guest";
+      }
 
-              if (data.loggedIn) {
-                window.SV_AUTH.isAuthenticated = true;
-                window.SV_AUTH.userId = data.user_merged?.id || null;
-                window.SV_AUTH.email = data.user_merged?.email || null;
-                window.SV_AUTH.displayName = data.user_merged?.name || null;
-                window.SV_AUTH.level = 2;
-                window.SV_AUTH.levelCode = "user";
-              }
-            }
+      // обновляем кэш
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
 
-            window.SV_AUTH.loaded = true;
-            window.SV_AUTH._resolve(window.SV_AUTH);
+    } catch (err) {
+      console.warn("AUTH bootstrap error:", err);
+    }
 
-          } catch(err) {
-            window.SV_AUTH.loaded = true;
-            window.SV_AUTH._resolve(window.SV_AUTH);
-          }
-        }
+    window.SV_AUTH.loaded = true;
+    window.SV_AUTH._resolve(window.SV_AUTH);
+  }
 
-        bootstrapAuth();
-      })();
-    </script>
+  bootstrap();
+})();
+</script>
+
     <!-- =============================================================== -->
 
     <!-- Topbar -->
