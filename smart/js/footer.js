@@ -1,104 +1,60 @@
-/* js/footer.js — чистая версия под AUTH v3 */
+// ======================================================================
+// FOOTER DEBUG PANEL (SmartID Edition)
+// Совместим с новой архитектурой, полностью чистый
+// ======================================================================
 
-(function () {
+export function renderFooter(session) {
+  const footer = document.getElementById('footer');
+  if (!footer) return;
 
-  // ==== РЕНДЕР ФУТЕРА =======================================================
-  function ensureFooter() {
-    let root = document.getElementById('footer');
-    if (!root) {
-      root = document.createElement('footer');
-      root.id = 'footer';
-      document.body.appendChild(root);
-    }
+  const year = new Date().getFullYear();
 
-    let inner = root.querySelector('.footer-inner');
-    if (!inner) {
-      inner = document.createElement('div');
-      inner.className = 'footer-inner';
-      root.appendChild(inner);
-    }
+  // ----- Создаём базовую структуру -----
+  footer.innerHTML = `
+    <div class="footer-inner">
 
-    let card = document.getElementById('svFooterInfo');
-    if (!card) {
-      card = document.createElement('div');
-      card.id = 'svFooterInfo';
-      card.className = 'card';
-      inner.appendChild(card);
-    }
+      <div class="footer-left">
+        <strong>SMART VISION</strong> © ${year}
+      </div>
 
-    window.SV = window.SV || {};
-    window.SV.footer = window.SV.footer || {};
-    window.SV.footer.setInfo = html => {
-      card.innerHTML = html || '';
-    };
-  }
+      <div class="footer-right">
+        <div id="svFooterInfo" class="card" style="padding: 12px; font-size: 0.85rem;">
+          ${renderDebug(session)}
+        </div>
+      </div>
 
-  // ==== HELPERS =============================================================
-  const esc = s =>
-    String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    </div>
+  `;
+}
 
-  const row = (label, value) =>
-    `<div class="sv-row"><strong>${esc(label)}:</strong> <code>${esc(value || '—')}</code></div>`;
+// ======================================================================
+// РЕНДЕР DEBUG-ИНФОРМАЦИИ
+// ======================================================================
+function renderDebug(session) {
+  return `
+    ${row('Authenticated', session.authenticated ? 'yes' : 'no')}
+    ${row('User ID', session.user_id || '—')}
+    ${row('Email', session.email || '—')}
+    ${row('Level', session.level || 1)}
+  `;
+}
 
-  // ==== SNAPSHOT ============================================================
-  function snapshot() {
-    const auth = window.SV_AUTH || {};
-    const lvl = Number(auth.level || 1);
-    return {
-      loaded: !!auth.loaded,
-      isAuthenticated: !!auth.isAuthenticated,
-      userId: auth.userId || '—',
-      email: auth.email || '—',
-      displayName: auth.displayName || '—',
-      level: lvl,
-      levelCode: auth.levelCode || (lvl === 1 ? 'guest' : 'user')
-    };
-  }
+// ======================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ======================================================================
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  // ==== РЕНДЕР ==============================================================
-  function renderInformer() {
-    ensureFooter();
-    const s = snapshot();
-    window.SV.footer.setInfo(
-      row('Auth loaded', s.loaded ? 'yes' : 'no') +
-      row('Authenticated', s.isAuthenticated ? 'yes' : 'no') +
-      row('User ID', s.userId) +
-      row('Level', s.level) +
-      row('Level code', s.levelCode) +
-      row('Email', s.email) +
-      row('Name', s.displayName)
-    );
-  }
-
-  // ==== СЛУШАЕМ SV_AUTH.ready ===============================================
-  function subscribe() {
-    // Когда AUTH загрузился
-    if (window.SV_AUTH?.ready) {
-      window.SV_AUTH.ready.then(() => renderInformer());
-    }
-
-    // На всякий случай при возврате из bfcache
-    window.addEventListener('pageshow', () => renderInformer());
-
-    // Если где-то вручную вызовут
-    window.addEventListener('sv:auth-changed', () => renderInformer());
-  }
-
-  function start() {
-    ensureFooter();
-    renderInformer();
-    subscribe();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
-
-})();
+function row(label, value) {
+  return `
+    <div class="sv-row">
+      <strong>${esc(label)}:</strong> <code>${esc(value)}</code>
+    </div>
+  `;
+}

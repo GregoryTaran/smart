@@ -1,146 +1,67 @@
 <!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <base href="../"/>
 
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SMART VISION — Главная</title>
 
-  <link rel="icon" href="assets/logo400.jpg"/>
-  <link rel="stylesheet" href="css/main.css"/>
-  <link rel="stylesheet" href="index/index.css"/>
-
-  <!-- ===================== AUTH BOOTSTRAP v3 ===================== -->
- <script>
-(function () {
-  const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
-
-  window.SV_AUTH = {
-    isAuthenticated: false,
-    userId: null,
-    email: null,
-    displayName: null,
-    level: 1,
-    levelCode: "guest",
-    loaded: false,
-    _resolve: null,
-    ready: null
-  };
-
-  // Промис, который будет резолвиться когда AUTH загружен
-  window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
-
-  async function refreshAuth() {
-    try {
-      const resp = await fetch("/api/auth/me", {
-        method: "GET",
-        credentials: "include"
-      });
-      const data = await resp.json();
-
-      if (data.loggedIn) {
-        const u = data.user_merged || {};
-        window.SV_AUTH.isAuthenticated = true;
-        window.SV_AUTH.userId = u.id || null;
-        window.SV_AUTH.email = u.email || null;
-        window.SV_AUTH.displayName = u.name || null;
-        window.SV_AUTH.level = data.level || 2;
-        window.SV_AUTH.levelCode = data.level_code || "user";
-      } else {
-        window.SV_AUTH.isAuthenticated = false;
-        window.SV_AUTH.userId = null;
-        window.SV_AUTH.email = null;
-        window.SV_AUTH.displayName = null;
-        window.SV_AUTH.level = 1;
-        window.SV_AUTH.levelCode = "guest";
-      }
-
-      // сохраняем кэш
-      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
-
-    } catch (e) {
-      console.warn("AUTH refresh error", e);
-    }
-
-    window.SV_AUTH.loaded = true;
-    window.SV_AUTH._resolve(window.SV_AUTH);
-  }
-
-  // 1) пробуем из кэша
-  const cached = localStorage.getItem(AUTH_CACHE_KEY);
-  if (cached) {
-    try {
-      Object.assign(window.SV_AUTH, JSON.parse(cached));
-    } catch {}
-  }
-
-  // 2) обновляем в фоне
-  refreshAuth();
-})();
-</script>
-
-  <!-- ============================================================== -->
-
-  <!-- TOPBAR -->
-  <script type="module">
-    import { initPage } from './js/topbar.module.js';
-    initPage({
-      fragments: [['menu.html', '#sidebar']],
-      topbar: {
-        state: {
-          logoHref: 'index.html',
-          logoSrc: 'assets/logo400.jpg'
-        }
-      }
-    });
-  </script>
-
+  <link rel="icon" href="assets/logo400.jpg" />
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="index/index.css" />
+  <link rel="stylesheet" href="css/card.css" />
 </head>
 
 <body>
-<div id="page">
-  <aside id="sidebar"></aside>
 
-  <div id="app">
-    <header id="topbar"></header>
+  <div id="page">
 
-    <main id="main">
+    <!-- ЛЕВОЕ МЕНЮ -->
+    <aside id="sidebar"></aside>
 
-      <section class="index">
-        <h1 class="index__title">Добро пожаловать в SMART VISION</h1>
+    <div id="app">
 
-        <p class="index__text">
-          Это главный экран платформы.  
-          Используйте меню слева, чтобы перейти в разделы Визии, Диктофон и другие возможности.
-        </p>
+      <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
+      <header id="topbar"></header>
 
-        <div id="index-user-status" class="index__status"></div>
+      <!-- ОСНОВНОЙ КОНТЕНТ -->
+      <main id="main">
 
-      </section>
+        <!-- ПЕРВАЯ КАРТОЧКА SMART VISION -->
+        <section class="card">
+          <h1>SMART VISION</h1>
 
-    </main>
+          <p style="font-size: 1.25rem; line-height: 1.7; margin-top: 16px; font-weight: 500;">
+            Любая мысль может стать визией.<br>
+            Любая визия может стать дорогой.<br>
+            А дорога — источником внутреннего света.
+          </p>
 
-    <footer id="footer"></footer>
+          <p style="margin-top: 20px; font-weight: 600; opacity: 0.75;">
+            Грег Таран • 2025
+          </p>
+        </section>
+
+      </main>
+
+      <!-- ФУТЕР -->
+      <footer id="footer"></footer>
+
+    </div>
   </div>
-</div>
 
-<div id="overlay" hidden></div>
+  <!-- Оверлей для мобильного меню -->
+  <div id="overlay" hidden></div>
 
-<script defer src="js/footer.js?v=2"></script>
+  <!-- === SmartID — главный скрипт === -->
+  <script src="js/smartid.init.js"></script>
 
-<script>
-  // Когда bootstrap готов → показать статус
-  window.SV_AUTH.ready.then(auth => {
-    const box = document.getElementById("index-user-status");
+  <!-- === Модули интерфейса === -->
+  <script src="js/topbar.module.js" defer></script>
+  <script src="js/footer.js" defer></script>
 
-    if (auth.isAuthenticated) {
-      box.textContent = `Вы вошли как: ${auth.displayName || auth.email}`;
-    } else {
-      box.textContent = "Вы не авторизованы.";
-    }
-  });
-</script>
+  <!-- === Скрипт конкретно этой страницы (если нужен) === -->
+  <script src="index/index.js" defer></script>
 
 </body>
 </html>
