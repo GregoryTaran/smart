@@ -33,6 +33,7 @@
   import('/js/topbar.module.js').then(m => {
     m.renderTopbar(session);
     m.renderMenu(session.level);
+    m.initMenuControls(); 
   });
 
   import('/js/footer.js').then(m => {

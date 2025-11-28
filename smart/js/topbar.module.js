@@ -49,6 +49,50 @@ export function renderTopbar(session) {
   syncAuthLink(session);
 }
 
+// ===============================
+// ГЛОБАЛЬНОЕ УПРАВЛЕНИЕ МЕНЮ ДЛЯ ВСЕГО САЙТА
+// ===============================
+export function initMenuControls() {
+  const body = document.body;
+  const menuBtn = document.querySelector('.menu-toggle');
+  const overlay = document.getElementById('overlay');
+  const sidebar = document.getElementById('sidebar');
+
+  if (!menuBtn || !overlay || !sidebar) return;
+
+  // открытие меню
+  menuBtn.addEventListener('click', () => {
+    body.classList.add('menu-open');
+  });
+
+  // закрытие при клике по overlay
+  overlay.addEventListener('click', () => {
+    body.classList.remove('menu-open');
+  });
+
+  // закрытие при клике по пункту меню
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') {
+      body.classList.remove('menu-open');
+    }
+  });
+
+  // закрытие по ESC
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      body.classList.remove('menu-open');
+    }
+  });
+
+  // закрытие при ресайзе (для перехода мобайл↔десктоп)
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 900) {
+      body.classList.remove('menu-open');
+    }
+  });
+}
+
+
 // ===========================================================
 // AUTH LINK (войти/выйти)
 // ===========================================================
