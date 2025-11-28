@@ -20,69 +20,45 @@
 <script src="js/app-ready.js" defer></script>
 
 <!-- AUTH BOOTSTRAP -->
-<script>
-  (function () {
-    const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+  <!-- NEW AUTH BOOTSTRAP -->
+  <script>
+  (function(){
+    const AUTH_CACHE_KEY='sv.auth.cache.v1';
+    window.SV_AUTH={isAuthenticated:false,userId:null,email:null,displayName:null,level:1,levelCode:'guest',loaded:false,_resolve:null,ready:null};
+    window.SV_AUTH.ready=new Promise(resolve=>window.SV_AUTH._resolve=resolve);
 
-    window.SV_AUTH = {
-      isAuthenticated: false,
-      userId: null,
-      level: 1,
-      levelCode: 'guest',
-      email: null,
-      displayName: null,
-      loaded: false
-    };
+    async function bootstrap(){
+      try{
+        const cached=localStorage.getItem(AUTH_CACHE_KEY);
+        if(cached) Object.assign(SV_AUTH,JSON.parse(cached));
 
-    function norm(data) {
-      data = data || {};
-      const isAuth = !!data.is_authenticated;
-      let level = Number(data.level);
-      if (!Number.isFinite(level) || level <= 0) level = isAuth ? 2 : 1;
-      return {
-        isAuthenticated: isAuth,
-        userId: data.user_id ?? null,
-        level,
-        levelCode: data.level_code || (level === 1 ? 'guest' : 'user'),
-        email: data.email ?? null,
-        displayName: data.display_name ?? null,
-        loaded: true
-      };
+        const resp=await fetch("/api/auth/me",{method:"GET",credentials:"include"});
+        const data=await resp.json();
+
+        if(data.loggedIn){
+          const u=data.user_merged||{};
+          SV_AUTH.isAuthenticated=true;
+          SV_AUTH.userId=u.id||null;
+          SV_AUTH.email=u.email||null;
+          SV_AUTH.displayName=u.name||null;
+          SV_AUTH.level=data.level||2;
+          SV_AUTH.levelCode=data.level_code||"user";
+        } else {
+          SV_AUTH.isAuthenticated=false;
+          SV_AUTH.userId=null;
+          SV_AUTH.level=1;
+          SV_AUTH.levelCode='guest';
+        }
+
+        localStorage.setItem(AUTH_CACHE_KEY,JSON.stringify(SV_AUTH));
+      }catch(e){ console.warn(e); }
+
+      SV_AUTH.loaded=true;
+      SV_AUTH._resolve(SV_AUTH);
     }
-
-    function dispatch() {
-      document.dispatchEvent(new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH }));
-    }
-
-    function read() {
-      try {
-        const raw = localStorage.getItem(AUTH_CACHE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch { return null; }
-    }
-
-    function write(x) {
-      try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(x)); } catch {}
-    }
-
-    (function () {
-      const c = read();
-      if (!c) return;
-      window.SV_AUTH = Object.assign({}, c, { loaded: true });
-      dispatch();
-    })();
-
-    fetch('/api/auth/session', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => {
-        const s = norm(d);
-        window.SV_AUTH = s;
-        write(s);
-        dispatch();
-      })
-      .catch(() => dispatch());
+    bootstrap();
   })();
-</script>
+  </script>
 
 <!-- topbar -->
 <script type="module">

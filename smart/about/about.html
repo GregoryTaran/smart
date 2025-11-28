@@ -19,64 +19,50 @@
     window.SV_AUTH = {
       isAuthenticated: false,
       userId: null,
-      level: 1,
-      levelCode: 'guest',
       email: null,
       displayName: null,
-      loaded: false
+      level: 1,
+      levelCode: 'guest',
+      loaded: false,
+      _resolve: null,
+      ready: null,
     };
 
-    function norm(data) {
-      data = data || {};
-      const isAuth = !!data.is_authenticated;
-      let level    = Number(data.level);
-      if (!Number.isFinite(level) || level <= 0) level = isAuth ? 2 : 1;
-      return {
-        isAuthenticated: isAuth,
-        userId: data.user_id ?? null,
-        level,
-        levelCode: data.level_code || (level === 1 ? 'guest' : 'user'),
-        email: data.email ?? null,
-        displayName: data.display_name ?? null,
-        loaded: true
-      };
-    }
+    window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-    function dispatch() {
-      document.dispatchEvent(new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH }));
-    }
-
-    function read() {
+    async function bootstrap() {
       try {
-        const raw = localStorage.getItem(AUTH_CACHE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch { return null; }
+        const cached = localStorage.getItem(AUTH_CACHE_KEY);
+        if (cached) Object.assign(window.SV_AUTH, JSON.parse(cached));
+
+        const resp = await fetch("/api/auth/me", { method: "GET", credentials: "include" });
+        const data = await resp.json();
+
+        if (data.loggedIn) {
+          const u = data.user_merged || {};
+          window.SV_AUTH.isAuthenticated = true;
+          window.SV_AUTH.userId = u.id || null;
+          window.SV_AUTH.email = u.email || null;
+          window.SV_AUTH.displayName = u.name || null;
+          window.SV_AUTH.level = data.level || 2;
+          window.SV_AUTH.levelCode = data.level_code || "user";
+        } else {
+          window.SV_AUTH.isAuthenticated = false;
+          window.SV_AUTH.userId = null;
+          window.SV_AUTH.level = 1;
+          window.SV_AUTH.levelCode = "guest";
+        }
+
+        localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
+      } catch (err) { console.warn("AUTH bootstrap error:", err); }
+
+      window.SV_AUTH.loaded = true;
+      window.SV_AUTH._resolve(window.SV_AUTH);
     }
 
-    function write(x) {
-      try { localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(x)); } catch {}
-    }
-
-    // 1) из кэша мгновенно
-    (function () {
-      const c = read();
-      if (!c) return;
-      window.SV_AUTH = Object.assign({}, c, { loaded: true });
-      dispatch();
-    })();
-
-    // 2) в фоне с сервера
-    fetch('/api/auth/session', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => {
-        const s = norm(d);
-        window.SV_AUTH = s;
-        write(s);
-        dispatch();
-      })
-      .catch(() => dispatch());
+    bootstrap();
   })();
-</script>
+  </script>
 
 <!-- topbar/menu -->
 <script type="module">

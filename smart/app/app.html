@@ -11,112 +11,44 @@
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="app/app.css" />
 
-  <!--
-    🧠 Глобальный bootstrap авторизации с кэшем.
-    1) Пробует прочитать кэш из localStorage (моментальный ответ для UI)
-    2) В фоне дёргает /api/auth/session, обновляет window.SV_AUTH и кэш
-    3) Всегда работает поверх куки sv_session (сервер остаётся источником правды)
-  -->
-  <script>
-    (function () {
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-      // Базовое состояние: гость
-      window.SV_AUTH = {
-        isAuthenticated: false,
-        userId: null,
-        level: 1,
-        levelCode: 'guest',
-        email: null,
-        displayName: null,
-        loaded: false
-      };
+ <script>
+  (function () {
+    const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+    window.SV_AUTH = { isAuthenticated:false, userId:null, email:null, displayName:null, level:1, levelCode:'guest', loaded:false, _resolve:null, ready:null };
+    window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-      function normalizeSession(data) {
-        data = data || {};
-        const isAuth = !!data.is_authenticated;
-        let level = Number(data.level);
-        if (!Number.isFinite(level) || level <= 0) {
-          level = isAuth ? 2 : 1;
+    async function bootstrap() {
+      try {
+        const cached = localStorage.getItem(AUTH_CACHE_KEY);
+        if (cached) Object.assign(window.SV_AUTH, JSON.parse(cached));
+
+        const resp = await fetch("/api/auth/me", { method:"GET", credentials:"include" });
+        const data = await resp.json();
+
+        if (data.loggedIn) {
+          const u = data.user_merged || {};
+          SV_AUTH.isAuthenticated = true;
+          SV_AUTH.userId = u.id || null;
+          SV_AUTH.email = u.email || null;
+          SV_AUTH.displayName = u.name || null;
+          SV_AUTH.level = data.level || 2;
+          SV_AUTH.levelCode = data.level_code || "user";
+        } else {
+          SV_AUTH.isAuthenticated = false;
+          SV_AUTH.userId = null;
+          SV_AUTH.level = 1;
+          SV_AUTH.levelCode = "guest";
         }
-        const levelCode = data.level_code || (level === 1 ? 'guest' : 'user');
 
-        return {
-          isAuthenticated: isAuth,
-          userId: data.user_id ?? null,
-          level: level,
-          levelCode: levelCode,
-          email: data.email ?? null,
-          displayName: data.display_name ?? null,
-          loaded: true
-        };
-      }
+        localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(SV_AUTH));
+      } catch(e){ console.warn(e); }
 
-      function dispatchAuthReady() {
-        try {
-          document.dispatchEvent(
-            new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
-          );
-        } catch (e) {
-          console.warn('sv:auth-ready dispatch failed', e);
-        }
-      }
-
-      function readCache() {
-        try {
-          const raw = localStorage.getItem(AUTH_CACHE_KEY);
-          if (!raw) return null;
-          const parsed = JSON.parse(raw);
-          if (!parsed || typeof parsed !== 'object') return null;
-          return parsed;
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function writeCache(session) {
-        try {
-          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
-        } catch (e) {
-          // localStorage может быть недоступен — тихо игнорируем
-        }
-      }
-
-      // 1) Пытаемся моментально поднять состояние из кэша
-      (function hydrateFromCache() {
-        const cached = readCache();
-        if (!cached) return;
-        // Считаем кэш уже нормализованным объектом SV_AUTH
-        window.SV_AUTH = Object.assign({}, cached, { loaded: true });
-        dispatchAuthReady();
-      })();
-
-      // 2) В фоне тянем свежую сессию с бэкенда
-      fetch('/api/auth/session', {
-        method: 'GET',
-        credentials: 'include'
-      })
-        .then(function (res) {
-          if (!res.ok) throw new Error('Auth check failed');
-          return res.json();
-        })
-        .then(function (data) {
-          const session = normalizeSession(data);
-          window.SV_AUTH = session;
-          writeCache(session);
-          dispatchAuthReady();
-        })
-        .catch(function (err) {
-          console.warn('Auth bootstrap failed', err);
-          // Если кэша не было и мы всё ещё не загружены — остаёмся гостем
-          if (!window.SV_AUTH.loaded) {
-            const guest = normalizeSession({});
-            window.SV_AUTH = guest;
-            writeCache(guest);
-            dispatchAuthReady();
-          }
-        });
-    })();
+      SV_AUTH.loaded = true;
+      SV_AUTH._resolve(SV_AUTH);
+    }
+    bootstrap();
+  })();
   </script>
 
   <!-- Инициализация топбара/меню как и раньше -->
