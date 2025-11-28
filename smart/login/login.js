@@ -76,36 +76,41 @@
   });
 
 
-  // ------------------------------------------------------
-  // 2. ВХОД
-  // ------------------------------------------------------
-  formLogin.addEventListener('submit', async e => {
-    e.preventDefault();
+ // ------------------------------------------------------
+// 2. ВХОД
+// ------------------------------------------------------
+formLogin.addEventListener('submit', async e => {
+  e.preventDefault();
 
-    const email = $('#login-email').value.trim();
-    const pass  = $('#login-pass').value.trim();
+  const email = $('#login-email').value.trim();
+  const pass  = $('#login-pass').value.trim();
 
-    if (!email) return showStatus('Введите email', 'error');
-    if (!pass)  return showStatus('Введите пароль', 'error');
+  if (!email) return showStatus('Введите email', 'error');
+  if (!pass)  return showStatus('Введите пароль', 'error');
 
-    try {
-      // 1) логиним
-      await api('/api/auth/login', { email, password: pass });
+  try {
+    // 0) Всегда чистим старые сессии Supabase
+    await api('/api/auth/logout');   // <<< ВАЖНО !!!
 
-      // 2) проверяем /me (это важно!)
-      const me = await fetch('/api/auth/me', { credentials: 'include' }).then(r => r.json());
+    // 1) Новая попытка входа
+    await api('/api/auth/login', { email, password: pass });
 
-      if (!me.loggedIn) {
-        throw new Error('Авторизация не подтверждена');
-      }
+    // 2) Проверяем /me (обновлённая сессия)
+    const me = await fetch('/api/auth/me', { credentials: 'include' })
+      .then(r => r.json());
 
-      // 3) редирект
-      location.replace('/index.html');
-
-    } catch (err) {
-      showStatus(err.message, 'error');
+    if (!me.loggedIn) {
+      throw new Error('Авторизация не подтверждена');
     }
-  });
+
+    // 3) Успех → редирект
+    location.replace('/index.html');
+
+  } catch (err) {
+    showStatus(err.message, 'error');
+  }
+});
+
 
 
 // ------------------------------------------------------
