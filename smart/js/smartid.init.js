@@ -1,4 +1,4 @@
-// smartid.init.js — новая версия, совместимая с твоим backend
+// smartid.init.js — FIXED
 
 (async () => {
   let session = {
@@ -12,6 +12,7 @@
     const r = await fetch('/api/auth/me', {
       credentials: 'include'
     });
+
     if (r.ok) {
       const data = await r.json();
       if (data.loggedIn) {
@@ -22,19 +23,19 @@
       }
     }
   } catch (e) {
-    console.warn('SmartID init error:', e);
+    console.warn('SmartID error:', e);
   }
 
-  // Глобально сохраняем сессию
+  // ГЛОБАЛЬНО ХРАНИМ
   window.SMART_SESSION = session;
 
-  // Рендерим интерфейс
-  import('/smart/js/topbar.module.js').then(m => {
+  // ПРАВИЛЬНЫЕ ПУТИ!!!
+  import('/js/topbar.module.js').then(m => {
     m.renderTopbar(session);
     m.renderMenu(session.level);
   });
 
-  import('/smart/js/footer.js').then(m => {
+  import('/js/footer.js').then(m => {
     m.renderFooter(session);
   });
 
