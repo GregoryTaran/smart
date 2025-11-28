@@ -53,34 +53,36 @@ img, video { max-width: 100%; display: block; }
 }
 
 /* ==========================
-   TOPBAR
+   TOPBAR (ФИНАЛЬНАЯ ВЕРСИЯ)
 ========================== */
+
 #topbar {
   background: #fff;
-  padding: 0 16px;
+  border-bottom: 1px solid #eee;
+  z-index: 10;
 }
 
-/* Мобильная сетка */
+/* БАЗОВАЯ СЕТКА — МОБИЛЬНАЯ */
 .topbar-inner {
   height: var(--topbar-h);
   display: grid;
-  align-items: center;
   grid-template-columns: 48px 1fr auto;
+  padding: 6px 16px;
+  align-items: center;
   gap: 8px;
 }
 
-/* ===== Логотип ===== */
+/* ЛОГОТИП */
 .topbar-inner .logo {
   justify-self: center;
 }
 .topbar-inner .logo img {
-  max-height: 28px;
-  height: auto;
+  height: 34px;
   width: auto;
   object-fit: contain;
 }
 
-/* ===== Кнопка меню ===== */
+/* БУРГЕР */
 .topbar-inner .menu-toggle {
   display: inline-flex;
   align-items: center;
@@ -89,13 +91,12 @@ img, video { max-width: 100%; display: block; }
   height: 40px;
   border: 1px solid #ddd;
   border-radius: 8px;
-  background: #fff;
   cursor: pointer;
+  background: #fff;
 }
 
-/* ===== Кнопка Войти ===== */
+/* КНОПКА ВОЙТИ */
 .topbar-inner .login-link {
-  justify-self: end;
   padding: 8px 14px;
   border: 1px solid #ddd;
   border-radius: 8px;
@@ -103,24 +104,50 @@ img, video { max-width: 100%; display: block; }
   text-decoration: none;
   color: #111;
   font-size: 14px;
+  justify-self: end;
 }
 
-/* ===== ДЕСКТОП: логотип по центру, бургер скрываем ===== */
+/* ==========================
+   ДЕСКТОП
+========================== */
 @media (min-width: 900px) {
+
   .topbar-inner {
-    grid-template-columns: 1fr auto 1fr; /* центр — под лого */
+    grid-template-columns: 1fr auto 1fr;
+    padding: 10px 24px;
   }
 
+  /* скрываем бургер на ПК */
   .topbar-inner .menu-toggle {
     display: none;
   }
 
+  /* логотип строго по центру */
   .topbar-inner .logo {
-    justify-self: center;
+    justify-self: center !important;
   }
 
   .topbar-inner .logo img {
-    max-height: 28px;
+    height: 48px; /* красивый размер на ПК */
+  }
+
+  /* кнопка вправо */
+  .topbar-inner .login-link {
+    justify-self: end;
+  }
+}
+
+/* ==========================
+   МОБИЛЬНЫЙ ТЮНИНГ
+========================== */
+@media (max-width: 899px) {
+
+  .topbar-inner .logo img {
+    height: 30px;
+  }
+
+  #main {
+    padding: 12px;
   }
 }
 

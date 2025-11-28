@@ -1,43 +1,63 @@
-// smartid.init.js — FIXED
+// ===============================
+// SMARTID INIT – ФИНАЛЬНАЯ ВЕРСИЯ
+// ===============================
 
 (async () => {
-  let session = {
+  // Базовая структура сессии
+  const session = {
     authenticated: false,
     level: 1,
     email: null,
     user_id: null
   };
 
+  // -------------------------------
+  // 1) Пытаемся получить текущую сессию
+  // -------------------------------
   try {
-    const r = await fetch('/api/auth/me', {
+    const res = await fetch('/api/auth/me', {
       credentials: 'include'
     });
 
-    if (r.ok) {
-      const data = await r.json();
-      if (data.loggedIn) {
+    if (res.ok) {
+      const data = await res.json();
+
+      if (data?.loggedIn) {
         session.authenticated = true;
-        session.level = data.level;
-        session.user_id = data.user_merged?.id || null;
-        session.email = data.user_merged?.email || null;
+        session.level = data.level ?? 1;
+        session.user_id = data.user_merged?.id ?? null;
+        session.email = data.user_merged?.email ?? null;
       }
     }
   } catch (e) {
-    console.warn('SmartID error:', e);
+    console.warn('SmartID /auth/me error:', e);
   }
 
-  // ГЛОБАЛЬНО ХРАНИМ
+  // Сохраняем глобально
   window.SMART_SESSION = session;
 
-  // ПРАВИЛЬНЫЕ ПУТИ!!!
-  import('/js/topbar.module.js').then(m => {
-    m.renderTopbar(session);
-    m.renderMenu(session.level);
-    m.initMenuControls(); 
-  });
+  // -------------------------------
+  // 2) Загружаем TOPBAR
+  // -------------------------------
+  import('/js/topbar.module.js')
+    .then(mod => {
+      mod.renderTopbar(session);      // ← создаёт topbar-inner + лого + кнопки
+      mod.renderMenu(session.level);  // ← создаёт левое меню
+      mod.initMenuControls();         // ← открытие/закрытие бургер-меню
+    })
+    .catch(err =>
+      console.error('Ошибка загрузки topbar.module.js:', err)
+    );
 
-  import('/js/footer.js').then(m => {
-    m.renderFooter(session);
-  });
+  // -------------------------------
+  // 3) Загружаем FOOTER
+  // -------------------------------
+  import('/js/footer.js')
+    .then(mod => {
+      mod.renderFooter(session);
+    })
+    .catch(err =>
+      console.error('Ошибка загрузки footer.js:', err)
+    );
 
 })();
