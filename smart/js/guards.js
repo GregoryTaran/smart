@@ -1,9 +1,9 @@
-// js/guards.js
+// guards.js — финальная версия под AUTH v3 (SV_AUTH.ready)
 
 export function requireLevel(options = {}) {
   const {
-    level: requiredLevel = 2,          // минимальный уровень доступа
-    redirectBase = 'login/login.html', // куда гнать неавторизованных
+    level: requiredLevel = 2,          // минимальный уровень
+    redirectBase = 'login/login.html', // куда редиректить
   } = options;
 
   function doRedirect() {
@@ -13,23 +13,31 @@ export function requireLevel(options = {}) {
     location.replace(`${redirectBase}?next=${next}`);
   }
 
-  function checkAuth(rawAuth) {
-    const auth = rawAuth || window.SV_AUTH || {};
-    const isAuthenticated = !!auth.isAuthenticated;
+  function check(auth) {
+    if (!auth) return doRedirect();
+
+    const isAuth = !!auth.isAuthenticated;
     const level = Number(auth.level || 1);
 
-    if (!isAuthenticated || level < requiredLevel) {
+    // если не авторизован или уровень ниже порога → на логин
+    if (!isAuth || level < requiredLevel) {
       doRedirect();
     }
   }
 
-  // 1) Если авторизация уже загружена к этому моменту
-  if (window.SV_AUTH && window.SV_AUTH.loaded) {
-    checkAuth(window.SV_AUTH);
+  async function waitAndCheck() {
+    // 1) Ждём пока загрузится AUTH bootstrap
+    if (window.SV_AUTH?.ready) {
+      try {
+        const auth = await window.SV_AUTH.ready;
+        check(auth);
+        return;
+      } catch {}
+    }
+
+    // 2) Если что-то пошло не так — пробуем сразу
+    check(window.SV_AUTH);
   }
 
-  // 2) Плюс слушаем событие на будущее
-  document.addEventListener('sv:auth-ready', (event) => {
-    checkAuth(event.detail);
-  });
+  waitAndCheck();
 }

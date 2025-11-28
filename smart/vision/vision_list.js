@@ -1,4 +1,4 @@
-// vision_list.js — новая версия под AUTH v3
+// vision_list.js — новая финальная версия без user_id в URL
 
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
@@ -26,12 +26,12 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     setupCreateButton();
-    loadVisionList(auth.userId);
+    loadVisionList();
   });
 });
 
-function loadVisionList(userId) {
-  apiGet(`/api/vision/list?user_id=${userId}`)
+function loadVisionList() {
+  apiGet(`/api/vision/list`)
     .then(data => renderList(data.visions || []))
     .catch(err => {
       const box = document.getElementById("visionList");
@@ -44,7 +44,7 @@ function renderList(visions) {
   box.innerHTML = "";
 
   if (!visions.length) {
-    box.innerHTML = `<p class="empty-text">У вас пока нет визий</p>`;
+    box.innerHTML = `<p class="vision-list-empty">У вас пока нет визий</p>`;
     return;
   }
 
@@ -56,24 +56,19 @@ function renderList(visions) {
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
     item.onclick = () => {
-      window.location.href = `/vision/vision.html?vision_id=${v.vision_id}`;
+      window.location.href = \`/vision/vision.html?vision_id=\${v.vision_id}\`;
     };
     box.appendChild(item);
   });
 }
 
-// Создание визии
 function setupCreateButton() {
   const btn = document.getElementById("newVisionBtn");
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
-    const auth = await window.SV_AUTH.ready;
-
-    const data = await apiPost("/api/vision/create", {
-      user_id: auth.userId
-    });
-
-    window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
+    const data = await apiPost("/api/vision/create");
+    window.location.href =
+      \`/vision/vision.html?vision_id=\${data.vision_id}\`;
   });
 }
