@@ -1,361 +1,192 @@
-/*
-  main.css — минимальный reset + токены + макет.
-  ВАЖНО: дружелюбно к микромодулям (ничего глобального, что ломает #main).
-*/
-
-/* === Reset (минимальный) === */
-*, *::before, *::after { box-sizing: border-box; }
+/* ==========================
+   RESET
+========================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 16px; color: #111; background: #fff; }
-img { max-width: 100%; height: auto; display: block; }
-a { color: #1ABC9C; text-decoration: none; }
-a:hover { filter: brightness(0.85); }
-button { font: inherit; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  background: #fff;
+  color: #111;
+}
+img, video { max-width: 100%; display: block; }
 
-/* === Токены === */
-:root{
-  --bp-desktop: 900px;        /* единственный брейкпоинт */
-  --sidebar-w: 20vw;          /* 20% ширины на ПК */
-  --sidebar-w-min: 200px;     /* минимум */
-  --sidebar-w-max: 300px;     /* максимум */
-  --container-max: 1300px;    /* общая ширина сайта на ПК */
-  --main-bg: #F5F5F5;         /* фон main и активного пункта меню */
+/* ==========================
+   ROOT TOKENS
+========================== */
+:root {
+  --sidebar-w-min: 220px;
+  --sidebar-w-max: 320px;
+  --sidebar-w: 22vw; /* среднее */
+  --container-max: 1300px;
+  --main-bg: #f5f5f5;
+  --topbar-h: 56px;
 }
 
-/* === Каркас === */
-#page{
+/* ==========================
+   PAGE GRID (DESKTOP)
+========================== */
+#page {
   display: grid;
-  grid-template-columns: 1fr; /* мобайл по умолчанию */
-  min-height: 100svh;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #fff;
 }
 
-/* Базовые фоны секций */
-#sidebar, #topbar, #footer { background: #fff; }
-#main { background: var(--main-bg); }
-
-/* Отступы */
-#topbar { padding: 0 16px; }
-#main { padding: 5px; }
-
-/* Оверлей для мобильного меню */
-#overlay{ position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
-
-/* === Header === */
-.topbar-inner{
-  height: 50px; display: grid; align-items: center;
-  grid-template-columns: 48px 1fr 80px; gap: 8px;
+/* ==========================
+   SIDEBAR (DESKTOP)
+========================== */
+#sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: clamp(var(--sidebar-w-min), var(--sidebar-w), var(--sidebar-w-max));
+  border-right: 1px solid #eee;
+  background: #fff;
+  overflow-y: auto;
+  z-index: 15;
 }
-.topbar-inner .menu-toggle{
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border: 1px solid #ddd; background: #fff; border-radius: 8px;
+
+/* ==========================
+   TOPBAR
+========================== */
+#topbar {
+  background: #fff;
+  height: var(--topbar-h);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.topbar-inner .logo{ justify-self: center; }
-.topbar-inner .logo img{ width: 220px; }   /* мобайл */
-.topbar-inner .login-link{ justify-self: end; align-self: center; }
-
-/* === Меню === */
-.menu{ padding: 0px 0; }
-.menu ul{ list-style: none; margin: 0; padding: 0; }
-.menu li{ border-top: 1px solid #eee; }
-.menu li:last-child{ border-bottom: 1px solid #eee; }
-.menu a{ display: block; padding: 12px 16px; color: inherit; }
-.menu a.is-active{ background: var(--main-bg); }
-
-/* Мобайл: сайдбар как выезжающая панель */
-#sidebar{
-  position: fixed; top: 0; left: 0; bottom: 0;
-  width: 75vw; max-width: 420px; background: #fff;
-  box-shadow: 2px 0 12px rgba(0,0,0,0.08);
-  transform: translateX(-100%);
-  transition: transform .2s ease-out;
-  overflow: auto; z-index: 20;
+.menu-toggle {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
 }
-#overlay{ z-index: 10; }
-
-/* Состояние открытого меню (вешаем на body класс .menu-open) */
-body.menu-open #sidebar{ transform: translateX(0); }
-body.menu-open #overlay{ display: block; }
-
-/* === Десктоп (≥900px) === */
-@media (min-width: 900px){
-  /* Сетка: слева меню, справа контент; вся конструкция ограничена 1300px и центрируется */
-  #page{
-    grid-template-columns: var(--sidebar-w) 1fr;
-    max-width: var(--container-max);
-    margin: 0 auto;
-  }
-  /* Сайдбар: фикс ширина с min/max; высота 100vh; внутренний скролл; без теней и трансформаций */
-  #sidebar{
-    position: sticky; top: 0; height: 100vh;
-    width: clamp(var(--sidebar-w-min), var(--sidebar-w), var(--sidebar-w-max));
-    transform: none; box-shadow: none; border-right: 1px solid #eee;
-  }
-  /* Оверлей не нужен */
-  #overlay{ display: none !important; }
-
-  /* Лого шире на ПК, кнопку скрываем визуально */
-  .topbar-inner{ grid-template-columns: 48px 1fr 120px; }
-  .topbar-inner .logo img{ width: 300px; }
-  .topbar-inner .menu-toggle{ visibility: hidden; }
+.logo img {
+  height: 32px;
+  width: auto;
 }
-/* === Footer === */
-.footer-inner {
+
+/* ==========================
+   MAIN CONTENT
+========================== */
+#main {
+  background: var(--main-bg);
+  padding: 20px;
+  min-height: calc(100vh - var(--topbar-h));
+}
+
+/* ==========================
+   FOOTER
+========================== */
+#footer {
+  background: #fff;
+  border-top: 1px solid #eee;
+  padding: 20px;
   text-align: center;
-  padding: 24px 16px;
-  line-height: 1.6;
 }
-.footer-inner a {
+
+/* ==========================
+   MENU (SIDEBAR CONTENT)
+========================== */
+.menu {
+  padding: 0;
+}
+.menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu li:first-child { border-top: 1px solid #eee; }
+.menu li {
+  border-bottom: 1px solid #eee;
+}
+.menu a {
+  display: block;
+  padding: 14px 18px;
   color: inherit;
+  text-decoration: none;
 }
-
-/* === Mobile safety fixes (точечные) === */
-
-/* 1) Корень — не даём уехать вправо */
-:where(html, body, #page, #main) {
-  max-width: 100%;
-  overflow-x: hidden;
+.menu a:hover {
+  background: rgba(0,0,0,0.04);
 }
-
-/* 2) Медиа и iFrame — резиновые */
-:where(img, svg, video, canvas, iframe) {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-/* 3) Дети flex/grid не распирают родителя */
-:where(.row, .grid, .flex, [class*="row"], [class*="grid"], [class*="flex"]) > * {
-  min-width: 0;
-}
-
-/* 4) Длинные строки/преформат — не тянут макет */
-:where(pre, code, kbd, samp) {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* 5) Широкие блоки (таблицы и т.п.) скроллятся внутри себя */
-:where(table, .table, .wide, .scroll-x) {
-  display: block;
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* 6) Оверлей по умолчанию скрыт; показываем только при .menu-open */
-#overlay { display: none; }
-body.menu-open #overlay { display: block; }
-
-/* 7) Небольшой «досвидос» лишним горизонтальным паддингам на узких экранах */
-@media (max-width: 899.98px) {
-  #main { padding-left: 3px; padding-right: 3px; }
-}
-
-
-/* ================== MOBILE-ONLY SAFE FIXES ================== */
-@media (max-width: 899.98px) {
-
-  /* корневые слои — без горизонтального скролла */
-  html, body, #page, #app, #main {
-    max-width: 100% !important;
-    overflow-x: hidden !important;
-  }
-
-  /* медиа и iframe всегда влезают */
-  img, svg, video, canvas, iframe {
-    max-width: 100% !important;
-    height: auto !important;
-    display: block;
-  }
-
-  /* длинные строки/код не распирают */
-  pre, code, kbd, samp {
-    white-space: pre-wrap !important;
-    word-break: break-word !important;
-  }
-
-  /* таблицы и любые широкие блоки скроллятся внутри себя */
-  table, .table, .wide, .scroll-x {
-    display: block;
-    width: 100% !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* дети flex/grid не ломают родителя */
-  .row > *, .grid > *, .flex > *,
-  [class*="row"] > *, [class*="grid"] > *, [class*="flex"] > * {
-    min-width: 0 !important;
-  }
-
-  /* карточки/контейнеры — в экран */
-  .card,
-  .sv-center-700, .sv-center-900, .sv-center-1100,
-  .container, .content, .section {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-
-  /* заголовки не вываливаются и не огромные */
-  h1, h2, h3 { overflow-wrap: anywhere; word-break: break-word; }
-  h1 { font-size: clamp(1.4rem, 4.5vw + .4rem, 2rem); line-height: 1.2; }
-
-  /* сайдбар и логотип — компактно на мобиле */
-  #sidebar { max-width: 85vw !important; }
-  .logo img { height: auto !important; }
-
-  /* спец-фиксы для voicerecorder */
-  .vr-root, .vr-container, .demo {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  .demo .controls { flex-wrap: wrap; gap: 8px; }
-  .demo audio, .demo button { max-width: 100% !important; }
-}
-/* ================== /MOBILE-ONLY SAFE FIXES ================== */
-
-/* === Topbar: компактная версия для мобилы === */
-@media (max-width: 899.98px) {
-  #topbar {
-    display: flex;
-    align-items: center;          /* по центру по вертикали */
-    justify-content: space-between;
-    gap: 8px;                     /* меньше зазоров */
-    padding: 8px 10px;            /* было 12/16 — уменьшаем */
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;             /* на всякий */
-  }
-
-  /* если мы раньше добавляли отступ под сайдбар — уберём */
-  #app { padding-left: 0 !important; }
-
-  /* логотип компактнее */
-  #topbar .logo, #topbar .brand { flex: 0 1 auto; min-width: 0; }
-  #topbar .brand img, #topbar .logo img {
-    max-height: 28px;             /* фикс по высоте, чтобы шапка не росла */
-    width: auto;                   /* пропорции сохраняем */
-    display: block;
-  }
-
-  /* навигация — в одну строку, без переноса */
-  #topbar nav { flex: 1 1 auto; min-width: 0; }
-  #topbar nav ul {
-    display: flex;
-    flex-wrap: nowrap;             /* запрещаем перенос, чтобы не росла высота */
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  /* ссылки компактнее */
-  #topbar nav a {
-    display: block;
-    padding: 6px 8px;              /* меньше внутренние отступы */
-    line-height: 1;                /* плотнее вертикально */
-    white-space: nowrap;           /* не переносить пункт на 2 строки */
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;       /* если совсем узко — троеточие */
-  }
-}
-
-
-/* === SMART VISION footer === */
-.sv-footer{
-  padding:5px 5px;
-  border-top:1px solid #afafaf;
-  background:#ffffff;
-  color:#1b3b64;
-}
-.sv-footer__row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-}
-.sv-brand{ opacity:.95; }
-.sv-sep{ opacity:.4; margin:0 6px; }
-.sv-env{ opacity:.75; }
-.sv-footer__right{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-}
-
-/* === TOKENS (минимум) === */
-:root{
-  --sv-radius: 12px;
-  --sv-card-shadow: 0 1px 4px rgba(0,0,0,.05);
-  --sv-purple: #8d82ff;
-  --sv-purple-10: rgba(120,100,255,.10);
-  --sv-purple-22: rgba(120,100,255,.22);
-  --sv-text-strong: #0b1220;
-}
-
-/* === COMPONENTS === */
-/* 1) Card — универсальная «карточка» как на about */
-.card{
-  background:#fff;
-  border-radius:var(--sv-radius);
-  box-shadow:var(--sv-card-shadow);
-  padding:24px;
-}
-.card + .card{ margin-top:16px; }      /* базовый вертикальный ритм карточек */
-
-/* 2) Сиреневая кнопка (белая по дефолту) */
-.btn-purple{
-  display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  padding:12px 14px;
-  border-radius:10px;
-  border:1px solid var(--sv-purple);
-  background:#fff;                     /* по умолчанию белая */
-  color:var(--sv-text-strong);
-  font-weight:700; cursor:pointer;
-  transition:background .2s, box-shadow .2s, border-color .2s, transform .06s;
-  margin:0;
-}
-.btn-purple + .btn-purple{ margin-top:8px; }           /* вертикальный зазор кнопок */
-.btn-purple:hover{ background:var(--sv-purple-10); }
-.btn-purple:active,
-.btn-purple[aria-pressed="true"],
-.btn-purple.is-active{
-  background:var(--sv-purple-22);
-  border-color:var(--sv-purple);
-  box-shadow:0 0 0 2px rgba(120,100,255,.18);
-}
-.btn-purple:focus-visible{
-  outline:none;
-  background:var(--sv-purple-10);
-  border-color:var(--sv-purple);
-  box-shadow:0 0 0 3px rgba(120,100,255,.25);
-}
-.btn-purple:disabled{ opacity:.55; cursor:not-allowed; box-shadow:none; }
-
-/* === LAYOUT UTILS (минимум) === */
-/* Вертикальная колонка с контролируемым шагом */
-.stack-16 > * + *{ margin-top:16px; }
-/* Горизонтальный ряд кнопок/контролов с gap (по желанию) */
-.btn-row{ display:flex; gap:8px; flex-wrap:wrap; }
-
-/* яркая кнопка в топбаре, когда пользователь залогинен */
-.login-link.login-link--active {
-  background: #8b909b;
-  color: #ffffff;
-  padding: 6px 14px;
-  border-radius: 5px;
+.menu a.is-active {
+  background: var(--main-bg);
   font-weight: 600;
+}
+
+/* ==========================
+   MOBILE MENU
+========================== */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  z-index: 12;
+}
+
+body.menu-open #overlay {
+  display: block;
+}
+
+@media (max-width: 899px) {
+
+  #page {
+    display: block;
+  }
+
+  /* Sidebar becomes sliding menu */
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform .25s ease-out;
+    width: 80vw;
+    max-width: 380px;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+    z-index: 20;
+  }
+
+  body.menu-open #sidebar {
+    transform: translateX(0);
+  }
+
+  #topbar .logo img {
+    height: 28px;
+  }
+
+  #main {
+    padding: 12px;
+  }
+
+  /* Hide toggle on desktop, visible here */
+  .menu-toggle {
+    visibility: visible;
+  }
+}
+
+/* ==========================
+   CARD STYLE
+========================== */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 22px;
 }
 .card-title {
-  font-size: 1.4rem;
+  margin-bottom: 14px;
+  font-size: 1.5rem;
   font-weight: 600;
-  margin-bottom: 12px;
 }
