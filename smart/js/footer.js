@@ -1,15 +1,9 @@
-// ======================================================================
-// FOOTER DEBUG PANEL (SmartID Edition)
-// Совместим с новой архитектурой, полностью чистый
-// ======================================================================
-
 export function renderFooter(session) {
   const footer = document.getElementById('footer');
   if (!footer) return;
 
   const year = new Date().getFullYear();
 
-  // ----- Создаём базовую структуру -----
   footer.innerHTML = `
     <div class="footer-inner">
 
@@ -27,21 +21,16 @@ export function renderFooter(session) {
   `;
 }
 
-// ======================================================================
-// РЕНДЕР DEBUG-ИНФОРМАЦИИ
-// ======================================================================
 function renderDebug(session) {
   return `
     ${row('Authenticated', session.authenticated ? 'yes' : 'no')}
     ${row('User ID', session.user_id || '—')}
     ${row('Email', session.email || '—')}
+    ${row('Name', session.name || '—')}
     ${row('Level', session.level || 1)}
   `;
 }
 
-// ======================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ======================================================================
 function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;')
