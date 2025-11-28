@@ -1,7 +1,6 @@
 // ===========================================================
 // TOPBAR + MENU (SmartID Edition)
-// Чистая версия: никакого SV_AUTH, событий, кэшей
-// Работает только на основе session, которую даёт SmartID
+// Чистая версия
 // ===========================================================
 
 // --------------------------- MENU DATA ---------------------
@@ -10,15 +9,11 @@ export const MENU = [
   { id: 'about',  title: 'О проекте', href: 'about/about.html', allow: [1, 2] },
   { id: 'priv',   title: 'Политика', href: 'privacy/privacy.html', allow: [1, 2] },
   { id: 'terms',  title: 'Условия', href: 'terms/terms.html', allow: [1, 2] },
-
   { id: 'login',  title: 'Вход/регистрация', href: 'login/login.html#login', allow: [1] },
-
   { id: 'ts',     title: 'Проверка сервера', href: 'testserver/testserver.html', allow: [2] },
   { id: 'rec',    title: 'Диктофон', href: 'voicerecorder/voicerecorder.html', allow: [2] },
   { id: 'vision', title: 'Путь по визии', href: 'vision/index.html', allow: [2] },
-
   { id: 'app',    title: 'Мобильное приложение', href: 'app/app.html', allow: [1, 2] },
-
   { id: 'logout', title: 'Выйти', href: '#logout', action: 'logout', allow: [2] }
 ];
 
@@ -44,24 +39,22 @@ export function renderTopbar(session) {
     </div>
   `;
 
-  topbar.querySelector('.menu-toggle')?.addEventListener('click', toggleMenu);
-
   syncAuthLink(session);
 }
 
-// ===============================
-// ГЛОБАЛЬНОЕ УПРАВЛЕНИЕ МЕНЮ ДЛЯ ВСЕГО САЙТА
-// ===============================
+// ===========================================================
+// ГЛОБАЛЬНОЕ УПРАВЛЕНИЕ МЕНЮ
+// ===========================================================
 export function initMenuControls() {
   const body = document.body;
-  const menuBtn = document.querySelector('.menu-toggle');
   const overlay = document.getElementById('overlay');
   const sidebar = document.getElementById('sidebar');
+  const menuBtn = document.querySelector('.menu-toggle');
 
-  if (!menuBtn || !overlay || !sidebar) return;
+  if (!sidebar || !overlay) return;
 
   // открытие меню
-  menuBtn.addEventListener('click', () => {
+  menuBtn?.addEventListener('click', () => {
     body.classList.add('menu-open');
   });
 
@@ -77,14 +70,12 @@ export function initMenuControls() {
     }
   });
 
-  // закрытие по ESC
+  // ESC
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      body.classList.remove('menu-open');
-    }
+    if (e.key === 'Escape') body.classList.remove('menu-open');
   });
 
-  // закрытие при ресайзе (для перехода мобайл↔десктоп)
+  // ресайз
   window.addEventListener('resize', () => {
     if (window.innerWidth >= 900) {
       body.classList.remove('menu-open');
@@ -92,9 +83,8 @@ export function initMenuControls() {
   });
 }
 
-
 // ===========================================================
-// AUTH LINK (войти/выйти)
+// AUTH LINK
 // ===========================================================
 function syncAuthLink(session) {
   const a = document.getElementById('auth-link');
@@ -110,7 +100,6 @@ function syncAuthLink(session) {
   } else {
     a.textContent = 'Войти';
     a.href = 'login/login.html#login';
-    a.removeAttribute('data-action');
   }
 }
 
@@ -127,17 +116,12 @@ export function renderMenu(level) {
     <nav class="menu" data-svid-menu>
       <ul>
         ${items.map(i => `
-          <li>
-            <a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>
-              ${i.title}
-            </a>
-          </li>
+          <li><a href="${i.href}" data-id="${i.id}" ${i.action ? `data-action="${i.action}"` : ''}>${i.title}</a></li>
         `).join('')}
       </ul>
     </nav>
   `;
 
-  // logout handler
   host.querySelectorAll('[data-action="logout"]').forEach(a => {
     a.onclick = async (e) => {
       e.preventDefault();
@@ -149,7 +133,7 @@ export function renderMenu(level) {
 }
 
 // ===========================================================
-// LOGOUT (SmartID)
+// LOGOUT
 // ===========================================================
 async function logout() {
   try {
@@ -160,13 +144,11 @@ async function logout() {
   } catch (e) {
     console.warn('Logout error:', e);
   }
-
-  // После logout страница перезагружается
   location.href = 'index.html';
 }
 
 // ===========================================================
-// MENU HIGHLIGHT
+// HIGHLIGHT ACTIVE MENU
 // ===========================================================
 export function highlightActive() {
   let currentPath = location.pathname.toLowerCase();
@@ -175,24 +157,12 @@ export function highlightActive() {
   document.querySelectorAll('[data-svid-menu] a[href]').forEach(a => {
     const href = a.getAttribute('href') || '';
     let hrefPath;
-
     try {
       hrefPath = new URL(href, window.location.origin).pathname.toLowerCase();
     } catch {
       hrefPath = href.toLowerCase();
     }
-
     if (hrefPath === '/') hrefPath = '/index.html';
-
     a.classList.toggle('is-active', hrefPath === currentPath);
   });
-}
-
-// ===========================================================
-// MENU CONTROLS
-// ===========================================================
-function toggleMenu() {
-  document.body.classList.toggle('menu-open');
-  const overlay = document.getElementById('overlay');
-  if (overlay) overlay.hidden = !document.body.classList.contains('menu-open');
 }
