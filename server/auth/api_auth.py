@@ -433,59 +433,89 @@ async def change_password(request: Request, req: ChangePasswordRequest):
 
 import secrets
 import string
+from pydantic import BaseModel
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+
 
 @router.post("/reset-dev")
 async def reset_password_dev(req: ResetPasswordRequest):
     """
     DEV-режим: сброс пароля без email.
-    - Генерирует новый пароль.
-    - Находит пользователя по email.
-    - Меняет пароль.
-    - Возвращает новый пароль.
-    ⚠️ НЕ ИСПОЛЬЗОВАТЬ В ПРОДАКШЕНЕ!
+    Этот маршрут:
+    - Находит пользователя по email через Supabase Admin API
+    - Генерирует новый пароль
+    - Устанавливает новый пароль пользователю
+    - Возвращает новый пароль напрямую
+
+    ⚠️ Только для разработки! НЕ оставлять в продакшене.
     """
+
     _require_supabase()
 
-    # 1) Генерируем новый пароль
+    # 1) Сгенерировать новый пароль
     alphabet = string.ascii_letters + string.digits
     new_pass = ''.join(secrets.choice(alphabet) for _ in range(12))
 
-    # 2) Логинимся чтобы получить access token (через старый пароль)
-    # Но может быть неизвестен старый пароль → пробуем через admin API
-
-    # 2.1 Попытка получить пользователя через admin API (SERVICE KEY)
+    # 2) Найти пользователя через Supabase Admin API
     admin_headers = {
         "apikey": SUPABASE_SERVICE_KEY,
         "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json",
     }
 
-    user_lookup_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+    lookup_url = f"{SUPABASE_URL}/auth/v1/admin/users"
     params = {"email": req.email}
 
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        r = await client.get(user_lookup_url, headers=admin_headers, params=params)
+        lookup_r = await client.get(lookup_url, headers=admin_headers, params=params)
 
-    if r.status_code != 200:
-        raise HTTPException(status_code=404, detail="User not found")
+    if lookup_r.status_code not in (200, 204):
+        raise HTTPException(status_code=lookup_r.status_code, detail="Admin API lookup failed")
 
-    users = r.json()
-    if not users:
-        raise HTTPException(status_code=404, detail="User not found")
+    data = lookup_r.json()
 
-    user_id = users[0]["id"]
+    # 3) Разбор всех возможных форматов ответа Supabase
+    # ФОРМАТ 1:
+    #   {"users": [ {...}, {...} ]}
+    if isinstance(data, dict) and "users" in data:
+        users_list = data["users"]
 
-    # 3) Меняем пароль через admin API
-    change_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
+    # ФОРМАТ 2:
+    #   [ {...}, {...} ]
+    elif isinstance(data, list):
+        users_list = data
 
+    # ФОРМАТ 3:
+    #   {"id": "...", "email": "..."} — один объект
+    elif isinstance(data, dict) and "id" in data:
+        users_list = [data]
+
+    else:
+        raise HTTPException(status_code=404, detail="User not found (bad structure)")
+
+    if not users_list or not isinstance(users_list, list):
+        raise HTTPException(status_code=404, detail="User not found (empty list)")
+
+    user_id = users_list[0].get("id")
+    if not user_id:
+        raise HTTPException(status_code=404, detail="User ID missing in admin response")
+
+    # 4) Меняем пароль через Admin API
+    update_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
     update_payload = {"password": new_pass}
 
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
-        r2 = await client.put(change_url, headers=admin_headers, json=update_payload)
+        update_r = await client.put(update_url, headers=admin_headers, json=update_payload)
 
-    if r2.status_code not in (200, 201):
-        raise HTTPException(status_code=400, detail="Password update failed")
+    if update_r.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=update_r.status_code,
+            detail=f"Password update failed: {update_r.text}"
+        )
 
+    # 5) Вернуть новый пароль вызывающей стороне
     return {
         "ok": True,
         "email": req.email,
