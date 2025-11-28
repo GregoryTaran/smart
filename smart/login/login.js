@@ -108,25 +108,27 @@
   });
 
 
-  // ------------------------------------------------------
-  // 3. RESET PASSWORD
-  // ------------------------------------------------------
-  formReset.addEventListener('submit', async e => {
-    e.preventDefault();
+// ------------------------------------------------------
+// 3. RESET PASSWORD (DEV MODE)
+// ------------------------------------------------------
+formReset.addEventListener('submit', async e => {
+  e.preventDefault();
 
-    const email = $('#reset-email').value.trim();
-    if (!email) return showStatus('Введите email', 'error');
+  const email = $('#reset-email').value.trim();
+  if (!email) return showStatus('Введите email', 'error');
 
-    try {
-      const out = await api('/api/auth/reset', { email });
+  try {
+    // DEV RESET — генерирует новый пароль и возвращает его
+    const out = await api('/api/auth/reset-dev', { email });
 
-      showStatus('Пароль сброшен', 'success');
-      resetResult.textContent = 'Новый пароль: ' + (out.new_password || 'сгенерирован');
+    showStatus('Пароль сброшен (DEV)', 'success');
+    resetResult.textContent = 'Новый пароль: ' + out.new_password;
 
-    } catch (err) {
-      showStatus(err.message, 'error');
-    }
-  });
+  } catch (err) {
+    showStatus(err.message, 'error');
+  }
+});
+
 
 
   // ------------------------------------------------------

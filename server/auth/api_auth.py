@@ -429,3 +429,65 @@ async def change_password(request: Request, req: ChangePasswordRequest):
         raise HTTPException(status_code=r_change.status_code, detail=msg)
 
     return {"ok": True}
+
+
+import secrets
+import string
+
+@router.post("/reset-dev")
+async def reset_password_dev(req: ResetPasswordRequest):
+    """
+    DEV-режим: сброс пароля без email.
+    - Генерирует новый пароль.
+    - Находит пользователя по email.
+    - Меняет пароль.
+    - Возвращает новый пароль.
+    ⚠️ НЕ ИСПОЛЬЗОВАТЬ В ПРОДАКШЕНЕ!
+    """
+    _require_supabase()
+
+    # 1) Генерируем новый пароль
+    alphabet = string.ascii_letters + string.digits
+    new_pass = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+    # 2) Логинимся чтобы получить access token (через старый пароль)
+    # Но может быть неизвестен старый пароль → пробуем через admin API
+
+    # 2.1 Попытка получить пользователя через admin API (SERVICE KEY)
+    admin_headers = {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    user_lookup_url = f"{SUPABASE_URL}/auth/v1/admin/users"
+    params = {"email": req.email}
+
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        r = await client.get(user_lookup_url, headers=admin_headers, params=params)
+
+    if r.status_code != 200:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    users = r.json()
+    if not users:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_id = users[0]["id"]
+
+    # 3) Меняем пароль через admin API
+    change_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
+
+    update_payload = {"password": new_pass}
+
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        r2 = await client.put(change_url, headers=admin_headers, json=update_payload)
+
+    if r2.status_code not in (200, 201):
+        raise HTTPException(status_code=400, detail="Password update failed")
+
+    return {
+        "ok": True,
+        "email": req.email,
+        "new_password": new_pass,
+    }
