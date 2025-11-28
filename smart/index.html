@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SMART VISION</title>
 
-  <!-- ЕДИНАЯ И СТАБИЛЬНАЯ СХЕМА: ВСЁ В /smart/, сервер монтирует в "/" -->
+  <!-- Фронт монтируется в /, поэтому все пути корневые -->
   <base href="/" />
 
   <!-- CSS -->
@@ -15,38 +15,45 @@
 <body>
   <div id="page">
 
-    <!-- SIDEBAR (пустой — JS сам заполнит) -->
-    <aside id="sidebar" data-svid-menu></aside>
+    <!-- ЛЕВАЯ КОЛОНКА: САЙДБАР -->
+    <aside id="sidebar" aria-label="Основное меню"></aside>
+
+    <!-- ПРАВАЯ КОЛОНКА: ШАПКА + КОНТЕНТ + ФУТЕР -->
+    <div id="app">
+      <!-- TOPBAR рендерится из topbar.module.js -->
+      <header id="topbar" role="banner"></header>
+
+      <!-- MAIN: ЦЕНТРАЛЬНАЯ КАРТОЧКА -->
+      <main id="main" role="main">
+        <section class="card">
+          <h1 class="card-title">SMART VISION</h1>
+          <p>
+            Любая мысль может стать визией.<br>
+            Любая визия может стать дорогой.<br>
+            А дорога — источником внутреннего света.
+          </p>
+          <p><b>Грег Таран • 2025</b></p>
+        </section>
+      </main>
+
+      <!-- ФУТЕР -->
+      <footer id="footer" role="contentinfo"></footer>
+    </div>
+
+    <!-- ОВЕРЛЕЙ ДЛЯ МОБИЛЬНОГО МЕНЮ -->
     <div id="overlay"></div>
-
-    <!-- TOPBAR -->
-    <header id="topbar"></header>
-
-    <!-- MAIN -->
-    <main id="main">
-      <section class="card">
-        <h1 class="card-title">SMART VISION</h1>
-        <p>
-          Любая мысль может стать визией.<br>
-          Любая визия может стать дорогой.<br>
-          А дорога — источником внутреннего света.
-        </p>
-        <p><b>Грег Таран • 2025</b></p>
-      </section>
-    </main>
-
-    <!-- FOOTER -->
-    <footer id="footer"></footer>
-
   </div>
 
-  <!-- APP LOGIC -->
+  <!-- JS -->
 
-  <!-- 1) SmartID — грузит session ОДИН РАЗ и передает всё в UI -->
+  <!-- SmartID: ОДИН РАЗ грузит сессию, РЕНДЕРИТ topbar+menu+footer -->
   <script type="module" src="/js/smartid.init.js"></script>
 
-  <!-- 2) topbar + menu + footer подключаются ЧЕРЕЗ SmartID.init.js -->
-  <!-- НЕ НАДО повторно подключать topbar.module.js/footer.js здесь, SmartID уже делает import() -->
+  <!-- ВАЖНО: здесь БОЛЬШЕ НИЧЕГО не импортируем.
+       smartid.init.js сам делает:
+         import('/js/topbar.module.js') → renderTopbar + renderMenu
+         import('/js/footer.js')       → renderFooter
+  -->
 
 </body>
 </html>
