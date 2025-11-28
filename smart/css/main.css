@@ -55,24 +55,53 @@ img, video { max-width: 100%; display: block; }
 /* ==========================
    TOPBAR
 ========================== */
+/* ===== TOPBAR ===== */
 #topbar {
   background: #fff;
-  height: var(--topbar-h);
   padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
-.menu-toggle {
+
+/* ВЕСЬ ЛЕЯУТ ШАПКИ ДЕЛАЕТСЯ ЗДЕСЬ, А НЕ НА #topbar */
+.topbar-inner {
+  height: var(--topbar-h);
+  display: grid;
+  align-items: center;
+  grid-template-columns: 48px 1fr auto; /* [бургер] [лого] [Войти] */
+  gap: 8px;
+}
+
+/* Кнопка меню */
+.topbar-inner .menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 40px;
   height: 40px;
   border: 1px solid #ddd;
   border-radius: 8px;
   background: #fff;
 }
-.logo img {
-  height: 32px;
+
+/* Логотип */
+.topbar-inner .logo {
+  justify-self: center;
+}
+.topbar-inner .logo img {
+  max-height: 32px;
   width: auto;
+}
+
+/* Ссылка Войти / Выйти */
+.topbar-inner .login-link {
+  justify-self: end;
+  align-self: center;
+}
+
+/* На десктопе бургер можно визуально прятать, чтобы не мешал */
+@media (min-width: 900px) {
+  .topbar-inner .menu-toggle {
+    visibility: hidden;
+  }
 }
 
 /* ==========================
