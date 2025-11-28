@@ -74,7 +74,7 @@ img, video { max-width: 100%; display: block; }
   justify-self: center;
 }
 .topbar-inner .logo img {
-  max-height: 32px;
+  max-height: 28px;
   height: auto;
   width: auto;
   object-fit: contain;
@@ -138,7 +138,7 @@ img, video { max-width: 100%; display: block; }
 ========================== */
 #main {
   background: var(--main-bg);
-  padding: 20px;
+  padding: 5px;
   flex: auto; /* НЕ растягиваем main на всю высоту → футер ближе */
 }
 
