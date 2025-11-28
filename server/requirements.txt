@@ -1,23 +1,39 @@
+# ==========================
+# CORE
+# ==========================
 fastapi==0.120.4
 uvicorn[standard]==0.38.0
-aiofiles==25.1.0
 python-multipart>=0.0.9
+aiofiles==25.1.0
 
-# audio & processing
+# ==========================
+# DATABASE (new Smart Auth backend)
+# ==========================
+asyncpg>=0.29.0
+bcrypt==4.1.2
+python-dotenv>=1.0.1
+
+# ==========================
+# NETWORKING
+# ==========================
+httpx>=0.27.0
+
+# ==========================
+# VALIDATION
+# ==========================
+email-validator==2.2.0
+
+# ==========================
+# AUDIO (your recorder)
+# ==========================
 numpy>=1.25
 pydub>=0.25.1
 
-# OpenAI client
+# ==========================
+# OPENAI CLIENT
+# ==========================
 openai>=1.0.0
-email-validator==2.2.0
 
-# Supabase / infra
-httpx>=0.27.0          # мы шлём запросы в Supabase REST API
-python-dotenv>=1.0.1   # .env конфиги
-supabase>=2.6.0
-
-# (опционально, если решим напрямую в Postgres)
-# asyncpg>=0.29.0
-
-# (опционально, для чистого парсинга user-agent)
+# ==========================
+# OPTIONAL (if needed later)
 # device-detector==5.0.1
