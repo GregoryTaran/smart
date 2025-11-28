@@ -15,7 +15,7 @@ router = APIRouter()
 # ---------------------------------------------------------
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or ""
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
 
 HTTP_TIMEOUT = 10.0
 
