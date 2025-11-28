@@ -145,7 +145,7 @@ async def login(req: LoginRequest):
         httponly=True,
         samesite="lax",
         max_age=60 * 60 * 24 * SESSION_LIFETIME_DAYS,
-        secure=False  # на сервере можешь поставить True
+        secure=True  # на сервере можешь поставить True
     )
     return resp
 
