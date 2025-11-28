@@ -1,110 +1,56 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<base href="../" />
-<title>Условия использования</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Условия использования</title>
 
-<link rel="icon" href="assets/logo400.jpg" />
-<link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="css/main.css" />
-<link rel="stylesheet" href="terms/terms.css" />
+  <base href="/" />
 
-
- <script>
-  (function(){
-    const AUTH_CACHE_KEY='sv.auth.cache.v1';
-    window.SV_AUTH={isAuthenticated:false,userId:null,email:null,displayName:null,level:1,levelCode:'guest',loaded:false,_resolve:null,ready:null};
-    window.SV_AUTH.ready=new Promise(resolve=>window.SV_AUTH._resolve=resolve);
-
-    async function bootstrap(){
-      try{
-        const cached=localStorage.getItem(AUTH_CACHE_KEY);
-        if(cached) Object.assign(SV_AUTH, JSON.parse(cached));
-
-        const resp=await fetch("/api/auth/me", {method:"GET",credentials:"include"});
-        const data=await resp.json();
-
-        if(data.loggedIn){
-          const u=data.user_merged||{};
-          SV_AUTH.isAuthenticated=true;
-          SV_AUTH.userId=u.id||null;
-          SV_AUTH.email=u.email||null;
-          SV_AUTH.displayName=u.name||null;
-          SV_AUTH.level=data.level||2;
-          SV_AUTH.levelCode=data.level_code||"user";
-        } else {
-          SV_AUTH.isAuthenticated=false;
-          SV_AUTH.userId=null;
-          SV_AUTH.level=1;
-          SV_AUTH.levelCode='guest';
-        }
-
-        localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(SV_AUTH));
-      } catch(e){ console.warn(e); }
-
-      SV_AUTH.loaded=true;
-      SV_AUTH._resolve(SV_AUTH);
-    }
-    bootstrap();
-  })();
-  </script>
-
-  <!-- Инициализация топбара/меню как и раньше -->
-  <script type="module">
-    import { initPage } from './js/topbar.module.js';
-    initPage({
-      fragments: [['menu.html', '#sidebar']],
-      cacheBust: false,
-      topbar: { state: { logoHref: 'index.html', logoSrc: 'assets/logo400.jpg' } }
-    });
-  </script>
-
-
+  <link rel="stylesheet" href="/css/main.css" />
 </head>
+
 <body>
-<div id="page">
-  <aside id="sidebar" aria-label="Основное меню"></aside>
-  <div id="app">
-    <header id="topbar" role="banner"></header>
-    <main id="main" role="main">
-      <section class="doc">
-        <h1>Условия использования</h1>
-        <p>Настоящие условия определяют порядок использования сайта SMART VISION и его материалов. Используя сайт, пользователь подтверждает согласие с этими условиями.</p>
+  <div id="page">
+    <aside id="sidebar" aria-label="Основное меню"></aside>
 
-        <h2>1. Общие положения</h2>
-        <p>Сайт SMART VISION предоставляет доступ к информации, микросервисам и другим ресурсам. Все материалы размещаются «как есть», без гарантий их точности или постоянной доступности.</p>
+    <div id="app">
+      <header id="topbar"></header>
 
-        <h2>2. Права и обязанности пользователей</h2>
-        <ul>
-          <li>Не нарушать работоспособность сайта и не предпринимать действий, ведущих к сбоям или утечке данных.</li>
-          <li>Материалы — только в личных, некоммерческих целях.</li>
-        </ul>
+      <main id="main">
+        <section class="card doc">
+          <h1>Условия использования</h1>
+          <p>Настоящие условия определяют порядок использования сайта SMART VISION...</p>
 
-        <h2>3. Ограничение ответственности</h2>
-        <p>Администрация не несёт ответственности за убытки, возникшие в результате использования или невозможности использования сайта.</p>
+          <h2>1. Общие положения</h2>
+          <p>Сайт SMART VISION предоставляет доступ...</p>
 
-        <h2>4. Внешние ссылки</h2>
-        <p>Сайт может содержать ссылки на сторонние ресурсы, за содержание которых администрация не отвечает.</p>
+          <h2>2. Права и обязанности пользователей</h2>
+          <ul>
+            <li>Не нарушать работоспособность сайта...</li>
+            <li>Материалы — только в личных целях.</li>
+          </ul>
 
-        <h2>5. Изменения условий</h2>
-        <p>Администрация может изменять условия. Новая версия вступает в силу с момента публикации на странице <code>terms.html</code>.</p>
+          <h2>3. Ограничение ответственности</h2>
+          <p>Администрация не несёт ответственности...</p>
 
-        <h2>6. Контакты</h2>
-        <p>По вопросам использования сайта: <a href="mailto:info@smartvision.life">info@smartvision.life</a>.</p>
-      </section>
-    </main>
-    <footer id="footer" role="contentinfo"></footer>
+          <h2>4. Внешние ссылки</h2>
+          <p>Сторонние сайты не контролируются...</p>
+
+          <h2>5. Изменения условий</h2>
+          <p>Администрация может изменять условия...</p>
+
+          <h2>6. Контакты</h2>
+          <p>По вопросам: info@smartvision.life</p>
+        </section>
+      </main>
+
+      <footer id="footer"></footer>
+    </div>
   </div>
-</div>
 
-<div id="overlay" hidden></div>
+  <div id="overlay"></div>
 
-<!-- общие скрипты -->
-<script defer src="js/footer.js?v=2"></script>
-<script defer src="terms/terms.js"></script>
-
-
+  <script type="module" src="/js/smartid.init.js"></script>
 </body>
 </html>
