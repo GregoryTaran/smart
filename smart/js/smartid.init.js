@@ -1,67 +1,41 @@
-// ===========================================================
-// SMARTID INIT — единая точка истины во всей системе
-// ===========================================================
+// smartid.init.js — новая версия, совместимая с твоим backend
 
-window.SmartID = {
-  session: null,
-  ready: null
-};
-
-// -----------------------------------------------------------
-// SmartID.ready — промис, который выполняется один раз
-// -----------------------------------------------------------
-window.SmartID.ready = new Promise(async (resolve) => {
-
-  let data;
-  try {
-    const res = await fetch('/api/auth/session', {
-      method: 'GET',
-      credentials: 'include'
-    });
-
-    data = res.ok ? await res.json() : {};
-  } catch (e) {
-    data = {};
-  }
-
-  // ---------------------------------------------------------
-  // Приводим ответ к единому формату (стабильность важна)
-  // ---------------------------------------------------------
-  window.SmartID.session = {
-    authenticated: !!data.is_authenticated || !!data.authenticated,
-    user_id: data.user_id || null,
-    email: data.email || null,
-    level: data.level || (data.is_authenticated ? 2 : 1)
+(async () => {
+  let session = {
+    authenticated: false,
+    level: 1,
+    email: null,
+    user_id: null
   };
 
-  resolve(window.SmartID.session);
-});
-
-// -----------------------------------------------------------
-// ПОСЛЕ ГОТОВНОСТИ DOM → рендер меню + топбара + футера
-// -----------------------------------------------------------
-document.addEventListener("DOMContentLoaded", async () => {
-  const session = await window.SmartID.ready;
-
-  // ------------------- Грузим меню HTML -------------------
   try {
-    const menuHtml = await fetch('menu.html', { cache: 'no-cache' }).then(r => r.text());
-    const sidebar = document.querySelector('#sidebar');
-    if (sidebar) sidebar.innerHTML = menuHtml;
+    const r = await fetch('/api/auth/me', {
+      credentials: 'include'
+    });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.loggedIn) {
+        session.authenticated = true;
+        session.level = data.level;
+        session.user_id = data.user_merged?.id || null;
+        session.email = data.user_merged?.email || null;
+      }
+    }
   } catch (e) {
-    console.warn("Не удалось загрузить меню:", e);
+    console.warn('SmartID init error:', e);
   }
 
-  // ------------------- ИНИЦИАЛИЗАЦИЯ МОДУЛЕЙ -------------------
-  if (typeof window.renderTopbar === 'function') {
-    window.renderTopbar(session);
-  }
+  // Глобально сохраняем сессию
+  window.SMART_SESSION = session;
 
-  if (typeof window.renderMenu === 'function') {
-    window.renderMenu(session.level);
-  }
+  // Рендерим интерфейс
+  import('/smart/js/topbar.module.js').then(m => {
+    m.renderTopbar(session);
+    m.renderMenu(session.level);
+  });
 
-  if (typeof window.renderFooter === 'function') {
-    window.renderFooter(session);
-  }
-});
+  import('/smart/js/footer.js').then(m => {
+    m.renderFooter(session);
+  });
+
+})();
