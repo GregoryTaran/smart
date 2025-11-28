@@ -1,205 +1,124 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <base href="../"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>SMART VISION — Вход</title>
+  <title>SMART VISION — Вход</title>
 
-    <link rel="icon" href="assets/logo400.jpg"/>
-    <link rel="stylesheet" href="css/main.css"/>
-    <link rel="stylesheet" href="login/login.css"/>
+  <base href="/" />
 
-    <!-- ===================== AUTH BOOTSTRAP (НОВЫЙ) ===================== -->
-<script>
-(function () {
-  const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
-
-  window.SV_AUTH = {
-    isAuthenticated: false,
-    userId: null,
-    email: null,
-    displayName: null,
-    level: 1,
-    levelCode: 'guest',
-    loaded: false,
-    _resolve: null,
-    ready: null,
-  };
-
-  window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
-
-  async function bootstrap() {
-    try {
-      // 1) читаем кэш
-      const cached = localStorage.getItem(AUTH_CACHE_KEY);
-      if (cached) {
-        Object.assign(window.SV_AUTH, JSON.parse(cached));
-      }
-
-      // 2) спрашиваем сервер
-      const resp = await fetch("/api/auth/me", {
-        method: "GET",
-        credentials: "include"
-      });
-
-      const data = await resp.json();
-
-      if (data.loggedIn) {
-        const u = data.user_merged || {};
-        window.SV_AUTH.isAuthenticated = true;
-        window.SV_AUTH.userId = u.id || null;
-        window.SV_AUTH.email = u.email || null;
-        window.SV_AUTH.displayName = u.name || null;
-        window.SV_AUTH.level = data.level || 2;
-        window.SV_AUTH.levelCode = data.level_code || "user";
-      } else {
-        window.SV_AUTH.isAuthenticated = false;
-        window.SV_AUTH.userId = null;
-        window.SV_AUTH.email = null;
-        window.SV_AUTH.displayName = null;
-        window.SV_AUTH.level = 1;
-        window.SV_AUTH.levelCode = "guest";
-      }
-
-      // обновляем кэш
-      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
-
-    } catch (err) {
-      console.warn("AUTH bootstrap error:", err);
-    }
-
-    window.SV_AUTH.loaded = true;
-    window.SV_AUTH._resolve(window.SV_AUTH);
-  }
-
-  bootstrap();
-})();
-</script>
-
-    <!-- =============================================================== -->
-
-    <!-- Topbar -->
-    <script type="module">
-        import { initPage } from './js/topbar.module.js';
-        initPage({
-          fragments: [['menu.html', '#sidebar']],
-          topbar: {
-            state: {
-              logoHref: 'index.html',
-              logoSrc: 'assets/logo400.jpg'
-            }
-          }
-        });
-    </script>
+  <link rel="icon" href="/assets/logo400.jpg" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/login/login.css" />
 </head>
 
 <body>
-<div id="page">
-  <aside id="sidebar"></aside>
-  <div id="app">
-    <header id="topbar"></header>
+  <div id="page">
+    <aside id="sidebar"></aside>
 
-    <main id="main">
-      <section class="login">
-        <div class="login__box sv-center-700">
+    <div id="app">
+      <header id="topbar"></header>
 
-          <h1 class="login__title">ВХОД | РЕГИСТРАЦИЯ</h1>
+      <main id="main">
+        
+        <section class="card login">
+          <div class="login__box sv-center-700">
 
-          <!-- Статус -->
-          <div id="login-status" class="login__status" role="status" aria-live="polite"></div>
+            <h1 class="login__title">ВХОД | РЕГИСТРАЦИЯ</h1>
 
-          <!-- ==================== РЕГИСТРАЦИЯ ==================== -->
-          <form id="form-register" class="login__form" novalidate>
-            <label class="login__label">
-              Имя
-              <input class="login__input" id="reg-name" type="text" autocomplete="name" required>
-            </label>
+            <!-- Статус -->
+            <div id="login-status" class="login__status" role="status" aria-live="polite"></div>
 
-            <label class="login__label">
-              Email
-              <input class="login__input" id="reg-email" type="email" autocomplete="email" required>
-            </label>
+            <!-- ==================== РЕГИСТРАЦИЯ ==================== -->
+            <form id="form-register" class="login__form" hidden novalidate>
+              <label class="login__label">
+                Имя
+                <input class="login__input" id="reg-name" type="text" autocomplete="name" required>
+              </label>
 
-            <label class="login__label">
-              Пароль
-              <input class="login__input" id="reg-pass" type="password" autocomplete="new-password" required>
-            </label>
+              <label class="login__label">
+                Email
+                <input class="login__input" id="reg-email" type="email" autocomplete="email" required>
+              </label>
 
-            <button class="login__btn" type="submit">ЗАРЕГИСТРИРОВАТЬСЯ</button>
+              <label class="login__label">
+                Пароль
+                <input class="login__input" id="reg-pass" type="password" autocomplete="new-password" required>
+              </label>
 
-            <p class="micro-hint">или</p>
+              <button class="login__btn" type="submit">ЗАРЕГИСТРИРОВАТЬСЯ</button>
 
-            <div class="login__links">
-              <button class="login__btn login__btn--ghost" type="button" data-action="to-login">
-                ВОЙТИ
-              </button>
-            </div>
-          </form>
+              <p class="micro-hint">или</p>
 
-          <!-- ==================== ВХОД ==================== -->
-          <form id="form-login" class="login__form" hidden novalidate>
+              <div class="login__links">
+                <button class="login__btn login__btn--ghost" type="button" data-action="to-login">
+                  ВОЙТИ
+                </button>
+              </div>
+            </form>
 
-            <label class="login__label">
-              Email
-              <input class="login__input" id="login-email" type="email" autocomplete="username" required>
-            </label>
+            <!-- ==================== ВХОД ==================== -->
+            <form id="form-login" class="login__form" novalidate>
 
-            <label class="login__label">
-              Пароль
-              <input class="login__input" id="login-pass" type="password" autocomplete="current-password" required>
-            </label>
+              <label class="login__label">
+                Email
+                <input class="login__input" id="login-email" type="email" autocomplete="username" required>
+              </label>
 
-            <button class="login__btn" type="submit">ВОЙТИ</button>
+              <label class="login__label">
+                Пароль
+                <input class="login__input" id="login-pass" type="password" autocomplete="current-password" required>
+              </label>
 
-            <p class="micro-hint">или</p>
+              <button class="login__btn" type="submit">ВОЙТИ</button>
 
-            <div class="login__links">
-              <button class="login__btn login__btn--ghost" data-action="to-register">
-                РЕГИСТРАЦИЯ
-              </button>
+              <p class="micro-hint">или</p>
 
-              <button class="login__btn login__btn--ghost" data-action="to-reset">
-                СБРОСИТЬ ПАРОЛЬ
-              </button>
-            </div>
-          </form>
+              <div class="login__links">
+                <button class="login__btn login__btn--ghost" data-action="to-register">
+                  РЕГИСТРАЦИЯ
+                </button>
 
-          <!-- ==================== СБРОС ПАРОЛЯ ==================== -->
-          <form id="form-reset" class="login__form" hidden novalidate>
+                <button class="login__btn login__btn--ghost" data-action="to-reset">
+                  СБРОСИТЬ ПАРОЛЬ
+                </button>
+              </div>
+            </form>
 
-            <p class="login__text">Получить новый пароль:</p>
+            <!-- ==================== СБРОС ПАРОЛЯ ==================== -->
+            <form id="form-reset" class="login__form" hidden novalidate>
 
-            <label class="login__label">
-              Email
-              <input class="login__input" id="reset-email" type="email" autocomplete="email" required>
-            </label>
+              <p class="login__text">Получить новый пароль:</p>
 
-            <button class="login__btn" type="submit">ПОЛУЧИТЬ ПАРОЛЬ</button>
+              <label class="login__label">
+                Email
+                <input class="login__input" id="reset-email" type="email" autocomplete="email" required>
+              </label>
 
-            <p class="micro-hint">Сгенерированный пароль появится ниже.</p>
+              <button class="login__btn" type="submit">ПОЛУЧИТЬ ПАРОЛЬ</button>
 
-            <div class="login__links">
-              <button class="login__btn login__btn--ghost" data-action="to-login">ВОЙТИ</button>
-              <button class="login__btn login__btn--ghost" data-action="to-register">РЕГИСТРАЦИЯ</button>
-            </div>
+              <p class="micro-hint">Сгенерированный пароль появится ниже.</p>
 
-            <div id="reset-result" class="login__status login__status--inline"></div>
-          </form>
+              <div class="login__links">
+                <button class="login__btn login__btn--ghost" data-action="to-login">ВОЙТИ</button>
+                <button class="login__btn login__btn--ghost" data-action="to-register">РЕГИСТРАЦИЯ</button>
+              </div>
 
-        </div>
-      </section>
-    </main>
+              <div id="reset-result" class="login__status login__status--inline"></div>
+            </form>
 
-    <footer id="footer"></footer>
+          </div>
+        </section>
+
+      </main>
+
+      <footer id="footer"></footer>
+    </div>
   </div>
-</div>
 
-<div id="overlay" hidden></div>
-
-<script defer src="js/footer.js?v=2"></script>
-<script defer src="login/login.js"></script>
+  <script type="module" src="/js/smartid.init.js"></script>
+  <script defer src="/login/login.js"></script>
 
 </body>
 </html>

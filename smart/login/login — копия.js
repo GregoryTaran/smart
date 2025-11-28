@@ -1,276 +1,186 @@
-// /smart/login/login.js
-// Аутентификатор страницы (register / login / reset) поверх backend API.
-// /api/auth/register, /api/auth/login, /api/auth/reset.
-// Валидация email: только наличие '@'.
+// smart/login/login.js — чистая авторизация под AUTH v3 (без SVID логина)
 
 (function () {
-  const q  = (sel) => document.querySelector(sel);
-  const qa = (sel) => Array.from(document.querySelectorAll(sel));
+  const q  = sel => document.querySelector(sel);
+  const qa = sel => Array.from(document.querySelectorAll(sel));
 
-  // Формы и элементы
-  const formRegister = q('#svid-form-register');
-  const formLogin    = q('#svid-form-login');
-  const formReset    = q('#svid-form-reset');
+  const formRegister = q('#form-register');
+  const formLogin    = q('#form-login');
+  const formReset    = q('#form-reset');
 
-  const statusBox    = q('#svid-status');
+  const statusBox    = q('#login-status');
   const resetResult  = q('#reset-result');
 
-  // Поля регистрации
   const regName  = q('#reg-name');
   const regEmail = q('#reg-email');
   const regPass  = q('#reg-pass');
 
-  // Поля входа
   const loginEmail = q('#login-email');
   const loginPass  = q('#login-pass');
 
-  // Поля сброса
   const resetEmail = q('#reset-email');
 
-  // Состояния: register | login | reset
   let state = 'login';
 
-  // --------- Утилиты ---------
-
-  function hasAtSymbol(email) {
-    return typeof email === 'string' && email.includes('@');
-  }
-
-  function showStatus(message, type = 'info') {
+  function showStatus(text, type='info') {
     if (!statusBox) return;
-    statusBox.textContent = message || '';
-    statusBox.dataset.type = type; // [data-type="error|success|info"]
+    statusBox.textContent = text || '';
+    statusBox.dataset.type = type;
   }
 
-  function showResetResult(message) {
-    if (!resetResult) return;
-    resetResult.textContent = message || '';
+  function clearForm(f) {
+    if (!f) return;
+    f.querySelectorAll('input').forEach(i => i.value = '');
   }
 
-  function setHidden(el, hidden) {
-    if (!el) return;
-    if (hidden) el.setAttribute('hidden', 'hidden');
-    else el.removeAttribute('hidden');
-  }
-
-  function disableButton(btn, v = true) {
-    if (btn) btn.disabled = v;
-  }
-
-  function findSubmitButton(form) {
-    if (!form) return null;
-    return form.querySelector('button[type="submit"]');
-  }
-
-  function clearForm(form) {
-    if (!form) return;
-    const fields = form.querySelectorAll('input, textarea, select');
-    fields.forEach((el) => {
-      switch (el.type) {
-        case 'checkbox':
-        case 'radio':
-          el.checked = false;
-          break;
-        default:
-          el.value = '';
-      }
-    });
-  }
-
-  // Универсальный редирект на index.html с учётом <base>
-  function redirectToIndex() {
-    try {
-      const url = new URL('index.html', document.baseURI).href;
-      location.replace(url);
-    } catch (e) {
-      location.replace('index.html');
-    }
-  }
-
-  // Управление состоянием (какой экран показывать)
-  function setState(next) {
+  function toggleForms(next) {
     state = next;
-    setHidden(formRegister, state !== 'register');
-    setHidden(formLogin,    state !== 'login');
-    setHidden(formReset,    state !== 'reset');
+
+    formRegister.hidden = next !== 'register';
+    formLogin.hidden    = next !== 'login';
+    formReset.hidden    = next !== 'reset';
 
     showStatus('');
-    showResetResult('');
-
-    const activeForm =
-      state === 'register' ? formRegister :
-      state === 'login'    ? formLogin :
-                             formReset;
-    activeForm?.querySelector('input, select, textarea')?.focus();
+    resetResult.textContent = '';
   }
 
-  // --------- Работа с backend /api/auth/... ---------
-
-  async function apiPost(path, payload) {
+  async function apiPost(path, body) {
     const res = await fetch(path, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', // важно для установки/отправки куки
-      body: JSON.stringify(payload || {}),
+      body: JSON.stringify(body)
     });
 
-    let data = null;
-    try {
-      data = await res.json();
-    } catch (_) {
-      data = null;
-    }
+    let data = {};
+    try { data = await res.json(); } catch {}
 
     if (!res.ok) {
-      const msg =
-        (data && (data.detail || data.error || data.message)) ||
-        `Ошибка запроса (${res.status})`;
-      throw new Error(msg);
+      throw new Error(data.detail || data.error || 'Ошибка ' + res.status);
     }
-    return data || {};
+
+    return data;
   }
 
-  // --------- Обработчики форм ---------
-
-  // Регистрация: /api/auth/register
-  formRegister?.addEventListener('submit', async (e) => {
+  // ============================================================
+  // РЕГИСТРАЦИЯ
+  // ============================================================
+  formRegister.addEventListener('submit', async e => {
     e.preventDefault();
-    showStatus('');
 
-    const name  = (regName?.value || '').trim();
-    const email = (regEmail?.value || '').trim();
-    const pass  = regPass?.value || '';
+    const name  = regName.value.trim();
+    const email = regEmail.value.trim();
+    const pass  = regPass.value.trim();
 
-    if (!name) {
-      showStatus('Введите имя.', 'error');
-      return;
-    }
-    if (!email || !hasAtSymbol(email)) {
-      showStatus('Email должен содержать "@".', 'error');
-      return;
-    }
-    if (!pass) {
-      showStatus('Введите пароль.', 'error');
-      return;
-    }
+    if (!name)  return showStatus('Введите имя', 'error');
+    if (!email) return showStatus('Введите email', 'error');
+    if (!pass)  return showStatus('Введите пароль', 'error');
 
-    const btn = findSubmitButton(formRegister);
-    disableButton(btn, true);
     try {
       await apiPost('/api/auth/register', {
-        name,
         email,
         password: pass,
+        data: { name }
       });
 
-      showStatus('Регистрация успешна. Добро пожаловать!', 'success');
+      showStatus('Регистрация успешна!', 'success');
 
-      // Чистим форму регистрации
+      loginEmail.value = email;
       clearForm(formRegister);
 
-      // ТВОЁ ПРАВИЛО:
-      // email переносим на форму входа, пароль не трогаем
-      if (email && loginEmail) {
-        loginEmail.value = email;
-      }
-
-      // Переключаемся на экран входа
-      setTimeout(() => setState('login'), 250);
+      setTimeout(() => toggleForms('login'), 300);
     } catch (err) {
-      showStatus(err?.message || 'Ошибка регистрации.', 'error');
-    } finally {
-      disableButton(btn, false);
+      showStatus(err.message, 'error');
     }
   });
 
-  // Вход: /api/auth/login
-  formLogin?.addEventListener('submit', async (e) => {
+  // ============================================================
+  // ВХОД
+  // ============================================================
+  formLogin.addEventListener('submit', async e => {
     e.preventDefault();
-    showStatus('');
 
-    const email = (loginEmail?.value || '').trim();
-    const pass  = loginPass?.value || '';
+    const email = loginEmail.value.trim();
+    const pass  = loginPass.value.trim();
 
-    if (!email || !hasAtSymbol(email)) {
-      showStatus('Email должен содержать "@".', 'error');
-      return;
-    }
-    if (!pass) {
-      showStatus('Введите пароль.', 'error');
-      return;
-    }
+    if (!email) return showStatus('Введите email', 'error');
+    if (!pass)  return showStatus('Введите пароль', 'error');
 
-    const btn = findSubmitButton(formLogin);
-    disableButton(btn, true);
     try {
+      // 1) логин на бекенде (ставит куки)
       await apiPost('/api/auth/login', { email, password: pass });
 
-      showStatus('Вход выполнен. Добро пожаловать!', 'success');
+      // 2) сразу обновляем AUTH через /me
+      const resp = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include"
+      });
+
+      const data = await resp.json();
+
+      if (!data.loggedIn) {
+        throw new Error("Не удалось получить данные авторизации");
+      }
+
+      const u = data.user_merged || {};
+
+      const session = {
+        isAuthenticated: true,
+        userId: u.id || null,
+        email: u.email || null,
+        displayName: u.name || null,
+        level: data.level,
+        levelCode: data.level_code,
+        loaded: true
+      };
+
+      // 3) сохраняем кэш состояния
+      localStorage.setItem('sv.auth.cache.v1', JSON.stringify(session));
+
+      showStatus('Вход выполнен!', 'success');
       clearForm(formLogin);
 
-      redirectToIndex();
+      // 4) переход на главную
+      location.replace('index.html');
+
     } catch (err) {
-      showStatus(err?.message || 'Ошибка входа. Проверьте данные.', 'error');
-    } finally {
-      disableButton(btn, false);
+      showStatus(err.message, 'error');
     }
   });
 
-  // Сброс пароля: /api/auth/reset
-  formReset?.addEventListener('submit', async (e) => {
+  // ============================================================
+  // СБРОС ПАРОЛЯ
+  // ============================================================
+  formReset.addEventListener('submit', async e => {
     e.preventDefault();
-    showStatus('');
-    showResetResult('');
 
-    const email = (resetEmail?.value || '').trim();
-    if (!email || !hasAtSymbol(email)) {
-      showStatus('Email для сброса должен содержать "@".', 'error');
-      return;
-    }
+    const email = resetEmail.value.trim();
+    if (!email) return showStatus('Введите email', 'error');
 
-    const btn = findSubmitButton(formReset);
-    disableButton(btn, true);
     try {
       const data = await apiPost('/api/auth/reset', { email });
-      const newPassword = data?.new_password;
 
-      showStatus('Пароль сгенерирован. Смотрите ниже 👇', 'success');
-      showResetResult(
-        newPassword
-          ? `Новый пароль: ${newPassword}`
-          : 'Пароль обновлён. Используйте новый пароль для входа.'
-      );
+      showStatus('Пароль сброшен, смотрите ниже', 'success');
+      resetResult.textContent = 'Новый пароль: ' + (data.new_password || 'сгенерирован');
 
       clearForm(formReset);
     } catch (err) {
-      showStatus(err?.message || 'Ошибка сброса пароля.', 'error');
-    } finally {
-      disableButton(btn, false);
+      showStatus(err.message, 'error');
     }
   });
 
-  // Переключатели состояний
-  qa('[data-action]').forEach((el) => {
+  // ============================================================
+  // ПЕРЕКЛЮЧЕНИЯ ФОРМ
+  // ============================================================
+  qa('[data-action]').forEach(el => {
     el.addEventListener('click', () => {
-      const action = el.getAttribute('data-action');
+      const a = el.dataset.action;
 
-      if (action === 'to-login') {
-        // При ручном переходе на Вход — чистим форму входа
-        clearForm(formLogin);
-        setState('login');
-      } else if (action === 'to-reset') {
-        clearForm(formReset);
-        setState('reset');
-      } else if (action === 'to-register') {
-        clearForm(formRegister);
-        setState('register');
-      }
+      if (a === 'to-login')    toggleForms('login');
+      if (a === 'to-register') toggleForms('register');
+      if (a === 'to-reset')    toggleForms('reset');
     });
   });
 
-  // Инициализация
-  document.addEventListener('DOMContentLoaded', () => {
-    setState('login');
-    // Больше НИКАКИХ "Очистить поля" не добавляем 👋
-  });
+  toggleForms('login');
 })();
