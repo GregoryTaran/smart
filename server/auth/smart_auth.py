@@ -10,15 +10,17 @@ router = APIRouter()
 
 
 # ============================================================
-# Подключение к базе (Supabase PostgreSQL через connection URI)
+# Подключение к базе
 # ============================================================
 
-# !!! ВАЖНО: впиши сюда свой connection string !!!
-DB_CONN = "postgresql://postgres:password@host:5432/postgres"
+import os
 
+DB_CONN = os.getenv("DATABASE_URL")
 
 async def db():
+    print("SMART AUTH using DB:", DB_CONN)   # ← ДЛЯ ДИАГНОСТИКИ
     return await asyncpg.connect(DB_CONN)
+
 
 
 # ============================================================
