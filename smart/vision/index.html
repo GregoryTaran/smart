@@ -11,81 +11,56 @@
   <link rel="stylesheet" href="vision/vision.css" />
 
   <!-- Авторизация (как в оригинале) -->
-  <script>
-    /* полностью копирую bootstrap auth как в vision.html */
-    (function () {
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+ <script>
+(function () {
+  const AUTH_CACHE_KEY='sv.auth.cache.v1';
 
-      window.SV_AUTH = {
-        isAuthenticated: false,
-        userId: null,
-        level: 1,
-        levelCode: 'guest',
-        email: null,
-        displayName: null,
-        loaded: false
-      };
+  window.SV_AUTH={
+    isAuthenticated:false,
+    userId:null,
+    email:null,
+    displayName:null,
+    level:1,
+    levelCode:'guest',
+    loaded:false,
+    _resolve:null,
+    ready:null
+  };
 
-      function normalizeSession(data) {
-        data = data || {};
-        const isAuth = !!data.is_authenticated;
-        let level = Number(data.level);
-        if (!Number.isFinite(level) || level <= 0) {
-          level = isAuth ? 2 : 1;
-        }
-        const levelCode = data.level_code || (level === 1 ? 'guest' : 'user');
+  window.SV_AUTH.ready=new Promise(resolve=>window.SV_AUTH._resolve=resolve);
 
-        return {
-          isAuthenticated: isAuth,
-          userId: data.user_id ?? null,
-          level,
-          levelCode,
-          email: data.email ?? null,
-          displayName: data.display_name ?? null,
-          loaded: true
-        };
+  async function bootstrap(){
+    try{
+      const cached=localStorage.getItem(AUTH_CACHE_KEY);
+      if(cached) Object.assign(SV_AUTH,JSON.parse(cached));
+
+      const resp=await fetch("/api/auth/me",{method:"GET",credentials:"include"});
+      const data=await resp.json();
+
+      if(data.loggedIn){
+        const u=data.user_merged||{};
+        SV_AUTH.isAuthenticated=true;
+        SV_AUTH.userId=u.id||null;
+        SV_AUTH.email=u.email||null;
+        SV_AUTH.displayName=u.name||null;
+        SV_AUTH.level=data.level||2;
+        SV_AUTH.levelCode=data.level_code||"user";
+      }else{
+        SV_AUTH.isAuthenticated=false;
+        SV_AUTH.userId=null;
+        SV_AUTH.level=1;
+        SV_AUTH.levelCode='guest';
       }
 
-      function dispatchAuthReady() {
-        document.dispatchEvent(
-          new CustomEvent('sv:auth-ready', { detail: window.SV_AUTH })
-        );
-      }
+      localStorage.setItem(AUTH_CACHE_KEY,JSON.stringify(SV_AUTH));
+    }catch(e){ console.warn(e); }
 
-      function readCache() {
-        try {
-          const raw = localStorage.getItem(AUTH_CACHE_KEY);
-          return raw ? JSON.parse(raw) : null;
-        } catch {
-          return null;
-        }
-      }
-
-      function writeCache(session) {
-        try {
-          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
-        } catch {}
-      }
-
-      (function hydrate() {
-        const cached = readCache();
-        if (cached) {
-          window.SV_AUTH = cached;
-          dispatchAuthReady();
-        }
-      })();
-
-      fetch('/api/auth/session', { credentials: 'include' })
-        .then(r => r.json())
-        .then(d => {
-          const s = normalizeSession(d);
-          window.SV_AUTH = s;
-          writeCache(s);
-          dispatchAuthReady();
-        })
-        .catch(() => dispatchAuthReady());
-    })();
-  </script>
+    SV_AUTH.loaded=true;
+    SV_AUTH._resolve(SV_AUTH);
+  }
+  bootstrap();
+})();
+</script>
 
   <!-- topbar & sidebar -->
   <script type="module">

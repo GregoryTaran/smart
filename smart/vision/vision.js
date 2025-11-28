@@ -1,6 +1,6 @@
-// vision.js — новая версия под AUTH v3
+// vision.js — финальная версия под AUTH v3 + новый vision_api
 
-// --- API ---
+// ------------------------- API HELPERS -------------------------
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error("GET " + url + " " + res.status);
@@ -18,16 +18,15 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// --- ВЗЯТЬ ID визии ---
+// ------------------------- GLOBALS -----------------------------
 const params = new URLSearchParams(location.search);
 const visionId = params.get("vision_id");
 
 let titleEl, messagesEl, inputEl, sendBtn, renameBtn, errorEl;
 
-// ---------------------------------------------------------------
-// INIT
-// ---------------------------------------------------------------
+// ---------------------- INITIALIZATION -------------------------
 window.addEventListener("DOMContentLoaded", async () => {
+  // Ждём AUTH
   const auth = await window.SV_AUTH.ready;
 
   if (!auth.isAuthenticated) {
@@ -36,6 +35,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  // Привязка DOM
   titleEl = document.getElementById("visionTitle");
   messagesEl = document.getElementById("messages");
   inputEl = document.getElementById("userInput");
@@ -49,49 +49,49 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  setupForm(auth.userId);
-  setupRename(auth.userId);
-  loadVision(auth.userId);
+  // Старт
+  setupForm();
+  setupRename();
+  loadVision();
 });
 
-// ---------------------------------------------------------------
-// Загрузка визии
-// ---------------------------------------------------------------
-function loadVision(userId) {
+
+// ------------------------- LOAD VISION --------------------------
+function loadVision() {
   titleEl.innerText = "Загрузка...";
 
-  apiGet(`/api/vision/${visionId}?user_id=${userId}`)
+  apiGet(`/api/vision/${visionId}`)
     .then(data => {
       titleEl.innerText = data.title || "Без названия";
       renderMessages(data.steps || []);
       enableInput();
     })
-    .catch(() => {
+    .catch(err => {
+      console.error(err);
       titleEl.innerText = "Ошибка загрузки визии";
       showError("Не удалось загрузить визию");
       disableInput();
     });
 }
 
-// ---------------------------------------------------------------
-// Отправка шага
-// ---------------------------------------------------------------
-function setupForm(userId) {
+
+// ------------------------ SEND STEP -----------------------------
+function setupForm() {
   const form = document.getElementById("messageForm");
   form.addEventListener("submit", e => {
     e.preventDefault();
-    sendStep(userId);
+    sendStep();
   });
 
   inputEl.addEventListener("keydown", e => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      sendStep(userId);
+      sendStep();
     }
   });
 }
 
-function sendStep(userId) {
+function sendStep() {
   const text = inputEl.value.trim();
   if (!text) return;
 
@@ -99,17 +99,18 @@ function sendStep(userId) {
 
   apiPost("/api/vision/step", {
     vision_id: visionId,
-    user_text: text,
-    user_id: userId
+    user_text: text
   })
-    .then(() => loadVision(userId))
-    .catch(() => showError("Не удалось отправить шаг"));
+    .then(() => loadVision())
+    .catch(err => {
+      console.error(err);
+      showError("Не удалось отправить шаг");
+    });
 }
 
-// ---------------------------------------------------------------
-// Переименование визии
-// ---------------------------------------------------------------
-function setupRename(userId) {
+
+// ------------------------ RENAME VISION -------------------------
+function setupRename() {
   renameBtn.disabled = false;
 
   renameBtn.onclick = () => {
@@ -119,17 +120,18 @@ function setupRename(userId) {
 
     apiPost("/api/vision/rename", {
       vision_id: visionId,
-      title: newName,
-      user_id: userId
+      title: newName
     })
-      .then(() => loadVision(userId))
-      .catch(() => showError("Не удалось переименовать визию"));
+      .then(() => loadVision())
+      .catch(err => {
+        console.error(err);
+        showError("Не удалось переименовать визию");
+      });
   };
 }
 
-// ---------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------
+
+// ------------------------ RENDER MESSAGES -----------------------
 function renderMessages(steps) {
   messagesEl.innerHTML = "";
 
@@ -156,9 +158,8 @@ function renderMessages(steps) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// ---------------------------------------------------------------
-// UI HELPERS
-// ---------------------------------------------------------------
+
+// ----------------------------- UI -------------------------------
 function disableInput() {
   if (inputEl) inputEl.disabled = true;
   if (sendBtn) sendBtn.disabled = true;
