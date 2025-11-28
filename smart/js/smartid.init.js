@@ -23,6 +23,7 @@
         session.level = data.level ?? 1;
         session.user_id = data.user?.id ?? null;
         session.email   = data.user?.email ?? null;
+        session.name    = data.user?.name ?? null;
       }
     }
   } catch (e) {
