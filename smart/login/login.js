@@ -1,4 +1,4 @@
-// smart/login/login.js — Login под AUTH v3 + SVID v2
+// smart/login/login.js — чистая авторизация под AUTH v3 (без SVID логина)
 
 (function () {
   const q  = sel => document.querySelector(sel);
@@ -56,13 +56,15 @@
     try { data = await res.json(); } catch {}
 
     if (!res.ok) {
-      throw new Error(data.error || data.detail || data.message || ('Ошибка ' + res.status));
+      throw new Error(data.detail || data.error || 'Ошибка ' + res.status);
     }
 
     return data;
   }
 
-  // --- РЕГИСТРАЦИЯ --------------------------------------------------
+  // ============================================================
+  // РЕГИСТРАЦИЯ
+  // ============================================================
   formRegister.addEventListener('submit', async e => {
     e.preventDefault();
 
@@ -75,7 +77,11 @@
     if (!pass)  return showStatus('Введите пароль', 'error');
 
     try {
-      await apiPost('/api/auth/register', { name, email, password: pass });
+      await apiPost('/api/auth/register', {
+        email,
+        password: pass,
+        data: { name }
+      });
 
       showStatus('Регистрация успешна!', 'success');
 
@@ -88,7 +94,9 @@
     }
   });
 
-  // --- ВХОД ---------------------------------------------------------
+  // ============================================================
+  // ВХОД
+  // ============================================================
   formLogin.addEventListener('submit', async e => {
     e.preventDefault();
 
@@ -99,32 +107,50 @@
     if (!pass)  return showStatus('Введите пароль', 'error');
 
     try {
-      const data = await apiPost('/api/auth/login', { email, password: pass });
+      // 1) логин на бекенде (ставит куки)
+      await apiPost('/api/auth/login', { email, password: pass });
 
-      // Обновляем кэш SV_AUTH
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+      // 2) сразу обновляем AUTH через /me
+      const resp = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include"
+      });
+
+      const data = await resp.json();
+
+      if (!data.loggedIn) {
+        throw new Error("Не удалось получить данные авторизации");
+      }
+
+      const u = data.user_merged || {};
+
       const session = {
         isAuthenticated: true,
-        userId: data?.user?.id || data.user_id || null,
-        level: data?.user?.level || 2,
-        levelCode: 'user',
-        email: email,
-        displayName: data?.user?.display_name || null,
+        userId: u.id || null,
+        email: u.email || null,
+        displayName: u.name || null,
+        level: data.level,
+        levelCode: data.level_code,
         loaded: true
       };
 
-      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(session));
+      // 3) сохраняем кэш состояния
+      localStorage.setItem('sv.auth.cache.v1', JSON.stringify(session));
 
       showStatus('Вход выполнен!', 'success');
       clearForm(formLogin);
 
+      // 4) переход на главную
       location.replace('index.html');
+
     } catch (err) {
       showStatus(err.message, 'error');
     }
   });
 
-  // --- СБРОС ПАРОЛЯ -------------------------------------------------
+  // ============================================================
+  // СБРОС ПАРОЛЯ
+  // ============================================================
   formReset.addEventListener('submit', async e => {
     e.preventDefault();
 
@@ -143,7 +169,9 @@
     }
   });
 
-  // --- ПЕРЕКЛЮЧЕНИЯ -------------------------------------------------
+  // ============================================================
+  // ПЕРЕКЛЮЧЕНИЯ ФОРМ
+  // ============================================================
   qa('[data-action]').forEach(el => {
     el.addEventListener('click', () => {
       const a = el.dataset.action;

@@ -1,8 +1,9 @@
-// --- API HELPERS ---
+// vision_list.js — новая версия под AUTH v3
+
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error("GET " + url + " " + res.status);
-  return await res.json();
+  return res.json();
 }
 
 async function apiPost(url, body) {
@@ -13,34 +14,33 @@ async function apiPost(url, body) {
     body: JSON.stringify(body || {})
   });
   if (!res.ok) throw new Error("POST " + url + " " + res.status);
-  return await res.json();
+  return res.json();
 }
 
-// --------------------------------------------------------
-// ПРОСТО: когда DOM готов — грузим визии
-// --------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  setupCreateButton();
-  loadVisionList();
+  window.SV_AUTH.ready.then(auth => {
+    if (!auth.isAuthenticated) {
+      document.getElementById("visionList").innerHTML =
+        `<p class="empty-text">Для визий нужен вход в систему</p>`;
+      return;
+    }
+
+    setupCreateButton();
+    loadVisionList(auth.userId);
+  });
 });
 
-// Загрузка списка визий
-function loadVisionList() {
-  apiGet("/api/vision/list")
+function loadVisionList(userId) {
+  apiGet(`/api/vision/list?user_id=${userId}`)
     .then(data => renderList(data.visions || []))
     .catch(err => {
-      console.error("Ошибка загрузки визий", err);
       const box = document.getElementById("visionList");
-      if (box) {
-        box.innerHTML = `<p class="empty-text">Не удалось загрузить визии</p>`;
-      }
+      box.innerHTML = `<p class="empty-text">Не удалось загрузить визии</p>`;
     });
 }
 
 function renderList(visions) {
   const box = document.getElementById("visionList");
-  if (!box) return;
-
   box.innerHTML = "";
 
   if (!visions.length) {
@@ -56,7 +56,6 @@ function renderList(visions) {
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
     item.onclick = () => {
-      // Абсолютный путь — чтобы вообще никогда не промахнуться
       window.location.href = `/vision/vision.html?vision_id=${v.vision_id}`;
     };
     box.appendChild(item);
@@ -68,13 +67,13 @@ function setupCreateButton() {
   const btn = document.getElementById("newVisionBtn");
   if (!btn) return;
 
-  btn.addEventListener("click", () => {
-    apiPost("/api/vision/create", {})
-      .then(data => {
-        window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
-      })
-      .catch(err => {
-        console.error("Ошибка создания визии", err);
-      });
+  btn.addEventListener("click", async () => {
+    const auth = await window.SV_AUTH.ready;
+
+    const data = await apiPost("/api/vision/create", {
+      user_id: auth.userId
+    });
+
+    window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
   });
 }

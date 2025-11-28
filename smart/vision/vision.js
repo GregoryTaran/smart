@@ -1,4 +1,6 @@
-// --- API HELPERS ---
+// vision.js — новая версия под AUTH v3
+
+// --- API ---
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
   if (!res.ok) throw new Error("GET " + url + " " + res.status);
@@ -16,14 +18,24 @@ async function apiPost(url, body) {
   return await res.json();
 }
 
-// Получаем ID визии из URL
+// --- ВЗЯТЬ ID визии ---
 const params = new URLSearchParams(location.search);
 const visionId = params.get("vision_id");
 
 let titleEl, messagesEl, inputEl, sendBtn, renameBtn, errorEl;
 
-// ---------------- ИНИЦИАЛИЗАЦИЯ ----------------
-window.addEventListener("DOMContentLoaded", () => {
+// ---------------------------------------------------------------
+// INIT
+// ---------------------------------------------------------------
+window.addEventListener("DOMContentLoaded", async () => {
+  const auth = await window.SV_AUTH.ready;
+
+  if (!auth.isAuthenticated) {
+    alert("Для работы с визиями нужно войти в систему");
+    window.location.href = "/login/login.html";
+    return;
+  }
+
   titleEl = document.getElementById("visionTitle");
   messagesEl = document.getElementById("messages");
   inputEl = document.getElementById("userInput");
@@ -32,42 +44,96 @@ window.addEventListener("DOMContentLoaded", () => {
   errorEl = document.getElementById("visionError");
 
   if (!visionId) {
-    if (titleEl) titleEl.innerText = "Визия не выбрана";
+    titleEl.innerText = "Визия не выбрана";
     disableInput();
     return;
   }
 
-  setupForm();
-  setupRename();
-  loadVision();
+  setupForm(auth.userId);
+  setupRename(auth.userId);
+  loadVision(auth.userId);
 });
 
-// --------------- Загрузка визии ----------------
-function loadVision() {
-  if (titleEl) titleEl.innerText = "Загрузка...";
+// ---------------------------------------------------------------
+// Загрузка визии
+// ---------------------------------------------------------------
+function loadVision(userId) {
+  titleEl.innerText = "Загрузка...";
 
-  apiGet(`/api/vision/${visionId}`)
+  apiGet(`/api/vision/${visionId}?user_id=${userId}`)
     .then(data => {
-      if (titleEl) titleEl.innerText = data.title || "Без названия";
-      hideError();
+      titleEl.innerText = data.title || "Без названия";
       renderMessages(data.steps || []);
       enableInput();
     })
-    .catch(err => {
-      console.error("Ошибка загрузки визии:", err);
-      if (titleEl) titleEl.innerText = "Ошибка загрузки визии";
-      showError("Не удалось загрузить визию. Попробуйте обновить страницу.");
+    .catch(() => {
+      titleEl.innerText = "Ошибка загрузки визии";
+      showError("Не удалось загрузить визию");
       disableInput();
     });
 }
 
-// --------------- Сообщения ----------------
+// ---------------------------------------------------------------
+// Отправка шага
+// ---------------------------------------------------------------
+function setupForm(userId) {
+  const form = document.getElementById("messageForm");
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    sendStep(userId);
+  });
+
+  inputEl.addEventListener("keydown", e => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      sendStep(userId);
+    }
+  });
+}
+
+function sendStep(userId) {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  inputEl.value = "";
+
+  apiPost("/api/vision/step", {
+    vision_id: visionId,
+    user_text: text,
+    user_id: userId
+  })
+    .then(() => loadVision(userId))
+    .catch(() => showError("Не удалось отправить шаг"));
+}
+
+// ---------------------------------------------------------------
+// Переименование визии
+// ---------------------------------------------------------------
+function setupRename(userId) {
+  renameBtn.disabled = false;
+
+  renameBtn.onclick = () => {
+    const currentTitle = titleEl.innerText.trim();
+    const newName = prompt("Введите новое название визии:", currentTitle);
+    if (!newName) return;
+
+    apiPost("/api/vision/rename", {
+      vision_id: visionId,
+      title: newName,
+      user_id: userId
+    })
+      .then(() => loadVision(userId))
+      .catch(() => showError("Не удалось переименовать визию"));
+  };
+}
+
+// ---------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------
 function renderMessages(steps) {
-  if (!messagesEl) return;
   messagesEl.innerHTML = "";
 
   steps.forEach(step => {
-    // Сообщение пользователя
     const userMsg = document.createElement("div");
     userMsg.className = "vision-message vision-message-user";
     userMsg.innerHTML = `
@@ -76,7 +142,6 @@ function renderMessages(steps) {
     `;
     messagesEl.appendChild(userMsg);
 
-    // Ответ ИИ (если есть)
     if (step.ai_text) {
       const aiMsg = document.createElement("div");
       aiMsg.className = "vision-message vision-message-ai";
@@ -91,75 +156,9 @@ function renderMessages(steps) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// --------------- Отправка шага ----------------
-function setupForm() {
-  const form = document.getElementById("messageForm");
-  if (!form || !inputEl) return;
-
-  // Отправка по submit (кнопка "Отправить")
-  form.addEventListener("submit", e => {
-    e.preventDefault();
-    sendStep();
-  });
-
-  // Отправка по Ctrl+Enter / Cmd+Enter
-  inputEl.addEventListener("keydown", e => {
-    // Ctrl+Enter (Windows/Linux) или Cmd+Enter (Mac)
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault(); // не добавляем перенос строки
-      sendStep();
-    }
-  });
-}
-
-
-function sendStep() {
-  if (!inputEl) return;
-  const text = inputEl.value.trim();
-  if (!text) return;
-
-  inputEl.value = "";
-
-  apiPost("/api/vision/step", {
-    vision_id: visionId,
-    user_text: text
-  })
-    .then(() => {
-      hideError();
-      loadVision();
-    })
-    .catch(err => {
-      console.error("Ошибка шага:", err);
-      showError("Не удалось отправить шаг. Попробуйте ещё раз.");
-    });
-}
-
-// --------------- Переименование ----------------
-function setupRename() {
-  if (!renameBtn) return;
-
-  renameBtn.disabled = false;
-  renameBtn.onclick = () => {
-    const currentTitle = titleEl ? titleEl.innerText.trim() : "";
-    const newName = prompt("Введите новое название визии:", currentTitle);
-    if (!newName) return;
-
-    apiPost("/api/vision/rename", {
-      vision_id: visionId,
-      title: newName
-    })
-      .then(() => {
-        hideError();
-        loadVision();
-      })
-      .catch(err => {
-        console.error("Ошибка переименования:", err);
-        showError("Не удалось переименовать визию.");
-      });
-  };
-}
-
-// --------------- UI helpers ----------------
+// ---------------------------------------------------------------
+// UI HELPERS
+// ---------------------------------------------------------------
 function disableInput() {
   if (inputEl) inputEl.disabled = true;
   if (sendBtn) sendBtn.disabled = true;
@@ -171,13 +170,11 @@ function enableInput() {
 }
 
 function showError(text) {
-  if (!errorEl) return;
   errorEl.innerText = text;
   errorEl.classList.remove("vision-hidden");
 }
 
 function hideError() {
-  if (!errorEl) return;
   errorEl.innerText = "";
   errorEl.classList.add("vision-hidden");
 }

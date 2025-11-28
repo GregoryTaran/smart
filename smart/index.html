@@ -12,68 +12,74 @@
   <link rel="stylesheet" href="index/index.css"/>
 
   <!-- ===================== AUTH BOOTSTRAP v3 ===================== -->
-  <script>
-    (function () {
-      const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
+ <script>
+(function () {
+  const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
 
-      window.SV_AUTH = {
-        isAuthenticated: false,
-        userId: null,
-        email: null,
-        level: 1,
-        displayName: null,
-        levelCode: "guest",
-        loaded: false,
-        _resolve: null,
-        ready: null
-      };
+  window.SV_AUTH = {
+    isAuthenticated: false,
+    userId: null,
+    email: null,
+    displayName: null,
+    level: 1,
+    levelCode: "guest",
+    loaded: false,
+    _resolve: null,
+    ready: null
+  };
 
-      window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
+  // Промис, который будет резолвиться когда AUTH загружен
+  window.SV_AUTH.ready = new Promise(resolve => window.SV_AUTH._resolve = resolve);
 
-      async function bootstrap() {
-        try {
-          // 1) пробуем использовать кэш, если есть
-          const cached = localStorage.getItem(AUTH_CACHE_KEY);
-          if (cached) {
-            const data = JSON.parse(cached);
-            Object.assign(window.SV_AUTH, data);
-            window.SV_AUTH.loaded = true;
-            window.SV_AUTH._resolve(window.SV_AUTH);
-            return;
-          }
+  async function refreshAuth() {
+    try {
+      const resp = await fetch("/api/auth/me", {
+        method: "GET",
+        credentials: "include"
+      });
+      const data = await resp.json();
 
-          // 2) Запрос к backend (НОВЫЙ endpoint вместо /session)
-          const resp = await fetch("/api/auth/me", {
-            method: "GET",
-            credentials: "include"
-          });
-
-          if (resp.ok) {
-            const data = await resp.json();
-
-            if (data.loggedIn) {
-              window.SV_AUTH.isAuthenticated = true;
-              window.SV_AUTH.userId = data.user_merged?.id || null;
-              window.SV_AUTH.email = data.user_merged?.email || null;
-              window.SV_AUTH.displayName = data.user_merged?.name || null;
-              window.SV_AUTH.level = 2;
-              window.SV_AUTH.levelCode = "user";
-            }
-          }
-
-          window.SV_AUTH.loaded = true;
-          window.SV_AUTH._resolve(window.SV_AUTH);
-
-        } catch (err) {
-          console.warn("Auth bootstrap error:", err);
-          window.SV_AUTH.loaded = true;
-          window.SV_AUTH._resolve(window.SV_AUTH);
-        }
+      if (data.loggedIn) {
+        const u = data.user_merged || {};
+        window.SV_AUTH.isAuthenticated = true;
+        window.SV_AUTH.userId = u.id || null;
+        window.SV_AUTH.email = u.email || null;
+        window.SV_AUTH.displayName = u.name || null;
+        window.SV_AUTH.level = data.level || 2;
+        window.SV_AUTH.levelCode = data.level_code || "user";
+      } else {
+        window.SV_AUTH.isAuthenticated = false;
+        window.SV_AUTH.userId = null;
+        window.SV_AUTH.email = null;
+        window.SV_AUTH.displayName = null;
+        window.SV_AUTH.level = 1;
+        window.SV_AUTH.levelCode = "guest";
       }
 
-      bootstrap();
-    })();
-  </script>
+      // сохраняем кэш
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(window.SV_AUTH));
+
+    } catch (e) {
+      console.warn("AUTH refresh error", e);
+    }
+
+    window.SV_AUTH.loaded = true;
+    window.SV_AUTH._resolve(window.SV_AUTH);
+  }
+
+  // 1) пробуем из кэша
+  const cached = localStorage.getItem(AUTH_CACHE_KEY);
+  if (cached) {
+    try {
+      Object.assign(window.SV_AUTH, JSON.parse(cached));
+    } catch {}
+  }
+
+  // 2) обновляем в фоне
+  refreshAuth();
+})();
+</script>
+
   <!-- ============================================================== -->
 
   <!-- TOPBAR -->

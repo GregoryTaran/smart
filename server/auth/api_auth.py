@@ -207,35 +207,67 @@ async def login(payload: Dict[str, Any]):
 @router.get("/me")
 async def me(request: Request):
     """
-    Проверка текущей сессии по HttpOnly кукам.
-    Возвращаем максимум:
-      {
-        "loggedIn": true,
-        "user_auth": { ...полностью из /auth/v1/user... },
-        "user_profile": { ...из таблицы profiles... } | null,
-        "user_merged": { ...компакт для UI... }
-      }
-    Или {"loggedIn": false}
+    Главный источник правды для фронта.
+    Возвращает состояние авторизации:
+      - loggedIn: True/False
+      - user_merged: объект пользователя (email, name, avatar, role)
+      - level, level_code: числовой и текстовый уровни доступа
     """
+
+    # 1) Достаём access токен из HttpOnly-cookie
     access = request.cookies.get(ACCESS_COOKIE)
     if not access:
-        return JSONResponse({"loggedIn": False}, headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            {"loggedIn": False},
+            headers={"Cache-Control": "no-store"}
+        )
 
+    # 2) Проверяем access_token в Supabase
     auth_user = await _sb_auth_user_by_access(access)
     if not auth_user:
-        return JSONResponse({"loggedIn": False}, headers={"Cache-Control": "no-store"})
+        return JSONResponse(
+            {"loggedIn": False},
+            headers={"Cache-Control": "no-store"}
+        )
 
+    # 3) Опционально: достаём профиль из таблицы profiles
     db_profile = await _sb_fetch_profile_from_table(auth_user.get("id"))
+
+    # 4) Склеиваем их в единый профиль
     merged = _normalize_merged(auth_user, db_profile)
 
+    # ------------------------------------------------------------
+    # 5) Определяем уровни (уровни доступа, как в AUTH SPEC v3)
+    # ------------------------------------------------------------
+    role = (merged.get("role") or "user").lower()
+
+    ROLE_TO_LEVEL = {
+        "guest": 1,
+        "user": 2,
+        "paid": 3,
+        "super": 4,
+    }
+
+    LEVEL_TO_CODE = {v: k for k, v in ROLE_TO_LEVEL.items()}
+
+    level = ROLE_TO_LEVEL.get(role, 2)
+    level_code = LEVEL_TO_CODE.get(level, "user")
+
+    # ------------------------------------------------------------
+    # 6) Финальный ответ (на него ориентируется весь фронт)
+    # ------------------------------------------------------------
     resp = JSONResponse({
         "loggedIn": True,
+        "level": level,
+        "level_code": level_code,
+        "user_merged": merged,
         "user_auth": auth_user,
         "user_profile": db_profile,
-        "user_merged": merged,
     })
+
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
 
 
 @router.post("/logout")
