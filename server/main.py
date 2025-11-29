@@ -7,15 +7,13 @@ import logging, os
 from pathlib import Path
 
 # ------------------------ DB INIT ------------------------
-# ✅ добавили аккуратно: инициализация пула БД
 from db import init_db
 
 # ------------------------ ROUTERS ------------------------
-from vision.router import router as vision_router
+# ❗️ ТУТ АККУРАТНАЯ ПРАВКА — подключаем НОВЫЙ vision_server.py
+from vision_server import router as vision_router
 
-# ⭐ ВАЖНО: меняем импорт router → импорт всего модуля
 import auth.smart_auth as smart_auth
-
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
@@ -23,7 +21,6 @@ log = logging.getLogger("server")
 app = FastAPI(title="SMART Backend", version="0.2.0")
 
 # ------------------------ STARTUP ------------------------
-# ✅ аккуратный хук, который один раз создаёт пул БД при старте сервера
 @app.on_event("startup")
 async def startup():
     await init_db()
@@ -47,13 +44,13 @@ app.add_middleware(
 
 # ------------------------ API ROUTES ------------------------
 
-# Vision API
+# ⭐ Vision API — НОВЫЙ vision_server.py
 app.include_router(vision_router, prefix="/api")
 
-# ⭐ Новый SMART AUTH — подключаем через модуль
+# ⭐ SMART AUTH
 app.include_router(smart_auth.router, prefix="/api/auth", tags=["auth"])
 
-# WebSocket диктофона
+# WebSocket dictation
 try:
     from voicerecorder.ws_voicerecorder import router as voicerecorder_ws_router
     app.include_router(voicerecorder_ws_router, prefix="", tags=["voicerecorder-ws"])
@@ -61,7 +58,7 @@ try:
 except Exception as e:
     log.info("voicerecorder WS not mounted: %s", e)
 
-# HTTP API диктофона
+# HTTP API dictation
 try:
     from voicerecorder.voicerecorder_api import router as vr_upload_router
     app.include_router(vr_upload_router)
