@@ -1,191 +1,143 @@
-// vision.js — визия под новую авторизацию SMART_SESSION
+// --- API ---
 
 async function apiGet(url) {
-  const res = await fetch(url, {
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    throw new Error(`GET ${url} failed with status ${res.status}`);
-  }
-
-  return res.json();
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error(await r.text());
+  return await r.json();
 }
 
 async function apiPost(url, body) {
-  const res = await fetch(url, {
+  const r = await fetch(url, {
     method: "POST",
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body || {}),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
-
-  if (!res.ok) {
-    throw new Error(`POST ${url} failed with status ${res.status}`);
-  }
-
-  return res.json();
+  if (!r.ok) throw new Error(await r.text());
+  return await r.json();
 }
 
-function appendStep(step) {
-  const list = document.getElementById("messages");
-  if (!list) return;
-
-  const item = document.createElement("div");
-  item.className = "vision-step-item";
-
-  const createdAt = step.created_at
-    ? new Date(step.created_at).toLocaleString()
-    : "";
-
-  item.innerHTML = `
-    <div class="vision-step-meta">
-      <span class="vision-step-author">
-        ${step.is_ai ? "AI" : "Вы"}
-      </span>
-      <span class="vision-step-date">${createdAt}</span>
-    </div>
-    <div class="vision-step-user">${step.user_text || ""}</div>
-    ${
-      step.ai_text
-        ? `<div class="vision-step-ai">${step.ai_text}</div>`
-        : ""
-    }
-  `;
-
-  list.appendChild(item);
-  list.scrollTop = list.scrollHeight;
+function getVisionId() {
+  return new URLSearchParams(location.search).get("vision_id");
 }
+
+// --- РЕНДЕР НАЗВАНИЯ ---
+
+function renderVisionTitle(v) {
+  document.getElementById("visionTitle").textContent = v.title || "Без названия";
+}
+
+// --- РЕНДЕР ШАГОВ ---
 
 function renderSteps(steps) {
-  const list = document.getElementById("messages");
-  if (!list) return;
-
+  const list = document.getElementById("stepsList");
   list.innerHTML = "";
-  (steps || []).forEach((s) => appendStep(s));
+
+  if (!steps || steps.length === 0) {
+    list.innerHTML = `<div class="vision-message">Пока нет шагов.</div>`;
+    return;
+  }
+
+  for (const s of steps) {
+    const block = document.createElement("div");
+
+    // классы из твоего vision.css
+    block.className = "vision-message " + 
+      (s.user_text && !s.ai_text ? "vision-message-user" : "") +
+      (s.ai_text ? "vision-message-ai" : "");
+
+    const who = s.user_text ? "Пользователь" : "AI";
+    const text = s.user_text || s.ai_text;
+
+    block.innerHTML = `
+      <div class="vision-message-label">${who}</div>
+      <div class="vision-message-text">${text}</div>
+    `;
+
+    list.appendChild(block);
+  }
 }
 
-async function loadVision(visionId) {
-  const titleEl = document.getElementById("visionTitle");
-  const errorEl = document.getElementById("visionError");
+// --- ЗАГРУЗКА СТРАНИЦЫ ---
 
-  if (errorEl) {
-    errorEl.classList.add("vision-hidden");
-    errorEl.textContent = "";
-  }
-
-  const messages = document.getElementById("messages");
-  if (messages) {
-    messages.innerHTML = `<div class="vision-loading">Загружаем визию...</div>`;
-  }
+async function loadVision() {
+  const id = getVisionId();
+  if (!id) return alert("vision_id отсутствует");
 
   try {
-    const data = await apiGet(`/api/vision/${encodeURIComponent(visionId)}`);
-
-    if (titleEl) titleEl.textContent = data.title || "Визия";
-
+    const data = await apiGet(`/api/vision/get?vision_id=${id}`);
+    renderVisionTitle(data.vision);
     renderSteps(data.steps || []);
-  } catch (err) {
-    console.error("Ошибка загрузки визии:", err);
-    if (errorEl) {
-      errorEl.textContent =
-        "Не удалось загрузить визию. Попробуйте обновить страницу.";
-      errorEl.classList.remove("vision-hidden");
-    }
+  } catch (e) {
+    console.error(e);
+    showError("Ошибка загрузки визии");
   }
 }
 
-async function sendStep(visionId, text) {
-  const input = document.getElementById("userInput");
-  const sendBtn = document.getElementById("sendBtn");
+function showError(msg) {
+  const el = document.getElementById("visionError");
+  el.textContent = msg;
+  el.classList.remove("vision-hidden");
+}
 
-  if (sendBtn) {
-    sendBtn.disabled = true;
-  }
+// --- ОТПРАВКА ШАГА ---
+
+async function sendStep() {
+  const id = getVisionId();
+  const textarea = document.getElementById("newStepText");
+  const text = textarea.value.trim();
+  if (!text) return;
 
   try {
-    const data = await apiPost("/api/vision/step", {
-      vision_id: visionId,
-      user_text: text,
-    });
-
-    if (data.step) {
-      appendStep(data.step);
-    } else {
-      // на всякий случай — если вернули весь объект визии
-      if (data.steps) renderSteps(data.steps);
-    }
-  } catch (err) {
-    console.error("Ошибка отправки шага:", err);
-    alert("Не удалось добавить шаг. Попробуйте ещё раз.");
-  } finally {
-    if (sendBtn) sendBtn.disabled = false;
-    if (input) {
-      input.value = "";
-      input.focus();
-    }
+    await apiPost("/api/vision/step", { vision_id: id, user_text: text });
+    textarea.value = "";
+    await loadVision();
+  } catch (e) {
+    console.error(e);
+    showError("Не удалось отправить шаг");
   }
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
-  const url = new URL(window.location.href);
-  const visionId = url.searchParams.get("vision_id");
+// --- РЕДАКТИРОВАНИЕ НАЗВАНИЯ ---
 
-  if (!visionId) {
-    alert("Не передан идентификатор визии.");
-    window.location.href = "/vision/index.html";
-    return;
-  }
+function openEdit() {
+  document.getElementById("editTitleBlock").classList.remove("vision-hidden");
+  document.getElementById("editVisionBtn").classList.add("vision-hidden");
+}
 
-  // Кнопка "назад ко всем визиям"
-  const backBtn = document.getElementById("backToListBtn");
-  if (backBtn) {
-    backBtn.addEventListener("click", () => {
-      window.location.href = "/vision/index.html";
+function closeEdit() {
+  document.getElementById("editTitleBlock").classList.add("vision-hidden");
+  document.getElementById("editVisionBtn").classList.remove("vision-hidden");
+}
+
+async function saveTitle() {
+  const id = getVisionId();
+  const val = document.getElementById("editTitleInput").value.trim();
+  if (!val) return;
+
+  try {
+    await apiPost("/api/vision/update", {
+      vision_id: id,
+      title: val
     });
+
+    closeEdit();
+    await loadVision();
+  } catch (e) {
+    console.error(e);
+    showError("Ошибка сохранения");
   }
+}
 
-  const session = window.SMART_SESSION;
-  if (!session || !session.ready) {
-    console.error("SMART_SESSION не инициализирован. Проверь подключение smartid.init.js.");
-    alert("Проблема с авторизацией. Обновите страницу.");
-    return;
-  }
+// --- ИНИЦИАЛИЗАЦИЯ ---
 
-  const auth = await session.ready;
-  if (!auth || !auth.authenticated) {
-    alert("Для работы с визиями нужно войти в систему.");
-    window.location.href = "/login/login.html";
-    return;
-  }
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("sendBtn").onclick = sendStep;
+  document.getElementById("backBtn").onclick = () => location.href = "/vision/index.html";
 
-  const form = document.getElementById("messageForm");
-  const input = document.getElementById("userInput");
-  const sendBtn = document.getElementById("sendBtn");
+  document.getElementById("editVisionBtn").onclick = openEdit;
+  document.getElementById("cancelEditBtn").onclick = closeEdit;
+  document.getElementById("saveTitleBtn").onclick = saveTitle;
 
-  if (form && input) {
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      sendStep(visionId, text);
-    });
-  }
-
-  // Дополнительно: Enter отправляет, Shift+Enter — новая строка
-  if (input) {
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        const text = input.value.trim();
-        if (!text) return;
-        sendStep(visionId, text);
-      }
-    });
-  }
-
-  // первая загрузка визии
-  loadVision(visionId);
+  loadVision();
 });
