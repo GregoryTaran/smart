@@ -1,7 +1,3 @@
-# ============================================================
-#   SMART VISION — Vision API v3 (PostgreSQL + smart_auth)
-# ============================================================
-
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from datetime import datetime, date
@@ -9,36 +5,34 @@ from typing import List, Optional
 from openai import OpenAI
 import os
 
-# 🔌 новый глобальный пул
-from db import pool
-# cookie + всё что осталось из smart_auth
+# ❗ Правильный импорт пула
+import db
+
 from auth.smart_auth import SESSION_COOKIE
 
 
 router = APIRouter(prefix="/vision", tags=["vision"])
 
-# ID системного AI-пользователя AIOPEN
 AI_USER_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
-
-# OPENAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
 # ============================================================
-#                   AUTH HELPERS (НОВЫЕ)
+# AUTH HELPERS
 # ============================================================
 
 async def get_auth_user_id(request: Request) -> Optional[str]:
-    """
-    Получаем user_id через smart_sessions, используя новый пул.
-    """
+
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             SELECT u.id
@@ -53,7 +47,7 @@ async def get_auth_user_id(request: Request) -> Optional[str]:
 
 
 # ============================================================
-#                    Pydantic модели
+# MODELS
 # ============================================================
 
 class CreateVisionResponse(BaseModel):
@@ -96,12 +90,13 @@ class RenameVisionResponse(BaseModel):
 
 
 # ============================================================
-#               ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# HELPERS
 # ============================================================
 
 async def ensure_vision_access(conn, vision_id: str, user_id: str,
                                allowed_roles: Optional[List[str]] = None,
                                not_found_as_404: bool = True):
+
     row = await conn.fetchrow(
         """
         SELECT
@@ -152,10 +147,7 @@ async def build_ai_response(vision_id: str, user_text: str, conn):
     messages = [
         {
             "role": "system",
-            "content": (
-                "Ты дружелюбный ассистент, который помогает человеку "
-                "развивать жизненную визию."
-            ),
+            "content": "Ты дружелюбный ассистент, который помогает человеку развивать жизненную визию."
         }
     ]
 
@@ -177,7 +169,7 @@ async def build_ai_response(vision_id: str, user_text: str, conn):
 
 
 # ============================================================
-#                  CREATE VISION
+# CREATE VISION
 # ============================================================
 
 @router.post("/create", response_model=CreateVisionResponse)
@@ -186,7 +178,10 @@ async def create_vision(request: Request):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         async with conn.transaction():
             title = f"Визия от {date.today():%d.%m.%Y}"
 
@@ -202,7 +197,6 @@ async def create_vision(request: Request):
 
             vision_id = row["id"]
 
-            # owner
             await conn.execute(
                 """
                 INSERT INTO vision_participants (vision_id, user_id, role)
@@ -213,7 +207,6 @@ async def create_vision(request: Request):
                 user_id,
             )
 
-            # AI participant
             await conn.execute(
                 """
                 INSERT INTO vision_participants (vision_id, user_id, role)
@@ -232,7 +225,7 @@ async def create_vision(request: Request):
 
 
 # ============================================================
-#                  ADD VISION STEP
+# CREATE STEP
 # ============================================================
 
 @router.post("/step", response_model=StepResponse)
@@ -244,7 +237,10 @@ async def create_step(request: Request, body: StepRequest):
     if not body.user_text:
         raise HTTPException(400, "user_text required")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
 
         await ensure_vision_access(
             conn,
@@ -278,7 +274,7 @@ async def create_step(request: Request, body: StepRequest):
 
 
 # ============================================================
-#                  LIST VISIONS
+# LIST VISIONS
 # ============================================================
 
 @router.get("/list", response_model=VisionListResponse)
@@ -287,7 +283,10 @@ async def list_visions(request: Request):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT v.id, v.title, v.created_at
@@ -313,7 +312,7 @@ async def list_visions(request: Request):
 
 
 # ============================================================
-#                  GET VISION HISTORY
+# GET VISION HISTORY
 # ============================================================
 
 @router.get("/{vision_id}")
@@ -322,7 +321,10 @@ async def get_vision(request: Request, vision_id: str):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
 
         vis_row = await ensure_vision_access(
             conn,
@@ -360,7 +362,7 @@ async def get_vision(request: Request, vision_id: str):
 
 
 # ============================================================
-#                  RENAME VISION
+# RENAME VISION
 # ============================================================
 
 @router.post("/rename", response_model=RenameVisionResponse)
@@ -369,7 +371,10 @@ async def rename_vision(request: Request, body: RenameVisionRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
 
         await ensure_vision_access(
             conn,
@@ -400,7 +405,7 @@ async def rename_vision(request: Request, body: RenameVisionRequest):
 
 
 # ============================================================
-#                  ARCHIVE / UNARCHIVE
+# ARCHIVE / UNARCHIVE
 # ============================================================
 
 class ArchiveRequest(BaseModel):
@@ -414,7 +419,10 @@ async def archive_vision(request: Request, body: ArchiveRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
 
         await ensure_vision_access(
             conn,
@@ -445,7 +453,7 @@ async def archive_vision(request: Request, body: ArchiveRequest):
 
 
 # ============================================================
-#                  DELETE VISION
+# DELETE VISION
 # ============================================================
 
 class DeleteRequest(BaseModel):
@@ -458,7 +466,10 @@ async def delete_vision(request: Request, body: DeleteRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
 
         await ensure_vision_access(
             conn,

@@ -6,8 +6,8 @@ import bcrypt
 import secrets
 import os
 
-# 🔌 Берём ПУЛ из tb.py (там init_db, он вызывается в main.py)
-from db import pool
+# ❗ Правильный импорт пула
+import db
 
 router = APIRouter()
 
@@ -63,7 +63,10 @@ async def register(req: RegisterRequest):
 
     email = req.email.lower().strip()
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1",
             email
@@ -94,7 +97,10 @@ async def login(req: LoginRequest):
 
     email = req.email.lower().strip()
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         user = await conn.fetchrow(
             "SELECT * FROM smart_users WHERE email = $1 LIMIT 1",
             email
@@ -122,7 +128,7 @@ async def login(req: LoginRequest):
             httponly=True,
             samesite="lax",
             max_age=60 * 60 * 24 * SESSION_LIFETIME_DAYS,
-            secure=True  # если для dev мешает — можно ослабить
+            secure=True
         )
         return resp
 
@@ -138,7 +144,10 @@ async def me(request: Request):
     if not token:
         return {"loggedIn": False, "level": 1, "user": None}
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         session = await conn.fetchrow(
             """
             SELECT * FROM smart_sessions
@@ -183,7 +192,10 @@ async def logout(request: Request):
     if not token:
         return resp
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         await conn.execute(
             "DELETE FROM smart_sessions WHERE token = $1",
             token
@@ -201,7 +213,10 @@ async def reset_password(req: ResetPasswordRequest):
 
     email = req.email.lower().strip()
 
-    async with pool.acquire() as conn:
+    if db.pool is None:
+        raise HTTPException(500, "Database connection not initialized")
+
+    async with db.pool.acquire() as conn:
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1 LIMIT 1",
             email
