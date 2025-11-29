@@ -1,163 +1,92 @@
-// smartid.init.js — единый бутстрап авторизации + топбар/меню
+/* ================================================
+   SMARTID INIT – финальная версия под SMART AUTH backend
+   ================================================ */
 
-const AUTH_CACHE_KEY = 'sv.auth.cache.v1';
-
-// ---------------------------------------------------------
-// 1. Глобальный объект авторизации SV_AUTH
-//    (по мотивам inline-скрипта из vision.html)
-// ---------------------------------------------------------
-(function initGlobalAuthObject() {
-  if (window.SV_AUTH && window.SV_AUTH.ready) {
-    // уже инициализирован (например, как в vision.html)
-    return;
-  }
-
-  const base = {
-    isAuthenticated: false,
-    userId: null,
-    email: null,
-    displayName: null,
+(() => {
+  // 1) Глобальная сессия
+  const session = {
+    authenticated: false,
     level: 1,
-    levelCode: 'guest',
-    loaded: false,
-    _resolve: null,
-    ready: null
+    email: null,
+    user_id: null,
+    name: null,
+    loading: true,
+    ready: null,
+    _resolve: null
   };
 
-  base.ready = new Promise((resolve) => {
-    base._resolve = resolve;
+  session.ready = new Promise((resolve) => {
+    session._resolve = resolve;
   });
 
-  window.SV_AUTH = base;
-})();
+  window.SMART_SESSION = session;
 
-// удобный алиас
-const SV_AUTH = window.SV_AUTH;
-
-// ---------------------------------------------------------
-// 2. Бутстрап авторизации: /api/auth/me + кэш
-// ---------------------------------------------------------
-async function bootstrapAuth() {
-  try {
-    // 2.1. Поднимаем кэш, если есть
-    const cached = localStorage.getItem(AUTH_CACHE_KEY);
-    if (cached) {
-      try {
-        Object.assign(SV_AUTH, JSON.parse(cached));
-      } catch (e) {
-        console.warn('SV_AUTH cache parse error', e);
-      }
-    }
-
-    // 2.2. Живой запрос к серверу
-    const resp = await fetch('/api/auth/me', {
-      method: 'GET',
-      credentials: 'include'
-    });
-
-    let data = null;
+  // 2) Получаем текущее состояние сессии с сервера
+  async function loadSession() {
     try {
-      data = await resp.json();
-    } catch (e) {
-      data = null;
-    }
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
 
-    if (resp.ok && data) {
-      // Логика такая же, как в vision.html
-      if (data.loggedIn) {
-        const u = data.user_merged || {};
-        SV_AUTH.isAuthenticated = true;
-        SV_AUTH.userId = u.id || null;
-        SV_AUTH.email = u.email || null;
-        SV_AUTH.displayName = u.name || null;
-        SV_AUTH.level = data.level ?? 2;
-        SV_AUTH.levelCode = data.level_code || 'user';
-      } else {
-        SV_AUTH.isAuthenticated = false;
-        SV_AUTH.userId = null;
-        SV_AUTH.level = 1;
-        SV_AUTH.levelCode = 'guest';
-      }
-    } else {
-      // 401 / 403 / 500 → гость
-      SV_AUTH.isAuthenticated = false;
-      SV_AUTH.userId = null;
-      SV_AUTH.level = 1;
-      SV_AUTH.levelCode = 'guest';
-    }
+      if (res.ok) {
+        const data = await res.json();
 
-    // 2.3. Обновляем кэш
-    try {
-      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({
-        isAuthenticated: SV_AUTH.isAuthenticated,
-        userId: SV_AUTH.userId,
-        email: SV_AUTH.email,
-        displayName: SV_AUTH.displayName,
-        level: SV_AUTH.level,
-        levelCode: SV_AUTH.levelCode
-      }));
-    } catch (e) {
-      console.warn('SV_AUTH cache save error', e);
-    }
-  } catch (e) {
-    console.warn('SV_AUTH bootstrap error', e);
-  } finally {
-    SV_AUTH.loaded = true;
-    if (typeof SV_AUTH._resolve === 'function') {
-      SV_AUTH._resolve(SV_AUTH);
-    }
-  }
-}
-
-// ---------------------------------------------------------
-// 3. Бутстрап layout: topbar / меню / управление
-// ---------------------------------------------------------
-async function bootstrapLayout() {
-  try {
-    const session = await SV_AUTH.ready;
-
-    // Путь по твоим словам: модуль лежит в /js/topbar.module.js
-    const mod = await import('/js/topbar.module.js');
-
-    // Вариант 1: если есть initPage (как в vision.html)
-    if (typeof mod.initPage === 'function') {
-      mod.initPage({
-        session,
-        fragments: [['menu.html', '#sidebar']],
-        cacheBust: false,
-        topbar: {
-          state: {
-            logoHref: 'index.html',
-            logoSrc: 'assets/logo400.jpg'
-          }
+        if (data?.loggedIn) {
+          session.authenticated = true;
+          session.level = data.level ?? 1;
+          session.user_id = data.user?.id ?? null;
+          session.email   = data.user?.email ?? null;
+          session.name    = data.user?.name ?? null;
+        } else {
+          session.authenticated = false;
+          session.level = 1;
+          session.user_id = null;
+          session.email = null;
+          session.name = null;
         }
-      });
-      return;
+      }
+    } catch (e) {
+      console.warn("SmartID /auth/me error:", e);
+      session.authenticated = false;
+      session.level = 1;
+      session.user_id = null;
+      session.email = null;
+      session.name = null;
     }
 
-    // Вариант 2: если используется новый API (renderTopbar / renderMenu / initMenuControls)
-    if (typeof mod.renderTopbar === 'function') {
-      mod.renderTopbar(session);
+    session.loading = false;
+    if (typeof session._resolve === 'function') {
+      session._resolve(session);
+      session._resolve = null;
     }
-    if (typeof mod.renderMenu === 'function') {
-      // По старой логике: level 1/2
-      mod.renderMenu(session.level ?? 1);
-    }
-    if (typeof mod.initMenuControls === 'function') {
-      mod.initMenuControls();
-    }
-  } catch (e) {
-    console.warn('SV layout init error', e);
   }
-}
 
-// ---------------------------------------------------------
-// 4. Запуск
-// ---------------------------------------------------------
-bootstrapAuth();
-bootstrapLayout();
+  // 3) TOPBAR / MENU
+  async function initLayout() {
+    await session.ready;
 
-// Для отладки — чтобы в консоли было видно состояние
-if (!window.SMART_SESSION) {
-  window.SMART_SESSION = SV_AUTH;
-}
+    import('/js/topbar.module.js')
+      .then(mod => {
+        mod.renderTopbar(session);
+        mod.renderMenu(session.level);
+        mod.initMenuControls();
+      })
+      .catch(err => console.error("Ошибка загрузки topbar:", err));
+
+    import('/js/footer.js')
+      .then(mod => mod.renderFooter(session))
+      .catch(err => console.error("Ошибка загрузки footer:", err));
+  }
+
+  loadSession();
+  initLayout();
+
+  // 4) Глобальный logout (по желанию)
+  window.SV_LOGOUT = async function () {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (e) {}
+    location.href = 'index.html';
+  };
+})();

@@ -1,4 +1,4 @@
-// vision.js — финальная версия под SV_AUTH + vision_api
+// vision.js — финальная версия под AUTH v3 + новый vision_api
 
 // ------------------------- API HELPERS -------------------------
 async function apiGet(url) {
@@ -55,6 +55,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   loadVision();
 });
 
+
 // ------------------------- LOAD VISION --------------------------
 function loadVision() {
   titleEl.innerText = "Загрузка...";
@@ -72,6 +73,7 @@ function loadVision() {
       disableInput();
     });
 }
+
 
 // ------------------------ SEND STEP -----------------------------
 function setupForm() {
@@ -106,9 +108,9 @@ function sendStep() {
     });
 }
 
+
 // ------------------------ RENAME VISION -------------------------
 function setupRename() {
-  if (!renameBtn) return;
   renameBtn.disabled = false;
 
   renameBtn.onclick = () => {
@@ -127,6 +129,7 @@ function setupRename() {
       });
   };
 }
+
 
 // ------------------------ RENDER MESSAGES -----------------------
 function renderMessages(steps) {
@@ -155,6 +158,7 @@ function renderMessages(steps) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+
 // ----------------------------- UI -------------------------------
 function disableInput() {
   if (inputEl) inputEl.disabled = true;
@@ -167,13 +171,11 @@ function enableInput() {
 }
 
 function showError(text) {
-  if (!errorEl) return;
   errorEl.innerText = text;
   errorEl.classList.remove("vision-hidden");
 }
 
 function hideError() {
-  if (!errorEl) return;
   errorEl.innerText = "";
   errorEl.classList.add("vision-hidden");
 }
