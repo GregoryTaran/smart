@@ -1,132 +1,95 @@
-// vision_list.js — ЧИСТАЯ РАБОЧАЯ ВЕРСИЯ ДЛЯ /api/vision/*
-// ========================================================
+console.log("vision_list.js loaded");
 
-// ---------- Хелперы ----------
+const API = "/api/vision";
+const USER_ID = window.SMART_SESSION?.user_id;
 
-async function apiGet(url) {
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) {
-    throw new Error("GET " + url + " " + res.status);
-  }
-  return await res.json();
+if (!USER_ID) {
+    alert("Ошибка: пользователь не авторизован!");
 }
 
-async function apiPost(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {})
-  });
-  if (!res.ok) {
-    throw new Error("POST " + url + " " + res.status);
-  }
-  return await res.json();
-}
-
-function formatDate(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-// ---------- Рендер списка визий ----------
-
-function renderVisionList(visions) {
-  const listEl = document.getElementById("visionList");
-  if (!listEl) return;
-
-  listEl.innerHTML = "";
-
-  if (!Array.isArray(visions) || visions.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "vision-list-empty";
-    empty.textContent = "Пока нет визий. Создай первую.";
-    listEl.appendChild(empty);
-    return;
-  }
-
-  visions.forEach(v => {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "vision-list-item";
-
-    const titleEl = document.createElement("div");
-    titleEl.className = "vision-list-title";
-    titleEl.textContent = v.title || "Без названия";
-
-    const metaEl = document.createElement("div");
-    metaEl.className = "vision-list-date";
-    metaEl.textContent = formatDate(v.created_at);
-
-    item.appendChild(titleEl);
-    item.appendChild(metaEl);
-
-    // ❗ ИСПРАВЛЕНИЕ: абсолютный путь
-    item.addEventListener("click", () => {
-      window.location.href =
-        `/vision/vision.html?vision_id=${encodeURIComponent(v.vision_id)}`;
-    });
-
-    listEl.appendChild(item);
-  });
-}
-
-// ---------- Загрузка с сервера ----------
-
-async function loadVisionList() {
-  try {
-    const data = await apiGet("/api/vision/list");
-    renderVisionList(data.visions || []);
-  } catch (err) {
-    console.error("Ошибка загрузки списка визий", err);
-    const listEl = document.getElementById("visionList");
-    if (listEl) {
-      listEl.innerHTML = "";
-      const errEl = document.createElement("div");
-      errEl.className = "vision-error";
-      errEl.textContent = "Не удалось загрузить визии. Попробуйте обновить.";
-      listEl.appendChild(errEl);
-    }
-  }
-}
-
-// ---------- Кнопка создания визии ----------
-
-function setupCreateButton() {
-  const btn = document.getElementById("newVisionBtn");
-  if (!btn) return;
-
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
+/**
+ * Загружаем список визий пользователя
+ */
+async function loadVisions() {
     try {
-      const data = await apiPost("/api/vision/create", {});
-      if (!data || !data.vision_id) {
-        throw new Error("Пустой ответ от API /api/vision/create");
-      }
+        const url = `${API}/list?user_id=${USER_ID}`;
+        const res = await fetch(url);
 
-      // ❗ ИСПРАВЛЕНИЕ: абсолютный путь
-      window.location.href =
-        `/vision/vision.html?vision_id=${encodeURIComponent(data.vision_id)}`;
+        if (!res.ok) {
+            throw new Error("Ошибка загрузки визий");
+        }
+
+        const visions = await res.json();
+        renderVisionList(visions);
 
     } catch (err) {
-      console.error("Ошибка создания визии", err);
-      alert("Не удалось создать визию. Попробуйте снова.");
-      btn.disabled = false;
+        console.error(err);
+        alert("Не удалось загрузить список визий");
     }
-  });
 }
 
-// ---------- Старт ----------
+/**
+ * Создать новую визию
+ */
+async function createVision() {
+    try {
+        const res = await fetch(`${API}/create`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: USER_ID })
+        });
 
-document.addEventListener("DOMContentLoaded", () => {
-  setupCreateButton();
-  loadVisionList();
-});
+        const data = await res.json();
+
+        if (data.vision_id) {
+            window.location.href = `/vision/vision.html?id=${data.vision_id}`;
+        } else {
+            alert("Ошибка создания визии");
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка создания визии");
+    }
+}
+
+/**
+ * Рендер списка визий
+ */
+function renderVisionList(list) {
+    const box = document.getElementById("visionList");
+    box.innerHTML = "";
+
+    if (!list || list.length === 0) {
+        box.innerHTML = `<div class="empty">У вас ещё нет визий</div>`;
+        return;
+    }
+
+    list.forEach(v => {
+        const div = document.createElement("div");
+        div.className = "vision-item";
+
+        div.innerHTML = `
+            <div class="vision-item-title">${v.title}</div>
+            <div class="vision-item-date">${new Date(v.created_at).toLocaleDateString()}</div>
+            <button class="vision-btn vision-btn-primary" onclick="openVision('${v.id}')">
+                Открыть
+            </button>
+        `;
+
+        box.appendChild(div);
+    });
+}
+
+/**
+ * Переход к визии
+ */
+function openVision(id) {
+    window.location.href = `/vision/vision.html?id=${id}`;
+}
+
+/**
+ * Инициализация
+ */
+document.getElementById("newVisionBtn").addEventListener("click", createVision);
+loadVisions();
