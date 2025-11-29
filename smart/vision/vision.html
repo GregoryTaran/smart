@@ -5,81 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Визия — SMART VISION</title>
 
-  <!-- новые рельсы -->
   <base href="/" />
 
   <link rel="icon" href="/assets/logo400.jpg" />
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- глобальные стили -->
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/vision/vision.css" />
 
-  <!-- smartID -->
   <script type="module" src="/js/smartid.init.js"></script>
 </head>
 
 <body>
-  <div id="page">
+<div id="page">
+  <aside id="sidebar" aria-label="Основное меню"></aside>
 
-    <aside id="sidebar" aria-label="Основное меню"></aside>
+  <div id="app">
+    <header id="topbar"></header>
 
-    <div id="app">
-      <header id="topbar"></header>
+    <main id="main">
 
-      <main id="main">
-        <section class="vision-page">
-          <div class="vision-panel">
+      <section class="vision-page">
+        <div class="vision-panel">
 
-            <!-- КНОПКА НАЗАД -->
-            <button id="backBtn" class="vision-btn vision-back-btn">
+          <!-- Верхняя панель -->
+          <div class="vision-header">
+            <button id="backToList" class="vision-btn vision-btn-secondary">
               ← Назад ко всем визиям
             </button>
 
-            <hr class="vision-separator" />
-
-            <!-- НАЗВАНИЕ ВИЗИИ + КНОПКА РЕДАКТИРОВАНИЯ -->
-            <div class="vision-title-row">
-              <h1 id="visionTitle" class="vision-title">Загрузка…</h1>
-
-              <button id="editVisionBtn" class="vision-btn vision-btn-secondary">
-                Редактировать
+            <div class="vision-title-box">
+              <h1 id="visionTitle" class="vision-title">Визия</h1>
+              <button id="editTitleBtn" class="vision-btn vision-btn-small">
+                ✎ Редактировать
               </button>
             </div>
-
-            <!-- РЕДАКТОР НАЗВАНИЯ (СКРЫТ ПО УМОЛЧАНИЮ) -->
-            <div id="editTitleBlock" class="vision-edit-block vision-hidden">
-              <input id="editTitleInput" class="vision-input" placeholder="Новое название…" />
-              <div class="vision-edit-actions">
-                <button id="saveTitleBtn" class="vision-btn-primary vision-btn">Сохранить</button>
-                <button id="cancelEditBtn" class="vision-btn vision-btn-secondary">Отмена</button>
-              </div>
-            </div>
-
-            <!-- СПИСОК ШАГОВ -->
-            <div id="stepsList" class="vision-messages"></div>
-
-            <!-- ОШИБКИ -->
-            <div id="visionError" class="vision-error vision-hidden"></div>
-
-            <!-- ВВОД ШАГА -->
-            <div class="vision-form">
-              <textarea id="newStepText" class="vision-input" placeholder="Напишите шаг..."></textarea>
-              <button id="sendBtn" class="vision-btn-primary vision-btn">Отправить</button>
-            </div>
-
           </div>
-        </section>
-      </main>
 
-      <footer id="footer"></footer>
-    </div>
+          <hr class="vision-separator" />
+
+          <!-- Шаги -->
+          <div id="stepsContainer" class="steps-container"></div>
+
+          <!-- Добавление шага -->
+          <div class="step-add-panel">
+            <textarea id="newStepInput"
+              placeholder="Введите шаг..."
+              class="step-input"></textarea>
+
+            <button id="addStepBtn" class="vision-btn vision-btn-primary">
+              Отправить
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <footer id="footer"></footer>
   </div>
+</div>
 
-  <!-- overlay (новые рельсы) -->
-  <div id="overlay"></div>
+<div id="overlay"></div>
 
-  <!-- ЛОГИКА ВИЗИИ -->
-  <script type="module" src="/vision/vision.js"></script>
+<script type="module" src="/vision/vision.js"></script>
 </body>
 </html>
