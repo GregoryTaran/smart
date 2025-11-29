@@ -7,7 +7,7 @@ import secrets
 import os
 
 # 🔌 Берём ПУЛ из tb.py (там init_db, он вызывается в main.py)
-from tb import pool
+from db import pool
 
 router = APIRouter()
 
