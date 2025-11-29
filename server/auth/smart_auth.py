@@ -21,7 +21,6 @@ pool = None
 async def startup():
     """
     Создаём пул соединений при старте ГЛАВНОГО приложения.
-    ВАЖНО: этот startup принадлежит router, а НЕ локальному FastAPI.
     """
     global pool
     print("🔌 Creating DB pool:", DB_CONN)
@@ -52,6 +51,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
 
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
@@ -88,25 +88,29 @@ def expire_time():
 @router.post("/register")
 async def register(req: RegisterRequest):
 
+    # 👉 всегда храним email в нижнем регистре
+    email = req.email.lower().strip()
+
     pool = await db()
     async with pool.acquire() as conn:
 
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1",
-            req.email
+            email
         )
         if user:
-            raise HTTPException(status_code=400, detail="Email already registered")
+            raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
 
         password_hash = make_hash(req.password)
 
+        # ❗ НЕ храним открытый пароль, только hash
         new_user = await conn.fetchrow(
             """
-            INSERT INTO smart_users (email, name, password, password_hash, level)
-            VALUES ($1, $2, $3, $4, 2)
+            INSERT INTO smart_users (email, name, password_hash, level)
+            VALUES ($1, $2, $3, 2)
             RETURNING id, email, name, level
             """,
-            req.email, req.name, req.password, password_hash
+            email, req.name, password_hash
         )
 
         return {"ok": True, "user": dict(new_user)}
@@ -119,16 +123,19 @@ async def register(req: RegisterRequest):
 @router.post("/login")
 async def login(req: LoginRequest):
 
+    email = req.email.lower().strip()
+
     pool = await db()
     async with pool.acquire() as conn:
 
         user = await conn.fetchrow(
             "SELECT * FROM smart_users WHERE email = $1 LIMIT 1",
-            req.email
+            email
         )
 
         if not user or not check_hash(req.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            # Сообщение лаконичное, но понятное
+            raise HTTPException(status_code=401, detail="Неверный email или пароль")
 
         token = generate_token()
         expires = expire_time()
@@ -148,7 +155,7 @@ async def login(req: LoginRequest):
             httponly=True,
             samesite="lax",
             max_age=60 * 60 * 24 * SESSION_LIFETIME_DAYS,
-            secure=True
+            secure=True  # если ломает dev на http, можно сделать secure=USE_HTTPS_ENV
         )
         return resp
 
@@ -222,11 +229,13 @@ async def logout(request: Request):
 
 
 # ===============================
-# RESET PASSWORD (POSTGRES VERSION)
+# RESET PASSWORD
 # ===============================
 
 @router.post("/reset")
 async def reset_password(req: ResetPasswordRequest):
+
+    email = req.email.lower().strip()
 
     pool = await db()
     async with pool.acquire() as conn:
@@ -234,27 +243,28 @@ async def reset_password(req: ResetPasswordRequest):
         # Ищем пользователя
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1 LIMIT 1",
-            req.email
+            email
         )
 
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Пользователь с таким email не найден")
 
-        # Генерируем новый пароль (6 символов)
+        # Генерируем новый пароль (6 шестнадцатеричных символов)
         new_pass = secrets.token_hex(3)  # Например: '3af9d1'
 
         # Хэшируем
         new_hash = make_hash(new_pass)
 
-        # Записываем в базу
+        # Обновляем только hash (и при желании чистим старое текстовое поле password)
         await conn.execute(
-            "UPDATE smart_users SET password_hash = $1 WHERE id = $2",
+            "UPDATE smart_users SET password_hash = $1, password = NULL WHERE id = $2",
             new_hash,
             user["id"]
         )
 
+        # Возвращаем новый пароль — фронт покажет его на странице
         return {
             "ok": True,
-            "email": req.email,
+            "email": email,
             "new_password": new_pass
         }
