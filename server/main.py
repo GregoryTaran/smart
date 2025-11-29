@@ -8,7 +8,7 @@ from pathlib import Path
 
 # ------------------------ DB INIT ------------------------
 # ✅ добавили аккуратно: инициализация пула БД
-from tb import init_db
+from db import init_db
 
 # ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
