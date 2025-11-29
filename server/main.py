@@ -10,7 +10,8 @@ from pathlib import Path
 from vision.router import router as vision_router
 
 # ⭐ ВАЖНО: меняем импорт router → импорт всего модуля
-import server.auth.smart_auth as smart_auth
+import auth.smart_auth as smart_auth
+
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
