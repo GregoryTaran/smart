@@ -10,7 +10,7 @@ from typing import List, Optional
 from openai import OpenAI
 
 # Берём пул соединений и cookie-название из smart_auth
-from smart_auth import db as get_db_pool, SESSION_COOKIE
+from auth.smart_auth import db as get_db_pool, SESSION_COOKIE
 
 router = APIRouter(prefix="/vision", tags=["vision"])
 
