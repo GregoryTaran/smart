@@ -1,6 +1,19 @@
-export function renderFooter(session) {
+// ================================================
+//  SMART VISION — FOOTER (работает напрямую с SMART_SESSION)
+// ================================================
+
+export function renderFooter() {
   const footer = document.getElementById('footer');
   if (!footer) return;
+
+  const session = window.SMART_SESSION || {
+    authenticated: false,
+    level: 1,
+    user_id: null,
+    email: null,
+    name: null,
+    loading: true
+  };
 
   const year = new Date().getFullYear();
 
@@ -21,8 +34,12 @@ export function renderFooter(session) {
   `;
 }
 
+// ------------------------------------------------
+//  DEBUG BLOCK (системное состояние)
+// ------------------------------------------------
 function renderDebug(session) {
   return `
+    ${row('Loading', session.loading ? 'yes' : 'no')}
     ${row('Authenticated', session.authenticated ? 'yes' : 'no')}
     ${row('User ID', session.user_id || '—')}
     ${row('Email', session.email || '—')}
@@ -31,6 +48,9 @@ function renderDebug(session) {
   `;
 }
 
+// ------------------------------------------------
+//  ESCAPE HELPERS
+// ------------------------------------------------
 function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;')
