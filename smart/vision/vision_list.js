@@ -56,7 +56,7 @@ function renderList(visions) {
       <div class="vision-list-date">${new Date(v.created_at).toLocaleString()}</div>
     `;
     item.onclick = () => {
-      window.location.href = \`/vision/vision.html?vision_id=\${v.vision_id}\`;
+      window.location.href = `/vision/vision.html?vision_id=${v.vision_id}`;
     };
     box.appendChild(item);
   });
@@ -69,6 +69,6 @@ function setupCreateButton() {
   btn.addEventListener("click", async () => {
     const data = await apiPost("/api/vision/create");
     window.location.href =
-      \`/vision/vision.html?vision_id=\${data.vision_id}\`;
+      `/vision/vision.html?vision_id=${data.vision_id}`;
   });
 }
