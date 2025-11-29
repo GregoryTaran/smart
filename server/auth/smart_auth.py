@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import bcrypt
 import secrets
 import asyncpg
-from fastapi import FastAPI
 import os
 
 router = APIRouter()
@@ -14,14 +13,16 @@ router = APIRouter()
 # БАЗА + ПУЛ
 # ===============================
 
-app = FastAPI()
-
 DB_CONN = os.getenv("DATABASE_URL")
 pool = None
 
-@app.on_event("startup")
+
+@router.on_event("startup")
 async def startup():
-    """Создаём пул соединений один раз при старте."""
+    """
+    Создаём пул соединений при старте ГЛАВНОГО приложения.
+    ВАЖНО: этот startup принадлежит router, а НЕ локальному FastAPI.
+    """
     global pool
     print("🔌 Creating DB pool:", DB_CONN)
 
@@ -32,9 +33,11 @@ async def startup():
         command_timeout=5
     )
 
+
 async def db():
     """Возвращаем пул."""
     return pool
+
 
 # ===============================
 # МОДЕЛИ
@@ -45,9 +48,11 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
 
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
 
 # ===============================
 # ВСПОМОГАТЕЛЬНЫЕ
@@ -56,17 +61,22 @@ class LoginRequest(BaseModel):
 SESSION_COOKIE = "smart_session"
 SESSION_LIFETIME_DAYS = 7
 
+
 def make_hash(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
 
 def check_hash(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
+
 def generate_token() -> str:
     return secrets.token_hex(32)
 
+
 def expire_time():
     return datetime.utcnow() + timedelta(days=SESSION_LIFETIME_DAYS)
+
 
 # ===============================
 # REGISTER
@@ -97,6 +107,7 @@ async def register(req: RegisterRequest):
         )
 
         return {"ok": True, "user": dict(new_user)}
+
 
 # ===============================
 # LOGIN
@@ -133,10 +144,11 @@ async def login(req: LoginRequest):
             value=token,
             httponly=True,
             samesite="lax",
-            max_age=60*60*24*SESSION_LIFETIME_DAYS,
+            max_age=60 * 60 * 24 * SESSION_LIFETIME_DAYS,
             secure=True
         )
         return resp
+
 
 # ===============================
 # ME
@@ -179,6 +191,7 @@ async def me(request: Request):
             "level": user["level"],
             "user": dict(user)
         }
+
 
 # ===============================
 # LOGOUT
