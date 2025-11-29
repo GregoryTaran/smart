@@ -1,4 +1,4 @@
-// vision_list.js — новая финальная версия без user_id в URL
+// vision_list.js — версия под глобальный SV_AUTH
 
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
@@ -34,6 +34,7 @@ function loadVisionList() {
   apiGet(`/api/vision/list`)
     .then(data => renderList(data.visions || []))
     .catch(err => {
+      console.error(err);
       const box = document.getElementById("visionList");
       box.innerHTML = `<p class="empty-text">Не удалось загрузить визии</p>`;
     });
@@ -67,8 +68,12 @@ function setupCreateButton() {
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
-    const data = await apiPost("/api/vision/create");
-    window.location.href =
-      `/vision/vision.html?vision_id=${data.vision_id}`;
+    try {
+      const data = await apiPost("/api/vision/create");
+      window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
+    } catch (err) {
+      console.error(err);
+      alert("Не удалось создать визию");
+    }
   });
 }
