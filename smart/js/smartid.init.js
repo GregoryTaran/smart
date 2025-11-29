@@ -106,7 +106,7 @@
       .catch(err => console.error("Ошибка загрузки topbar:", err));
 
     import('/js/footer.js')
-      .then(mod => mod.renderFooter(session))
+      .then(mod => mod.renderFooter())
       .catch(err => console.error("Ошибка загрузки footer:", err));
   }
 
