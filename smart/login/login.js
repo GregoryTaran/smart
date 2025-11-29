@@ -1,3 +1,6 @@
+// login.js — новая версия под нашу PostgreSQL-авторизацию
+// Умеет: регистрация, вход, сброс пароля с показом нового
+
 (function () {
   const $  = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -10,14 +13,15 @@
   const resetResult  = $('#reset-result');
 
   function showStatus(text, type = 'info') {
+    if (!statusBox) return;
     statusBox.textContent = text;
     statusBox.dataset.type = type;
   }
 
   function switchTo(mode) {
-    formRegister.hidden = mode !== 'register';
-    formLogin.hidden    = mode !== 'login';
-    formReset.hidden    = mode !== 'reset';
+    if (formRegister) formRegister.hidden = mode !== 'register';
+    if (formLogin)    formLogin.hidden    = mode !== 'login';
+    if (formReset)    formReset.hidden    = mode !== 'reset';
     showStatus('');
     if (resetResult) resetResult.textContent = '';
   }
@@ -36,82 +40,87 @@
     return json;
   }
 
-  async function apiGET(path) {
-    const res = await fetch(path, { credentials: 'include' });
-    return await res.json().catch(() => ({}));
-  }
-
   // ------------------------------------------------------
   // РЕГИСТРАЦИЯ
   // ------------------------------------------------------
-  formRegister.addEventListener('submit', async e => {
-    e.preventDefault();
+  if (formRegister) {
+    formRegister.addEventListener('submit', async e => {
+      e.preventDefault();
 
-    const name  = $('#reg-name').value.trim();
-    const email = $('#reg-email').value.trim();
-    const pass  = $('#reg-pass').value.trim();
+      const name  = $('#reg-name')?.value.trim()  || '';
+      const email = $('#reg-email')?.value.trim() || '';
+      const pass  = $('#reg-pass')?.value.trim()  || '';
 
-    if (!name)  return showStatus("Введите имя", "error");
-    if (!email) return showStatus("Введите email", "error");
-    if (!pass)  return showStatus("Введите пароль", "error");
+      if (!name)  return showStatus("Введите имя", "error");
+      if (!email) return showStatus("Введите email", "error");
+      if (!pass)  return showStatus("Введите пароль", "error");
 
-    try {
-      await apiPOST('/api/auth/register', { name, email, password: pass });
-      showStatus("Регистрация успешна!", "success");
-      $('#login-email').value = email;
-      switchTo('login');
-    } catch (err) {
-      showStatus(err.message, "error");
-    }
-  });
+      try {
+        await apiPOST('/api/auth/register', { name, email, password: pass });
+
+        showStatus("Регистрация успешна!", "success");
+        const loginEmail = $('#login-email');
+        if (loginEmail) loginEmail.value = email;
+
+        switchTo('login');
+      } catch (err) {
+        showStatus(err.message, "error");
+      }
+    });
+  }
 
   // ------------------------------------------------------
   // ВХОД
   // ------------------------------------------------------
-  formLogin.addEventListener('submit', async e => {
-    e.preventDefault();
+  if (formLogin) {
+    formLogin.addEventListener('submit', async e => {
+      e.preventDefault();
 
-    const email = $('#login-email').value.trim();
-    const pass  = $('#login-pass').value.trim();
+      const email = $('#login-email')?.value.trim() || '';
+      const pass  = $('#login-pass')?.value.trim()  || '';
 
-    if (!email) return showStatus("Введите email", "error");
-    if (!pass)  return showStatus("Введите пароль", "error");
+      if (!email) return showStatus("Введите email", "error");
+      if (!pass)  return showStatus("Введите пароль", "error");
 
-    try {
-      await apiPOST('/api/auth/login', { email, password: pass });
+      try {
+        await apiPOST('/api/auth/login', { email, password: pass });
 
-      const me = await apiGET('/api/auth/me');
-      if (!me.loggedIn) throw new Error("Ошибка авторизации");
+        // /api/auth/me дергает smartid.init.js на новой странице — тут не нужно
+        location.replace('/index.html');
 
-      location.replace('/index.html');
-
-    } catch (err) {
-      showStatus(err.message, 'error');
-    }
-  });
+      } catch (err) {
+        showStatus(err.message, 'error');
+      }
+    });
+  }
 
   // ------------------------------------------------------
-  // СБРОС ПАРОЛЯ (если хочешь использовать)
+  // СБРОС ПАРОЛЯ — ЧЕРЕЗ НАШ /api/auth/reset
   // ------------------------------------------------------
-  formReset.addEventListener('submit', async e => {
-    e.preventDefault();
+  if (formReset) {
+    formReset.addEventListener('submit', async e => {
+      e.preventDefault();
 
-    const email = $('#reset-email').value.trim();
-    if (!email) return showStatus("Введите email", "error");
+      const email = $('#reset-email')?.value.trim() || '';
+      if (!email) return showStatus("Введите email", "error");
 
-    try {
-      const out = await apiPOST('/api/auth/reset-dev', { email });
-      resetResult.textContent = "Новый пароль: " + out.new_password;
-      showStatus("Пароль сброшен", "success");
-    } catch (err) {
-      showStatus(err.message, 'error');
-    }
-  });
+      try {
+        const out = await apiPOST('/api/auth/reset', { email });
+        if (resetResult) {
+          resetResult.textContent = "Новый пароль: " + (out.new_password || "—");
+        }
+        showStatus("Пароль сброшен", "success");
+      } catch (err) {
+        showStatus(err.message, 'error');
+      }
+    });
+  }
 
-  // переключатели
+  // переключатели (ссылки "Перейти к логину/регистрации/сбросу")
   $$('[data-action]').forEach(el => {
     el.addEventListener('click', () => {
-      switchTo(el.dataset.action.replace('to-', ''));
+      const mode = el.dataset.action.replace('to-', '');
+      switchTo(mode);
     });
   });
 
