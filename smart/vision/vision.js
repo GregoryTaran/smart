@@ -1,4 +1,4 @@
-// vision.js — финальная версия под SV_AUTH + vision_api
+// vision.js — версия под SMART_SESSION + Vision API v3
 
 // ------------------------- API HELPERS -------------------------
 async function apiGet(url) {
@@ -19,17 +19,27 @@ async function apiPost(url, body) {
 }
 
 // ------------------------- GLOBALS -----------------------------
-const params = new URLSearchParams(location.search);
+const params = new URLSearchParams(window.location.search);
 const visionId = params.get("vision_id");
 
-let titleEl, messagesEl, inputEl, sendBtn, renameBtn, errorEl;
+let titleEl;
+let messagesEl;
+let inputEl;
+let sendBtn;
+let renameBtn;
+let errorEl;
 
 // ---------------------- INITIALIZATION -------------------------
 window.addEventListener("DOMContentLoaded", async () => {
-  // Ждём AUTH
-  const auth = await window.SV_AUTH.ready;
+  if (!window.SMART_SESSION || !window.SMART_SESSION.ready) {
+    console.error("SMART_SESSION не инициализирован");
+    alert("Ошибка инициализации авторизации");
+    return;
+  }
 
-  if (!auth.isAuthenticated) {
+  const session = await window.SMART_SESSION.ready;
+
+  if (!session.authenticated) {
     alert("Для работы с визиями нужно войти в систему");
     window.location.href = "/login/login.html";
     return;
@@ -44,12 +54,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   errorEl = document.getElementById("visionError");
 
   if (!visionId) {
-    titleEl.innerText = "Визия не выбрана";
+    if (titleEl) titleEl.innerText = "Визия не выбрана";
     disableInput();
     return;
   }
 
-  // Старт
   setupForm();
   setupRename();
   loadVision();
@@ -57,17 +66,24 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 // ------------------------- LOAD VISION --------------------------
 function loadVision() {
-  titleEl.innerText = "Загрузка...";
+  if (titleEl) {
+    titleEl.innerText = "Загрузка...";
+  }
+  hideError();
 
   apiGet(`/api/vision/${visionId}`)
     .then(data => {
-      titleEl.innerText = data.title || "Без названия";
+      if (titleEl) {
+        titleEl.innerText = data.title || "Без названия";
+      }
       renderMessages(data.steps || []);
       enableInput();
     })
     .catch(err => {
       console.error(err);
-      titleEl.innerText = "Ошибка загрузки визии";
+      if (titleEl) {
+        titleEl.innerText = "Ошибка загрузки визии";
+      }
       showError("Не удалось загрузить визию");
       disableInput();
     });
@@ -76,6 +92,11 @@ function loadVision() {
 // ------------------------ SEND STEP -----------------------------
 function setupForm() {
   const form = document.getElementById("messageForm");
+  if (!form || !inputEl || !sendBtn) {
+    console.warn("messageForm / userInput / sendBtn не найдены");
+    return;
+  }
+
   form.addEventListener("submit", e => {
     e.preventDefault();
     sendStep();
@@ -90,10 +111,14 @@ function setupForm() {
 }
 
 function sendStep() {
+  if (!inputEl) return;
+
   const text = inputEl.value.trim();
   if (!text) return;
 
+  hideError();
   inputEl.value = "";
+  disableInput();
 
   apiPost("/api/vision/step", {
     vision_id: visionId,
@@ -103,50 +128,71 @@ function sendStep() {
     .catch(err => {
       console.error(err);
       showError("Не удалось отправить шаг");
+      enableInput();
     });
 }
 
 // ------------------------ RENAME VISION -------------------------
 function setupRename() {
-  if (!renameBtn) return;
+  if (!renameBtn || !titleEl) return;
+
   renameBtn.disabled = false;
 
-  renameBtn.onclick = () => {
-    const currentTitle = titleEl.innerText.trim();
-    const newName = prompt("Введите новое название визии:", currentTitle);
+  renameBtn.addEventListener("click", () => {
+    const currentTitle = titleEl.innerText.trim() || "Моя визия";
+    const newName = window.prompt("Введите новое название визии:", currentTitle);
     if (!newName) return;
+
+    hideError();
+    renameBtn.disabled = true;
 
     apiPost("/api/vision/rename", {
       vision_id: visionId,
       title: newName
     })
-      .then(() => loadVision())
+      .then(() => {
+        renameBtn.disabled = false;
+        loadVision();
+      })
       .catch(err => {
         console.error(err);
         showError("Не удалось переименовать визию");
+        renameBtn.disabled = false;
       });
-  };
+  });
 }
 
 // ------------------------ RENDER MESSAGES -----------------------
 function renderMessages(steps) {
+  if (!messagesEl) return;
+
   messagesEl.innerHTML = "";
 
   steps.forEach(step => {
-    const userMsg = document.createElement("div");
-    userMsg.className = "vision-message vision-message-user";
-    userMsg.innerHTML = `
-      <div class="vision-message-text">${step.user_text}</div>
-      <div class="vision-message-time">${new Date(step.created_at).toLocaleString()}</div>
-    `;
-    messagesEl.appendChild(userMsg);
+    // сообщение пользователя
+    if (step.user_text) {
+      const userMsg = document.createElement("div");
+      userMsg.className = "vision-message vision-message-user";
+      userMsg.innerHTML = `
+        <div class="vision-message-label">Вы</div>
+        <div class="vision-message-text">${step.user_text}</div>
+        <div class="vision-message-time">
+          ${new Date(step.created_at).toLocaleString()}
+        </div>
+      `;
+      messagesEl.appendChild(userMsg);
+    }
 
+    // ответ ИИ (если есть)
     if (step.ai_text) {
       const aiMsg = document.createElement("div");
       aiMsg.className = "vision-message vision-message-ai";
       aiMsg.innerHTML = `
+        <div class="vision-message-label">SMART VISION</div>
         <div class="vision-message-text">${step.ai_text}</div>
-        <div class="vision-message-time">${new Date(step.created_at).toLocaleString()}</div>
+        <div class="vision-message-time">
+          ${new Date(step.created_at).toLocaleString()}
+        </div>
       `;
       messagesEl.appendChild(aiMsg);
     }

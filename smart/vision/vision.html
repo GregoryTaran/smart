@@ -29,17 +29,33 @@
 
             <div class="vision-header">
               <h1 id="visionTitle" class="vision-title">Визия</h1>
-              <p id="visionDesc" class="vision-desc"></p>
 
               <div class="vision-actions">
-                <button id="addStepBtn" class="vision-btn vision-btn-primary">Добавить шаг</button>
+                <button id="renameVisionBtn" class="vision-btn vision-btn-secondary">
+                  Переименовать визию
+                </button>
               </div>
             </div>
 
-            <section class="vision-steps">
-              <h2 class="vision-subtitle">Шаги</h2>
+            <section class="vision-chat-block">
+              <div id="visionError" class="vision-error vision-hidden"></div>
 
-              <div id="stepsList" class="steps-list"></div>
+              <div id="messages" class="vision-messages"></div>
+
+              <form id="messageForm" class="vision-form">
+                <textarea
+                  id="userInput"
+                  class="vision-input"
+                  placeholder="Опиши следующий шаг, мысль или вопрос по визии..."
+                ></textarea>
+                <button
+                  type="submit"
+                  id="sendBtn"
+                  class="vision-btn vision-btn-primary"
+                >
+                  Добавить шаг
+                </button>
+              </form>
             </section>
 
           </div>
@@ -50,11 +66,4 @@
     </div>
   </div>
 
-  <!-- overlay — обязательный элемент новых рельс -->
-  <div id="overlay"></div>
-
-
-  <!-- Логика работы страницы визии -->
-  <script type="module" src="/vision/vision.js"></script>
-</body>
-</html>
+  <!-- overlay — обязательный элемен

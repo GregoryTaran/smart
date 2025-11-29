@@ -1,4 +1,4 @@
-// vision_list.js — версия под глобальный SV_AUTH
+// vision_list.js — версия под SMART_SESSION + Vision API
 
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
@@ -18,10 +18,22 @@ async function apiPost(url, body) {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  window.SV_AUTH.ready.then(auth => {
-    if (!auth.isAuthenticated) {
-      document.getElementById("visionList").innerHTML =
-        `<p class="empty-text">Для визий нужен вход в систему</p>`;
+  // Ждём готовности SMART_SESSION (новая auth-система)
+  if (!window.SMART_SESSION || !window.SMART_SESSION.ready) {
+    console.error("SMART_SESSION не инициализирован");
+    const box = document.getElementById("visionList");
+    if (box) {
+      box.innerHTML = `<p class="empty-text">Ошибка инициализации авторизации</p>`;
+    }
+    return;
+  }
+
+  window.SMART_SESSION.ready.then(session => {
+    if (!session.authenticated) {
+      const box = document.getElementById("visionList");
+      if (box) {
+        box.innerHTML = `<p class="empty-text">Для визий нужен вход в систему</p>`;
+      }
       return;
     }
 
@@ -36,12 +48,16 @@ function loadVisionList() {
     .catch(err => {
       console.error(err);
       const box = document.getElementById("visionList");
-      box.innerHTML = `<p class="empty-text">Не удалось загрузить визии</p>`;
+      if (box) {
+        box.innerHTML = `<p class="empty-text">Не удалось загрузить визии</p>`;
+      }
     });
 }
 
 function renderList(visions) {
   const box = document.getElementById("visionList");
+  if (!box) return;
+
   box.innerHTML = "";
 
   if (!visions.length) {
@@ -50,7 +66,8 @@ function renderList(visions) {
   }
 
   visions.forEach(v => {
-    const item = document.createElement("div");
+    const item = document.createElement("button");
+    item.type = "button";
     item.className = "vision-list-item";
     item.innerHTML = `
       <div class="vision-list-title">${v.title}</div>
@@ -70,6 +87,9 @@ function setupCreateButton() {
   btn.addEventListener("click", async () => {
     try {
       const data = await apiPost("/api/vision/create");
+      if (!data || !data.vision_id) {
+        throw new Error("Некорректный ответ create");
+      }
       window.location.href = `/vision/vision.html?vision_id=${data.vision_id}`;
     } catch (err) {
       console.error(err);
