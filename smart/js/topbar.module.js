@@ -102,6 +102,9 @@ export function initMenuControls() {
   const sidebar = document.getElementById('sidebar');
   const btn = document.querySelector('.menu-toggle');
 
+  // ★ ADD — твой overlay
+  const overlay = document.getElementById('overlay');
+
   if (!sidebar || !btn) return;
 
   btn.addEventListener('click', () => {
@@ -113,6 +116,13 @@ export function initMenuControls() {
       body.classList.remove('menu-open');
     }
   });
+
+  // ★ ADD — обработчик клика по тёмному фону
+  if (overlay) {
+    overlay.addEventListener('click', () => {
+      body.classList.remove('menu-open');
+    });
+  }
 
   window.addEventListener('resize', () => {
     if (window.innerWidth >= 900) {
