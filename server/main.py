@@ -6,6 +6,10 @@ from starlette.responses import JSONResponse
 import logging, os
 from pathlib import Path
 
+# ------------------------ DB INIT ------------------------
+# ✅ добавили аккуратно: инициализация пула БД
+from tb import init_db
+
 # ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
 
@@ -13,11 +17,16 @@ from vision.router import router as vision_router
 import auth.smart_auth as smart_auth
 
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
 
 app = FastAPI(title="SMART Backend", version="0.2.0")
+
+# ------------------------ STARTUP ------------------------
+# ✅ аккуратный хук, который один раз создаёт пул БД при старте сервера
+@app.on_event("startup")
+async def startup():
+    await init_db()
 
 # ------------------------ MIDDLEWARE ------------------------
 app.add_middleware(GZipMiddleware)

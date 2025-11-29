@@ -6,35 +6,38 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from datetime import datetime, date
 from typing import List, Optional
-
 from openai import OpenAI
+import os
 
-# Берём пул соединений и cookie-название из smart_auth
-from auth.smart_auth import db as get_db_pool, SESSION_COOKIE
+# 🔌 новый глобальный пул
+from db import pool
+# cookie + всё что осталось из smart_auth
+from auth.smart_auth import SESSION_COOKIE
+
 
 router = APIRouter(prefix="/vision", tags=["vision"])
 
-# ID системного AI-пользователя AIOPEN (из таблицы smart_users)
+# ID системного AI-пользователя AIOPEN
 AI_USER_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 
-# ------------------------ OPENAI -------------------------------
-import os
 
+# OPENAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 
-# ------------------------ AUTH HELPERS -------------------------
+# ============================================================
+#                   AUTH HELPERS (НОВЫЕ)
+# ============================================================
+
 async def get_auth_user_id(request: Request) -> Optional[str]:
     """
-    Достаём user_id через smart_sessions по cookie smart_session.
-    Такой же подход, как в /auth/me.
+    Получаем user_id через smart_sessions, используя новый пул.
     """
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         return None
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -46,9 +49,7 @@ async def get_auth_user_id(request: Request) -> Optional[str]:
             """,
             token,
         )
-        if not row:
-            return None
-        return str(row["id"])
+        return str(row["id"]) if row else None
 
 
 # ============================================================
@@ -64,7 +65,7 @@ class CreateVisionResponse(BaseModel):
 class StepRequest(BaseModel):
     vision_id: str
     user_text: str
-    with_ai: bool = True  # можно выключить ответ ИИ
+    with_ai: bool = True
 
 
 class StepResponse(BaseModel):
@@ -98,17 +99,9 @@ class RenameVisionResponse(BaseModel):
 #               ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================
 
-async def ensure_vision_access(
-    conn,
-    vision_id: str,
-    user_id: str,
-    allowed_roles: Optional[List[str]] = None,
-    not_found_as_404: bool = True,
-):
-    """
-    Проверяем, что юзер участвует в визии и его роль подходит.
-    Возвращает строку с данными по визии + роли участника.
-    """
+async def ensure_vision_access(conn, vision_id: str, user_id: str,
+                               allowed_roles: Optional[List[str]] = None,
+                               not_found_as_404: bool = True):
     row = await conn.fetchrow(
         """
         SELECT
@@ -136,15 +129,13 @@ async def ensure_vision_access(
 
     role = row["participant_role"]
     if allowed_roles and role not in allowed_roles:
-        raise HTTPException(403, "Недостаточно прав для операции с визией")
+        raise HTTPException(403, "Недостаточно прав")
 
     return row
 
 
 async def build_ai_response(vision_id: str, user_text: str, conn):
-    """Собираем историю и отправляем запрос в OpenAI."""
     if not openai_client:
-        # Если ключа нет — не падаем, просто возвращаем заглушку
         return "AI временно недоступен."
 
     rows = await conn.fetch(
@@ -163,8 +154,7 @@ async def build_ai_response(vision_id: str, user_text: str, conn):
             "role": "system",
             "content": (
                 "Ты дружелюбный ассистент, который помогает человеку "
-                "формулировать и развивать его жизненную визию. "
-                "Отвечай ясно, по делу, с уважением к человеку."
+                "развивать жизненную визию."
             ),
         }
     ]
@@ -183,7 +173,7 @@ async def build_ai_response(vision_id: str, user_text: str, conn):
     )
 
     content = ai.choices[0].message.content
-    return content.strip() if content else "Не удалось сформировать ответ."
+    return content.strip() if content else "Ошибка при генерации ответа."
 
 
 # ============================================================
@@ -196,7 +186,6 @@ async def create_vision(request: Request):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             title = f"Визия от {date.today():%d.%m.%Y}"
@@ -213,7 +202,7 @@ async def create_vision(request: Request):
 
             vision_id = row["id"]
 
-            # владелец = участник с ролью owner
+            # owner
             await conn.execute(
                 """
                 INSERT INTO vision_participants (vision_id, user_id, role)
@@ -224,7 +213,7 @@ async def create_vision(request: Request):
                 user_id,
             )
 
-            # системный AI как участник
+            # AI participant
             await conn.execute(
                 """
                 INSERT INTO vision_participants (vision_id, user_id, role)
@@ -255,9 +244,8 @@ async def create_step(request: Request, body: StepRequest):
     if not body.user_text:
         raise HTTPException(400, "user_text required")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
-        # любая роль, кроме viewer, может добавлять шаги
+
         await ensure_vision_access(
             conn,
             vision_id=body.vision_id,
@@ -265,7 +253,7 @@ async def create_step(request: Request, body: StepRequest):
             allowed_roles=["owner", "editor", "ai"],
         )
 
-        ai_text: Optional[str] = None
+        ai_text = None
         if body.with_ai:
             ai_text = await build_ai_response(body.vision_id, body.user_text, conn)
 
@@ -299,7 +287,6 @@ async def list_visions(request: Request):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
@@ -335,8 +322,8 @@ async def get_vision(request: Request, vision_id: str):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
+
         vis_row = await ensure_vision_access(
             conn,
             vision_id=vision_id,
@@ -382,9 +369,8 @@ async def rename_vision(request: Request, body: RenameVisionRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
-        # только owner может переименовывать
+
         await ensure_vision_access(
             conn,
             vision_id=body.vision_id,
@@ -414,12 +400,12 @@ async def rename_vision(request: Request, body: RenameVisionRequest):
 
 
 # ============================================================
-#                  ARCHIVE / UNARCHIVE VISION
+#                  ARCHIVE / UNARCHIVE
 # ============================================================
 
 class ArchiveRequest(BaseModel):
     vision_id: str
-    archived: bool  # true = в архив, false = вернуть
+    archived: bool
 
 
 @router.post("/archive")
@@ -428,10 +414,8 @@ async def archive_vision(request: Request, body: ArchiveRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
 
-        # только owner может архивировать
         await ensure_vision_access(
             conn,
             vision_id=body.vision_id,
@@ -461,7 +445,7 @@ async def archive_vision(request: Request, body: ArchiveRequest):
 
 
 # ============================================================
-#                       DELETE VISION
+#                  DELETE VISION
 # ============================================================
 
 class DeleteRequest(BaseModel):
@@ -474,9 +458,8 @@ async def delete_vision(request: Request, body: DeleteRequest):
     if not user_id:
         raise HTTPException(401, "Unauthorized")
 
-    pool = await get_db_pool()
     async with pool.acquire() as conn:
-        # проверим, что визия существует и пользователь = owner
+
         await ensure_vision_access(
             conn,
             vision_id=body.vision_id,
@@ -484,7 +467,6 @@ async def delete_vision(request: Request, body: DeleteRequest):
             allowed_roles=["owner"],
         )
 
-        # УДАЛЕНИЕ КАСКАДОМ — FK в vision_steps и vision_participants уже настроены
         await conn.execute(
             """
             DELETE FROM visions
@@ -494,5 +476,3 @@ async def delete_vision(request: Request, body: DeleteRequest):
         )
 
     return {"status": "deleted", "vision_id": body.vision_id}
-
-

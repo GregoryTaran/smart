@@ -1,8 +1,8 @@
-// --- API ---
+// ===== Хелперы =====
 
 async function apiGet(url) {
   const r = await fetch(url, { credentials: "include" });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw new Error("GET " + url + " " + r.status);
   return await r.json();
 }
 
@@ -11,133 +11,86 @@ async function apiPost(url, body) {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body || {})
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw new Error("POST " + url + " " + r.status);
   return await r.json();
 }
 
-function getVisionId() {
-  return new URLSearchParams(location.search).get("vision_id");
+// ===== Глобальные элементы =====
+const titleEl = document.getElementById("visionTitle");
+const editBtn = document.getElementById("editTitleBtn");
+const stepsEl = document.getElementById("stepsContainer");
+const inputEl = document.getElementById("newStepInput");
+const addStepBtn = document.getElementById("addStepBtn");
+
+const backBtn = document.getElementById("backToList");
+
+let vision_id = null;
+
+// ===== Функции =====
+
+function parseVisionId() {
+  const p = new URLSearchParams(window.location.search);
+  vision_id = p.get("vision_id");
 }
 
-// --- РЕНДЕР НАЗВАНИЯ ---
-
-function renderVisionTitle(v) {
-  document.getElementById("visionTitle").textContent = v.title || "Без названия";
+async function loadVision() {
+  const data = await apiGet(`/api/vision/${vision_id}`);
+  titleEl.textContent = data.title || "Без названия";
 }
 
-// --- РЕНДЕР ШАГОВ ---
+async function loadSteps() {
+  const data = await apiGet(`/api/vision/${vision_id}/steps`);
+  stepsEl.innerHTML = "";
 
-function renderSteps(steps) {
-  const list = document.getElementById("stepsList");
-  list.innerHTML = "";
+  (data.steps || []).forEach(s => {
+    const row = document.createElement("div");
+    row.className = "step-row";
 
-  if (!steps || steps.length === 0) {
-    list.innerHTML = `<div class="vision-message">Пока нет шагов.</div>`;
+    row.innerHTML = `
+      <div class="step-side">${s.role === "ai" ? "🤖" : "🧑"}</div>
+      <div class="step-text">${s.text}</div>
+    `;
+
+    stepsEl.appendChild(row);
+  });
+}
+
+async function addStep() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  await apiPost(`/api/vision/${vision_id}/step/add`, { text });
+  inputEl.value = "";
+  await loadSteps();
+}
+
+async function editTitle() {
+  const newTitle = prompt("Новое название визии:", titleEl.textContent);
+  if (!newTitle) return;
+
+  await apiPost(`/api/vision/${vision_id}/title`, { title: newTitle });
+  titleEl.textContent = newTitle;
+}
+
+// ===== Навигация =====
+backBtn.addEventListener("click", () => {
+  window.location.href = "/vision/index.html";
+});
+
+// ===== Старт =====
+document.addEventListener("DOMContentLoaded", async () => {
+  parseVisionId();
+
+  if (!vision_id) {
+    alert("Не передан vision_id");
     return;
   }
 
-  for (const s of steps) {
-    const block = document.createElement("div");
+  editBtn.addEventListener("click", editTitle);
+  addStepBtn.addEventListener("click", addStep);
 
-    // классы из твоего vision.css
-    block.className = "vision-message " + 
-      (s.user_text && !s.ai_text ? "vision-message-user" : "") +
-      (s.ai_text ? "vision-message-ai" : "");
-
-    const who = s.user_text ? "Пользователь" : "AI";
-    const text = s.user_text || s.ai_text;
-
-    block.innerHTML = `
-      <div class="vision-message-label">${who}</div>
-      <div class="vision-message-text">${text}</div>
-    `;
-
-    list.appendChild(block);
-  }
-}
-
-// --- ЗАГРУЗКА СТРАНИЦЫ ---
-
-async function loadVision() {
-  const id = getVisionId();
-  if (!id) return alert("vision_id отсутствует");
-
-  try {
-    const data = await apiGet(`/api/vision/get?vision_id=${id}`);
-    renderVisionTitle(data.vision);
-    renderSteps(data.steps || []);
-  } catch (e) {
-    console.error(e);
-    showError("Ошибка загрузки визии");
-  }
-}
-
-function showError(msg) {
-  const el = document.getElementById("visionError");
-  el.textContent = msg;
-  el.classList.remove("vision-hidden");
-}
-
-// --- ОТПРАВКА ШАГА ---
-
-async function sendStep() {
-  const id = getVisionId();
-  const textarea = document.getElementById("newStepText");
-  const text = textarea.value.trim();
-  if (!text) return;
-
-  try {
-    await apiPost("/api/vision/step", { vision_id: id, user_text: text });
-    textarea.value = "";
-    await loadVision();
-  } catch (e) {
-    console.error(e);
-    showError("Не удалось отправить шаг");
-  }
-}
-
-// --- РЕДАКТИРОВАНИЕ НАЗВАНИЯ ---
-
-function openEdit() {
-  document.getElementById("editTitleBlock").classList.remove("vision-hidden");
-  document.getElementById("editVisionBtn").classList.add("vision-hidden");
-}
-
-function closeEdit() {
-  document.getElementById("editTitleBlock").classList.add("vision-hidden");
-  document.getElementById("editVisionBtn").classList.remove("vision-hidden");
-}
-
-async function saveTitle() {
-  const id = getVisionId();
-  const val = document.getElementById("editTitleInput").value.trim();
-  if (!val) return;
-
-  try {
-    await apiPost("/api/vision/update", {
-      vision_id: id,
-      title: val
-    });
-
-    closeEdit();
-    await loadVision();
-  } catch (e) {
-    console.error(e);
-    showError("Ошибка сохранения");
-  }
-}
-
-// --- ИНИЦИАЛИЗАЦИЯ ---
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("sendBtn").onclick = sendStep;
-  document.getElementById("backBtn").onclick = () => location.href = "/vision/index.html";
-
-  document.getElementById("editVisionBtn").onclick = openEdit;
-  document.getElementById("cancelEditBtn").onclick = closeEdit;
-  document.getElementById("saveTitleBtn").onclick = saveTitle;
-
-  loadVision();
+  await loadVision();
+  await loadSteps();
 });

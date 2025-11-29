@@ -4,39 +4,12 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 import bcrypt
 import secrets
-import asyncpg
 import os
 
+# 🔌 Берём ПУЛ из tb.py (там init_db, он вызывается в main.py)
+from tb import pool
+
 router = APIRouter()
-
-# ===============================
-# БАЗА + ПУЛ
-# ===============================
-
-DB_CONN = os.getenv("DATABASE_URL")
-pool = None
-
-
-@router.on_event("startup")
-async def startup():
-    """
-    Создаём пул соединений при старте ГЛАВНОГО приложения.
-    """
-    global pool
-    print("🔌 Creating DB pool:", DB_CONN)
-
-    pool = await asyncpg.create_pool(
-        DB_CONN,
-        min_size=1,
-        max_size=5,
-        command_timeout=5
-    )
-
-
-async def db():
-    """Возвращаем пул."""
-    return pool
-
 
 # ===============================
 # МОДЕЛИ
@@ -88,12 +61,9 @@ def expire_time():
 @router.post("/register")
 async def register(req: RegisterRequest):
 
-    # 👉 всегда храним email в нижнем регистре
     email = req.email.lower().strip()
 
-    pool = await db()
     async with pool.acquire() as conn:
-
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1",
             email
@@ -103,7 +73,6 @@ async def register(req: RegisterRequest):
 
         password_hash = make_hash(req.password)
 
-        # ❗ НЕ храним открытый пароль, только hash
         new_user = await conn.fetchrow(
             """
             INSERT INTO smart_users (email, name, password_hash, level)
@@ -125,16 +94,13 @@ async def login(req: LoginRequest):
 
     email = req.email.lower().strip()
 
-    pool = await db()
     async with pool.acquire() as conn:
-
         user = await conn.fetchrow(
             "SELECT * FROM smart_users WHERE email = $1 LIMIT 1",
             email
         )
 
         if not user or not check_hash(req.password, user["password_hash"]):
-            # Сообщение лаконичное, но понятное
             raise HTTPException(status_code=401, detail="Неверный email или пароль")
 
         token = generate_token()
@@ -149,13 +115,14 @@ async def login(req: LoginRequest):
         )
 
         resp = JSONResponse({"ok": True, "user_id": str(user["id"])})
+
         resp.set_cookie(
             key=SESSION_COOKIE,
             value=token,
             httponly=True,
             samesite="lax",
             max_age=60 * 60 * 24 * SESSION_LIFETIME_DAYS,
-            secure=True  # если ломает dev на http, можно сделать secure=USE_HTTPS_ENV
+            secure=True  # если для dev мешает — можно ослабить
         )
         return resp
 
@@ -171,9 +138,7 @@ async def me(request: Request):
     if not token:
         return {"loggedIn": False, "level": 1, "user": None}
 
-    pool = await db()
     async with pool.acquire() as conn:
-
         session = await conn.fetchrow(
             """
             SELECT * FROM smart_sessions
@@ -218,7 +183,6 @@ async def logout(request: Request):
     if not token:
         return resp
 
-    pool = await db()
     async with pool.acquire() as conn:
         await conn.execute(
             "DELETE FROM smart_sessions WHERE token = $1",
@@ -237,10 +201,7 @@ async def reset_password(req: ResetPasswordRequest):
 
     email = req.email.lower().strip()
 
-    pool = await db()
     async with pool.acquire() as conn:
-
-        # Ищем пользователя
         user = await conn.fetchrow(
             "SELECT id FROM smart_users WHERE email = $1 LIMIT 1",
             email
@@ -249,20 +210,15 @@ async def reset_password(req: ResetPasswordRequest):
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь с таким email не найден")
 
-        # Генерируем новый пароль (6 шестнадцатеричных символов)
-        new_pass = secrets.token_hex(3)  # Например: '3af9d1'
-
-        # Хэшируем
+        new_pass = secrets.token_hex(3)
         new_hash = make_hash(new_pass)
 
-        # Обновляем только hash (и при желании чистим старое текстовое поле password)
         await conn.execute(
             "UPDATE smart_users SET password_hash = $1, password = NULL WHERE id = $2",
             new_hash,
             user["id"]
         )
 
-        # Возвращаем новый пароль — фронт покажет его на странице
         return {
             "ok": True,
             "email": email,
