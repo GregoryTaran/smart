@@ -11,7 +11,6 @@ export const MENU = [
 
   { id: 'login',  title: 'Вход/регистрация', href: 'login/login.html#login', allow: [1] },
 
-  { id: 'ts',     title: 'Проверка сервера', href: 'testserver/testserver.html', allow: [2] },
   { id: 'rec',    title: 'Диктофон', href: 'voicerecorder/voicerecorder.html', allow: [2] },
   { id: 'vision', title: 'Путь по визии', href: 'vision/index.html', allow: [2] },
 
