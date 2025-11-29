@@ -1,21 +1,30 @@
-// super-informer.js
-// Мощная диагностическая панель (замена identity-guard.js)
+// =======================================
+// SUPER INFORMER (чистая диагностическая панель)
+// SMART VISION — 2025
+// =======================================
 
 export async function collectSuperInfo() {
 
-  // 1) SV_AUTH — твоя основная система
-  const svAuth = window.SV_AUTH || {};
+  // ------------ 1. SESSION (новая система) ---------------
+  const session = window.SMART_SESSION || {
+    authenticated: false,
+    user_id: null,
+    email: null,
+    name: null,
+    level: 1
+  };
 
-  // 2) Public IP
+  // ------------ 2. Public IP ---------------
   let publicIP = null;
   try {
     const res = await fetch("https://api.ipify.org?format=json");
-    const ipData = await res.json();
-    publicIP = ipData.ip;
-  } catch {}
+    publicIP = (await res.json()).ip;
+  } catch {
+    publicIP = "unavailable";
+  }
 
-  // 3) Permissions
-  async function checkPerm(name) {
+  // ------------ 3. Permissions ---------------
+  async function perm(name) {
     try {
       const p = await navigator.permissions.query({ name });
       return p.state;
@@ -25,65 +34,48 @@ export async function collectSuperInfo() {
   }
 
   const permissions = {
-    geolocation: await checkPerm("geolocation"),
-    microphone: await checkPerm("microphone"),
-    camera: await checkPerm("camera"),
-    notifications: await checkPerm("notifications"),
-    clipboard: await checkPerm("clipboard-read")
+    geolocation: await perm("geolocation"),
+    microphone: await perm("microphone"),
+    camera: await perm("camera"),
+    notifications: await perm("notifications"),
   };
 
-  // 4) Battery
+  // ------------ 4. Battery ---------------
   let battery = null;
-  if (navigator.getBattery) {
-    try {
-      battery = await navigator.getBattery();
+  try {
+    if (navigator.getBattery) {
+      const b = await navigator.getBattery();
       battery = {
-        charging: battery.charging,
-        level: battery.level,
+        charging: b.charging,
+        level: b.level,
       };
-    } catch {}
-  }
-
-  // 5) Storage usage
-  let storage = {};
-  if (navigator.storage && navigator.storage.estimate) {
-    try { storage = await navigator.storage.estimate(); } catch {}
-  }
-
-  // 6) WebGL Renderer (GPU)
-  function getWebGLInfo() {
-    try {
-      const canvas = document.createElement("canvas");
-      const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-      if (!gl) return null;
-      const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
-      return {
-        vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : null,
-        renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : null,
-      };
-    } catch (e) {
-      return null;
     }
+  } catch {
+    battery = "unavailable";
   }
 
-  // 7) Network
-  const net = navigator.connection || navigator.webkitConnection || navigator.mozConnection || {};
+  // ------------ 5. Storage ----------------
+  let storage = {};
+  try {
+    if (navigator.storage?.estimate) {
+      storage = await navigator.storage.estimate();
+    }
+  } catch {}
 
-  // 8) Device info
+  // ------------ 6. Device ----------------
   const device = {
     userAgent: navigator.userAgent,
-    brands: navigator.userAgentData?.brands || null,
     platform: navigator.platform,
     language: navigator.language,
     languages: navigator.languages,
     memory: navigator.deviceMemory || null,
-    hardwareConcurrency: navigator.hardwareConcurrency,
-    cookieEnabled: navigator.cookieEnabled,
+    cores: navigator.hardwareConcurrency || null,
     touchPoints: navigator.maxTouchPoints,
-    darkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
+    cookieEnabled: navigator.cookieEnabled,
+    darkMode: matchMedia("(prefers-color-scheme: dark)").matches,
   };
 
-  // 9) Screen
+  // ------------ 7. Screen ----------------
   const screenInfo = {
     width: screen.width,
     height: screen.height,
@@ -94,25 +86,45 @@ export async function collectSuperInfo() {
     innerHeight: window.innerHeight,
   };
 
-  // 10) WebGL
-  const webgl = getWebGLInfo();
+  // ------------ 8. Network ----------------
+  const net = navigator.connection || {};
+  const network = {
+    online: navigator.onLine,
+    effectiveType: net.effectiveType || null,
+    downlink: net.downlink || null,
+    rtt: net.rtt || null,
+  };
 
-  // 11) Final object
+  // ------------ 9. GPU (безопасный) ----------------
+  function getGPU() {
+    try {
+      const canvas = document.createElement("canvas");
+      const gl = canvas.getContext("webgl");
+      if (!gl) return "unsupported";
+
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return {
+        vendor: ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : "hidden",
+        renderer: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "hidden"
+      };
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  const gpu = getGPU();
+
+  // ------------ 10. Final ----------------
   return {
-    svAuth,
+    session,
     publicIP,
     permissions,
     battery,
     device,
     screen: screenInfo,
     storage,
-    webgl,
-    network: {
-      effectiveType: net.effectiveType,
-      downlink: net.downlink,
-      rtt: net.rtt,
-      online: navigator.onLine,
-    },
+    gpu,
+    network,
     timestamp: new Date().toISOString()
   };
 }
