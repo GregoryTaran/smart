@@ -3,14 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>О проекте</title>
+  <title>О проекте • SMART VISION</title>
 
   <base href="/" />
 
-  <!-- Основные стили -->
+  <!-- Стили -->
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/about/about.css" />
+
+  <!-- 🔥 Главный init: сессия, топбар, меню, футер -->
   <script type="module" src="/js/smartid.init.js"></script>
+
+  <!-- Модуль запросов разрешений (4 кнопки) -->
+  <script defer src="/js/zaprosrazreshenijbrauzera.js"></script>
+
+  <!-- Гео-виджет (SVFooter.mount для geo-card) -->
+  <script defer src="/js/footer.geo.bundle.js"></script>
 </head>
 
 <body>
@@ -22,14 +30,16 @@
 
       <main id="main">
 
-        <!-- КАРТОЧКА 0 -->
+        <!-- 1. О ПРОЕКТЕ -->
         <section class="card">
-          <h1>О проекте</h1>
-          <p>Диагностическая страница SMART VISION. Здесь можно проверить работу браузера, разрешения и параметры устройства.</p>
+          <h1 class="card-title">О проекте</h1>
+          <p>
+            Диагностическая страница SMART VISION. Здесь можно проверить работу браузера,
+            разрешения и параметры устройства.
+          </p>
         </section>
 
-
-        <!-- КАРТОЧКА 1: Разрешения -->
+        <!-- 2. РАЗРЕШЕНИЯ -->
         <section class="card">
           <h2>Разрешения</h2>
 
@@ -40,27 +50,38 @@
             <button class="btn-purple" id="btnGeo">Разрешить геолокацию</button>
           </div>
 
-          <p id="permStatus">status: idle</p>
+          <p id="permStatus" class="muted">status: idle</p>
         </section>
 
-
-        <!-- КАРТОЧКА 2: Геолокация -->
+        <!-- 3. ГЕОЛОКАЦИЯ -->
         <section class="card">
           <h2>Геолокация</h2>
+          <p class="muted">
+            Здесь можно проверить работу геолокации браузера. Данные никуда не отправляются,
+            всё остаётся в браузере.
+          </p>
+
           <div id="geo-card"></div>
 
           <script>
             document.addEventListener("DOMContentLoaded", () => {
-              try { SVFooter.mount("geo-card"); } 
-              catch(e) { console.warn("geo mount:", e); }
+              try {
+                // Используем только гео-виджет из footer.geo.bundle.js
+                SVFooter.mount("geo-card");
+              } catch (e) {
+                console.warn("SVFooter geo mount error:", e);
+              }
             });
           </script>
         </section>
 
-
-        <!-- КАРТОЧКА 3: Супер-информер -->
+        <!-- 4. БОЛЬШОЙ ИНФОРМЕР -->
         <section class="card">
-          <h2>Большой информер</h2>
+          <h2>Диагностический информер</h2>
+          <p class="muted">
+            Подробная информация о браузере, устройстве и разрешениях.
+            Нужна для отладки и диагностики.
+          </p>
 
           <div id="about-informer" class="big-informer">
             Загрузка супер-информера...
@@ -68,26 +89,6 @@
 
           <script type="module">
             import { collectSuperInfo } from "/js/super-informer.js";
-
-            async function renderSuper() {
-              const info = await collectSuperInfo();
-
-              const root = document.querySelector("#about-informer");
-              if (!root) return;
-
-              root.innerHTML = `
-                ${block("SV_AUTH", info.svAuth)}
-                ${block("Public IP", info.publicIP)}
-                ${block("Permissions", info.permissions)}
-                ${block("Battery", info.battery)}
-                ${block("Device", info.device)}
-                ${block("Screen", info.screen)}
-                ${block("Network", info.network)}
-                ${block("Storage", info.storage)}
-                ${block("WebGL (GPU)", info.webgl)}
-                ${block("Timestamp", info.timestamp)}
-              `;
-            }
 
             function block(title, data) {
               return `
@@ -98,77 +99,47 @@
               `;
             }
 
-            document.addEventListener("sv:auth-ready", renderSuper);
+            async function renderSuper() {
+              try {
+                const info = await collectSuperInfo();
+                const root = document.querySelector("#about-informer");
+                if (!root) return;
+
+                root.innerHTML = `
+                  ${block("SV_AUTH", info.svAuth)}
+                  ${block("Public IP", info.publicIP)}
+                  ${block("Permissions", info.permissions)}
+                  ${block("Battery", info.battery)}
+                  ${block("Device", info.device)}
+                  ${block("Screen", info.screen)}
+                  ${block("Network", info.network)}
+                  ${block("Storage", info.storage)}
+                  ${block("WebGL (GPU)", info.webgl)}
+                  ${block("Timestamp", info.timestamp)}
+                `;
+              } catch (e) {
+                const root = document.querySelector("#about-informer");
+                if (root) {
+                  root.textContent = "Ошибка загрузки диагностической информации.";
+                }
+                console.error("super-informer error:", e);
+              }
+            }
+
+            document.addEventListener("DOMContentLoaded", renderSuper);
           </script>
         </section>
 
       </main>
 
+      <!-- 5. НИЖНИЙ ФУТЕР, КАК ВЕЗДЕ -->
       <footer id="footer"></footer>
     </div>
   </div>
 
   <div id="overlay"></div>
 
-
-<!-- 2. Супер-информер — модуль -->
-<script type="module">
-import { collectSuperInfo } from "/js/super-informer.js";
-
-async function renderSuper() {
-  const info = await collectSuperInfo();
-  const root = document.querySelector("#about-informer");
-
-  root.innerHTML = `
-    ${block("SV_AUTH", info.svAuth)}
-    ${block("Public IP", info.publicIP)}
-    ${block("Permissions", info.permissions)}
-    ${block("Battery", info.battery)}
-    ${block("Device", info.device)}
-    ${block("Screen", info.screen)}
-    ${block("Storage", info.storage)}
-    ${block("WebGL", info.webgl)}
-    ${block("Network", info.network)}
-    ${block("Timestamp", info.timestamp)}
-  `;
-}
-
-function block(title, data) {
-  return `
-    <div class="inf-group">
-      <h3>${title}</h3>
-      <pre>${JSON.stringify(data, null, 2)}</pre>
-    </div>
-  `;
-}
-
-document.addEventListener("DOMContentLoaded", renderSuper);
-</script>
-
-<!-- 3. Старый JS — запросы разрешений (правильный — defer) -->
-<script defer src="/js/zaprosrazreshenijbrauzera.js"></script>
-
-<!-- 4. about.js — твой модуль -->
-<script type="module" src="/about/about.js"></script>
-
-
-
-<!-- FOOTER GEO WIDGET -->
-<script defer src="/js/footer.geo.bundle.js"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    try {
-      SVFooter.mount("geo-card"); 
-    } catch(e) {
-      console.warn("SVFooter mount error:", e);
-    }
-  });
-</script>
-
-
-
-
-
-
+  <!-- Доп. логика страницы (если понадобится) -->
+  <script type="module" src="/about/about.js"></script>
 </body>
 </html>
