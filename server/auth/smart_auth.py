@@ -53,6 +53,9 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+
 
 # ===============================
 # ВСПОМОГАТЕЛЬНЫЕ
@@ -216,3 +219,42 @@ async def logout(request: Request):
         )
 
     return resp
+
+
+# ===============================
+# RESET PASSWORD (POSTGRES VERSION)
+# ===============================
+
+@router.post("/reset")
+async def reset_password(req: ResetPasswordRequest):
+
+    pool = await db()
+    async with pool.acquire() as conn:
+
+        # Ищем пользователя
+        user = await conn.fetchrow(
+            "SELECT id FROM smart_users WHERE email = $1 LIMIT 1",
+            req.email
+        )
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Генерируем новый пароль (6 символов)
+        new_pass = secrets.token_hex(3)  # Например: '3af9d1'
+
+        # Хэшируем
+        new_hash = make_hash(new_pass)
+
+        # Записываем в базу
+        await conn.execute(
+            "UPDATE smart_users SET password_hash = $1 WHERE id = $2",
+            new_hash,
+            user["id"]
+        )
+
+        return {
+            "ok": True,
+            "email": req.email,
+            "new_password": new_pass
+        }
