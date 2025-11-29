@@ -8,7 +8,9 @@ from pathlib import Path
 
 # ------------------------ ROUTERS ------------------------
 from vision.router import router as vision_router
-from auth.smart_auth import router as smart_auth_router  # новый AUTH
+
+# ⭐ ВАЖНО: меняем импорт router → импорт всего модуля
+import auth.smart_auth as smart_auth
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -35,11 +37,11 @@ app.add_middleware(
 
 # ------------------------ API ROUTES ------------------------
 
-# Vision API (твоя главная бизнес-логика)
+# Vision API
 app.include_router(vision_router, prefix="/api")
 
-# Новый SMART AUTH
-app.include_router(smart_auth_router, prefix="/api/auth", tags=["auth"])
+# ⭐ Новый SMART AUTH — подключаем через модуль
+app.include_router(smart_auth.router, prefix="/api/auth", tags=["auth"])
 
 # WebSocket диктофона
 try:
@@ -57,7 +59,7 @@ try:
 except Exception as e:
     log.warning(f"voicerecorder_api not mounted: {e}")
 
-# Database routers (если нужны)
+# Database routers
 try:
     from database.api_db import router as db_router
     app.include_router(db_router, prefix="/api/db", tags=["db"])
