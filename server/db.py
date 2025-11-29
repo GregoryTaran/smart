@@ -1,4 +1,3 @@
-# db.py
 import asyncpg
 import os
 
@@ -13,8 +12,6 @@ async def init_db():
             dsn=DB_CONN,
             min_size=1,
             max_size=5,
-            command_timeout=5,
-            statement_cache_size=0,              # отключаем prepared statements
-            max_cached_statement_lifetime=0,
-            max_cached_statement_size=0
+            # Единственный параметр, который ОБЯЗАТЕЛЬНО должен быть:
+            statement_cache_size=0
         )
