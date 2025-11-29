@@ -299,3 +299,15 @@ button.vision-btn-secondary,
 .vision-message-ai {
   border-left: 3px solid #22c55e; /* ИИ */
 }
+
+
+.vision-back-btn {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.vision-separator {
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 8px 0 16px;
+}

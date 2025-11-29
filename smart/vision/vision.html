@@ -27,15 +27,19 @@
         <section class="vision-page">
           <div class="vision-panel">
 
-            <div class="vision-header">
-              <h1 id="visionTitle" class="vision-title">Визия</h1>
+                      <div class="vision-header">
+                        <!-- СЛЕВА СВЕРХУ: только "назад ко всем визиям" -->
+                        <button id="backToListBtn" class="vision-btn vision-btn-secondary vision-back-btn">
+                          ← Ко всем визиям
+                        </button>
 
-              <div class="vision-actions">
-                <button id="renameVisionBtn" class="vision-btn vision-btn-secondary">
-                  Переименовать визию
-                </button>
-              </div>
-            </div>
+                        <!-- Заголовок визии отдельной строкой -->
+                        <h1 id="visionTitle" class="vision-title">Визия</h1>
+                      </div>
+
+                      <!-- Разделительная линия между "назад" и чатом -->
+                      <hr class="vision-separator" />
+
 
             <section class="vision-chat-block">
               <div id="visionError" class="vision-error vision-hidden"></div>
