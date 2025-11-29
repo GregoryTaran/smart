@@ -5,19 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Визия — SMART VISION</title>
 
+  <!-- новые рельсы -->
   <base href="/" />
 
   <link rel="icon" href="/assets/logo400.jpg" />
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- Общие стили приложения + локальные стили для страницы визии -->
+  <!-- глобальные стили -->
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/vision/vision.css" />
+
+  <!-- smartID -->
   <script type="module" src="/js/smartid.init.js"></script>
 </head>
 
 <body>
   <div id="page">
+
     <aside id="sidebar" aria-label="Основное меню"></aside>
 
     <div id="app">
@@ -27,40 +31,42 @@
         <section class="vision-page">
           <div class="vision-panel">
 
-                      <div class="vision-header">
-                        <!-- СЛЕВА СВЕРХУ: только "назад ко всем визиям" -->
-                        <button id="backToListBtn" class="vision-btn vision-btn-secondary vision-back-btn">
-                          ← Ко всем визиям
-                        </button>
+            <!-- КНОПКА НАЗАД -->
+            <button id="backBtn" class="vision-btn vision-back-btn">
+              ← Назад ко всем визиям
+            </button>
 
-                        <!-- Заголовок визии отдельной строкой -->
-                        <h1 id="visionTitle" class="vision-title">Визия</h1>
-                      </div>
+            <hr class="vision-separator" />
 
-                      <!-- Разделительная линия между "назад" и чатом -->
-                      <hr class="vision-separator" />
+            <!-- НАЗВАНИЕ ВИЗИИ + КНОПКА РЕДАКТИРОВАНИЯ -->
+            <div class="vision-title-row">
+              <h1 id="visionTitle" class="vision-title">Загрузка…</h1>
 
+              <button id="editVisionBtn" class="vision-btn vision-btn-secondary">
+                Редактировать
+              </button>
+            </div>
 
-            <section class="vision-chat-block">
-              <div id="visionError" class="vision-error vision-hidden"></div>
+            <!-- РЕДАКТОР НАЗВАНИЯ (СКРЫТ ПО УМОЛЧАНИЮ) -->
+            <div id="editTitleBlock" class="vision-edit-block vision-hidden">
+              <input id="editTitleInput" class="vision-input" placeholder="Новое название…" />
+              <div class="vision-edit-actions">
+                <button id="saveTitleBtn" class="vision-btn-primary vision-btn">Сохранить</button>
+                <button id="cancelEditBtn" class="vision-btn vision-btn-secondary">Отмена</button>
+              </div>
+            </div>
 
-              <div id="messages" class="vision-messages"></div>
+            <!-- СПИСОК ШАГОВ -->
+            <div id="stepsList" class="vision-messages"></div>
 
-              <form id="messageForm" class="vision-form">
-                <textarea
-                  id="userInput"
-                  class="vision-input"
-                  placeholder="Опиши следующий шаг, мысль или вопрос по визии..."
-                ></textarea>
-                <button
-                  type="submit"
-                  id="sendBtn"
-                  class="vision-btn vision-btn-primary"
-                >
-                  Добавить шаг
-                </button>
-              </form>
-            </section>
+            <!-- ОШИБКИ -->
+            <div id="visionError" class="vision-error vision-hidden"></div>
+
+            <!-- ВВОД ШАГА -->
+            <div class="vision-form">
+              <textarea id="newStepText" class="vision-input" placeholder="Напишите шаг..."></textarea>
+              <button id="sendBtn" class="vision-btn-primary vision-btn">Отправить</button>
+            </div>
 
           </div>
         </section>
@@ -70,4 +76,10 @@
     </div>
   </div>
 
-  <!-- overlay — обязательный элемен
+  <!-- overlay (новые рельсы) -->
+  <div id="overlay"></div>
+
+  <!-- ЛОГИКА ВИЗИИ -->
+  <script type="module" src="/vision/vision.js"></script>
+</body>
+</html>
