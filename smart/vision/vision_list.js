@@ -1,6 +1,7 @@
-// vision_list.js — чистая версия под /api/vision/*
+// vision_list.js — ЧИСТАЯ РАБОЧАЯ ВЕРСИЯ ДЛЯ /api/vision/*
+// ========================================================
 
-// ---------- Базовые хелперы ----------
+// ---------- Хелперы ----------
 
 async function apiGet(url) {
   const res = await fetch(url, { credentials: "include" });
@@ -46,7 +47,7 @@ function renderVisionList(visions) {
 
   if (!Array.isArray(visions) || visions.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "vision-empty";
+    empty.className = "vision-list-empty";
     empty.textContent = "Пока нет визий. Создай первую.";
     listEl.appendChild(empty);
     return;
@@ -62,16 +63,16 @@ function renderVisionList(visions) {
     titleEl.textContent = v.title || "Без названия";
 
     const metaEl = document.createElement("div");
-    metaEl.className = "vision-list-meta";
+    metaEl.className = "vision-list-date";
     metaEl.textContent = formatDate(v.created_at);
 
     item.appendChild(titleEl);
     item.appendChild(metaEl);
 
+    // ❗ ИСПРАВЛЕНИЕ: абсолютный путь
     item.addEventListener("click", () => {
-      // index.html лежит в /vision/, поэтому просто относительный путь
       window.location.href =
-        `vision.html?vision_id=${encodeURIComponent(v.vision_id)}`;
+        `/vision/vision.html?vision_id=${encodeURIComponent(v.vision_id)}`;
     });
 
     listEl.appendChild(item);
@@ -91,13 +92,13 @@ async function loadVisionList() {
       listEl.innerHTML = "";
       const errEl = document.createElement("div");
       errEl.className = "vision-error";
-      errEl.textContent = "Не удалось загрузить визии. Обнови страницу.";
+      errEl.textContent = "Не удалось загрузить визии. Попробуйте обновить.";
       listEl.appendChild(errEl);
     }
   }
 }
 
-// ---------- Кнопка «Создать новую визию» ----------
+// ---------- Кнопка создания визии ----------
 
 function setupCreateButton() {
   const btn = document.getElementById("newVisionBtn");
@@ -111,11 +112,13 @@ function setupCreateButton() {
         throw new Error("Пустой ответ от API /api/vision/create");
       }
 
+      // ❗ ИСПРАВЛЕНИЕ: абсолютный путь
       window.location.href =
-        `vision.html?vision_id=${encodeURIComponent(data.vision_id)}`;
+        `/vision/vision.html?vision_id=${encodeURIComponent(data.vision_id)}`;
+
     } catch (err) {
       console.error("Ошибка создания визии", err);
-      alert("Не удалось создать визию. Попробуй ещё раз.");
+      alert("Не удалось создать визию. Попробуйте снова.");
       btn.disabled = false;
     }
   });

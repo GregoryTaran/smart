@@ -35,42 +35,53 @@ function parseVisionId() {
   vision_id = p.get("vision_id");
 }
 
+// ---- LOAD VISION (title + steps in one request) ----
 async function loadVision() {
   const data = await apiGet(`/api/vision/${vision_id}`);
+
+  // title
   titleEl.textContent = data.title || "Без названия";
-}
 
-async function loadSteps() {
-  const data = await apiGet(`/api/vision/${vision_id}/steps`);
+  // steps
   stepsEl.innerHTML = "";
-
   (data.steps || []).forEach(s => {
     const row = document.createElement("div");
     row.className = "step-row";
 
     row.innerHTML = `
-      <div class="step-side">${s.role === "ai" ? "🤖" : "🧑"}</div>
-      <div class="step-text">${s.text}</div>
+      <div class="step-side">${s.user_id === "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa" ? "🤖" : "🧑"}</div>
+      <div class="step-text">${s.user_text || s.ai_text || ""}</div>
     `;
 
     stepsEl.appendChild(row);
   });
 }
 
+// ---- ADD STEP ----
 async function addStep() {
   const text = inputEl.value.trim();
   if (!text) return;
 
-  await apiPost(`/api/vision/${vision_id}/step/add`, { text });
+  await apiPost(`/api/vision/step`, {
+    vision_id,
+    user_text: text,
+    with_ai: true
+  });
+
   inputEl.value = "";
-  await loadSteps();
+  await loadVision();
 }
 
+// ---- EDIT TITLE ----
 async function editTitle() {
   const newTitle = prompt("Новое название визии:", titleEl.textContent);
   if (!newTitle) return;
 
-  await apiPost(`/api/vision/${vision_id}/title`, { title: newTitle });
+  await apiPost(`/api/vision/rename`, {
+    vision_id,
+    title: newTitle
+  });
+
   titleEl.textContent = newTitle;
 }
 
@@ -92,5 +103,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   addStepBtn.addEventListener("click", addStep);
 
   await loadVision();
-  await loadSteps();
 });
