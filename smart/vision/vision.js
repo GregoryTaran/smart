@@ -1,157 +1,242 @@
-// ============================
-// API HELPERS
-// ============================
-async function apiGet(url) {
-  const r = await fetch(url, { credentials: "include" });
-  if (!r.ok) throw new Error("GET " + url + " " + r.status);
-  return r.json();
+console.log("vision.js loaded");
+
+const API = "/api/vision";
+const USER_ID = window.SMART_SESSION?.user_id;
+
+const urlParams = new URLSearchParams(window.location.search);
+const VISION_ID = urlParams.get("id");
+
+if (!USER_ID) alert("Ошибка: пользователь не авторизован!");
+if (!VISION_ID) alert("Ошибка: нет ID визии!");
+
+
+/**
+ * ЗАГРУЗКА ПОЛНОЙ ВИЗИИ
+ */
+export async function loadVision() {
+    try {
+        const res = await fetch(`${API}/${VISION_ID}?user_id=${USER_ID}`);
+
+        if (!res.ok) {
+            alert("Ошибка доступа к визии");
+            return;
+        }
+
+        const data = await res.json();
+        window.VISION_DATA = data;
+
+        renderVision(data.vision);
+        renderSteps(data.steps);
+        renderParticipants(data.participants);
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка загрузки визии");
+    }
 }
 
-async function apiPost(url, body = {}) {
-  const r = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error("POST " + url + " " + r.status);
-  return r.json();
+
+/**
+ * Рендер заголовка и основной инфы по визии
+ */
+function renderVision(v) {
+    const titleEl = document.getElementById("vision-title");
+    titleEl.value = v.title || "";
 }
 
-// ============================
-// DOM ELEMENTS
-// ============================
-const params = new URLSearchParams(location.search);
-const visionId = params.get("vision_id");
 
-let titleEl, stepsContainer, inputEl, sendBtn, editBtn;
-
-// ============================
-// INIT
-// ============================
-window.addEventListener("DOMContentLoaded", () => {
-  titleEl = document.getElementById("visionTitle");
-  stepsContainer = document.getElementById("stepsContainer");
-  inputEl = document.getElementById("newStepInput");
-  sendBtn = document.getElementById("addStepBtn");
-  editBtn = document.getElementById("editTitleBtn");
-
-  if (!visionId) {
-    titleEl.textContent = "Визия не выбрана";
-    return;
-  }
-
-  setupSend();
-  setupRename();
-  loadVision();
-});
-
-// ============================
-// LOAD DATA
-// ============================
-async function loadVision() {
-  titleEl.textContent = "Загрузка...";
-
-  try {
-    const data = await apiGet(`/api/vision/${visionId}`);
-    titleEl.textContent = data.title || "Без названия";
-
-    renderSteps(data.steps || []);
-  } catch (err) {
-    console.error("Ошибка загрузки визии:", err);
-    titleEl.textContent = "Ошибка загрузки визии";
-  }
-}
-
-// ============================
-// RENDER STEPS — КРАСИВЫЙ ЧАТ
-// ============================
+/**
+ * Рендер шагов визии
+ */
 function renderSteps(steps) {
-  stepsContainer.innerHTML = "";
+    const box = document.getElementById("steps");
+    box.innerHTML = "";
 
-  steps.forEach(step => {
-    // USER block
-    if (step.user_text) {
-      const msg = document.createElement("div");
-      msg.className = "vision-message vision-message-user";
-      msg.innerHTML = `
-        <div class="vision-message-text">${step.user_text}</div>
-        <div class="vision-message-label">
-          🧑 ${new Date(step.created_at).toLocaleString()}
-        </div>
-      `;
-      stepsContainer.appendChild(msg);
-    }
+    steps.forEach(s => {
+        const wrap = document.createElement("div");
+        wrap.className = "step-item";
 
-    // AI block
-    if (step.ai_text) {
-      const msg = document.createElement("div");
-      msg.className = "vision-message vision-message-ai";
-      msg.innerHTML = `
-        <div class="vision-message-text">${step.ai_text}</div>
-        <div class="vision-message-label">
-          🤖 ${new Date(step.created_at).toLocaleString()}
-        </div>
-      `;
-      stepsContainer.appendChild(msg);
-    }
-  });
+        wrap.innerHTML = `
+            <div class="step-author">${s.user_name || "???"}</div>
+            <div class="step-user-text">${s.user_text}</div>
+            ${s.ai_text ? `<div class="step-ai-text">${s.ai_text}</div>` : ""}
+        `;
 
-  stepsContainer.scrollTop = stepsContainer.scrollHeight;
-}
-
-// ============================
-// SEND STEP
-// ============================
-function setupSend() {
-  sendBtn.addEventListener("click", sendStep);
-
-  inputEl.addEventListener("keydown", e => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      sendStep();
-    }
-  });
-}
-
-async function sendStep() {
-  const text = inputEl.value.trim();
-  if (!text) return;
-
-  inputEl.value = "";
-
-  try {
-    await apiPost("/api/vision/step", {
-      vision_id: visionId,
-      user_text: text,
-      with_ai: true
+        box.appendChild(wrap);
     });
 
-    loadVision();
-  } catch (err) {
-    console.error("Ошибка шага:", err);
-  }
+    box.scrollTop = box.scrollHeight;
 }
 
-// ============================
-// RENAME
-// ============================
-function setupRename() {
-  editBtn.addEventListener("click", async () => {
-    const current = titleEl.textContent.trim();
-    const newName = prompt("Новое название визии:", current);
-    if (!newName) return;
+
+/**
+ * Рендер участников
+ */
+function renderParticipants(parts) {
+    const box = document.getElementById("participants");
+    box.innerHTML = "";
+
+    parts.forEach(p => {
+        const div = document.createElement("div");
+        div.className = "participant-item";
+
+        div.innerHTML = `
+            <div class="participant-name">${p.name || p.email}</div>
+            <div class="participant-role">${p.role}</div>
+        `;
+
+        box.appendChild(div);
+    });
+}
+
+
+/**
+ * Добавление шага
+ */
+export async function addStep() {
+    const input = document.getElementById("step-input");
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = "";
+
+    const body = {
+        vision_id: VISION_ID,
+        user_id: USER_ID,
+        user_text: text,
+        with_ai: true
+    };
 
     try {
-      await apiPost("/api/vision/rename", {
-        vision_id: visionId,
-        title: newName
-      });
+        const res = await fetch(`${API}/step`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
 
-      titleEl.textContent = newName;
+        if (!res.ok) {
+            alert("Ошибка добавления шага");
+            return;
+        }
+
+        await loadVision();
+
     } catch (err) {
-      console.error("Ошибка переименования:", err);
-      alert("Не удалось переименовать визию");
+        console.error(err);
+        alert("Ошибка добавления шага");
     }
-  });
 }
+
+
+/**
+ * Добавление участника
+ */
+export async function addParticipant() {
+    const email = prompt("Введите email участника:");
+    if (!email) return;
+
+    try {
+        const res = await fetch(`${API}/add_participant`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vision_id: VISION_ID,
+                user_id: USER_ID,
+                email
+            })
+        });
+
+        if (!res.ok) {
+            const e = await res.json();
+            alert(e.detail || "Ошибка добавления участника");
+            return;
+        }
+
+        await loadVision();
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка добавления участника");
+    }
+}
+
+
+/**
+ * Переименование визии
+ */
+export async function renameVision() {
+    const title = document.getElementById("vision-title").value.trim();
+
+    try {
+        await fetch(`${API}/rename`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vision_id: VISION_ID,
+                user_id: USER_ID,
+                title
+            })
+        });
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка изменения названия визии");
+    }
+}
+
+
+/**
+ * Архивирование визии
+ */
+export async function archiveVision() {
+    if (!confirm("Отправить в архив?")) return;
+
+    try {
+        await fetch(`${API}/archive`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vision_id: VISION_ID,
+                user_id: USER_ID,
+                archived: true
+            })
+        });
+
+        window.location.href = "/vision/index.html";
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка архивации визии");
+    }
+}
+
+
+/**
+ * Удаление визии
+ */
+export async function deleteVision() {
+    if (!confirm("Удалить визию полностью?")) return;
+
+    try {
+        await fetch(`${API}/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vision_id: VISION_ID,
+                user_id: USER_ID
+            })
+        });
+
+        window.location.href = "/vision/index.html";
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка удаления визии");
+    }
+}
+
+
+/**
+ * Инициализация страницы
+ */
+loadVision();

@@ -5,23 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мои визии — SMART VISION</title>
 
-  <!-- базовый префикс как в новых рельсах -->
   <base href="/" />
 
   <link rel="icon" href="/assets/logo400.jpg" />
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- общие стили приложения + локальные для визий -->
+  <!-- Глобальные стили приложения -->
   <link rel="stylesheet" href="/css/main.css" />
+
+  <!-- Стили модуля визий -->
   <link rel="stylesheet" href="/vision/vision.css" />
+
+  <!-- Авторизация -->
   <script type="module" src="/js/smartid.init.js"></script>
 </head>
 
 <body>
   <div id="page">
-    <aside id="sidebar" aria-label="Основное меню"></aside>
+
+    <!-- Боковое меню -->
+    <aside id="sidebar"></aside>
 
     <div id="app">
+
+      <!-- Верхняя панель -->
       <header id="topbar"></header>
 
       <main id="main">
@@ -29,6 +36,7 @@
           <div class="vision-panel">
 
             <section class="vision-list-block">
+
               <h1 class="vision-title">Мои визии</h1>
 
               <div class="vision-list-header">
@@ -38,6 +46,7 @@
               </div>
 
               <div id="visionList" class="vision-list"></div>
+
             </section>
 
           </div>
@@ -48,10 +57,9 @@
     </div>
   </div>
 
-  <!-- overlay для мобильного меню (новые рельсы) -->
   <div id="overlay"></div>
 
-  <!-- логика именно для списка визий -->
+  <!-- Логика страницы списка визий -->
   <script type="module" src="/vision/vision_list.js"></script>
 </body>
 </html>
