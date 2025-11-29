@@ -1,132 +1,111 @@
-// =========================
+// ============================
 // API HELPERS
-// =========================
-
+// ============================
 async function apiGet(url) {
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("GET " + url + " " + res.status);
-  return await res.json();
+  const r = await fetch(url, { credentials: "include" });
+  if (!r.ok) throw new Error("GET " + url + " " + r.status);
+  return r.json();
 }
 
-async function apiPost(url, body) {
-  const res = await fetch(url, {
+async function apiPost(url, body = {}) {
+  const r = await fetch(url, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {})
+    body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error("POST " + url + " " + res.status);
-  return await res.json();
+  if (!r.ok) throw new Error("POST " + url + " " + r.status);
+  return r.json();
 }
 
-// =========================
-// ГЛОБАЛЬНЫЕ ЭЛЕМЕНТЫ
-// =========================
-
+// ============================
+// DOM ELEMENTS
+// ============================
 const params = new URLSearchParams(location.search);
 const visionId = params.get("vision_id");
 
-let titleEl, messagesEl, inputEl, sendBtn, renameBtn, errorEl;
+let titleEl, stepsContainer, inputEl, sendBtn, editBtn;
 
-// =========================
-// ИНИЦИАЛИЗАЦИЯ
-// =========================
-
+// ============================
+// INIT
+// ============================
 window.addEventListener("DOMContentLoaded", () => {
   titleEl = document.getElementById("visionTitle");
-  messagesEl = document.getElementById("messages");
-  inputEl = document.getElementById("userInput");
-  sendBtn = document.getElementById("sendBtn");
-  renameBtn = document.getElementById("renameVisionBtn");
-  errorEl = document.getElementById("visionError");
+  stepsContainer = document.getElementById("stepsContainer");
+  inputEl = document.getElementById("newStepInput");
+  sendBtn = document.getElementById("addStepBtn");
+  editBtn = document.getElementById("editTitleBtn");
 
   if (!visionId) {
-    titleEl.innerText = "Визия не выбрана";
-    disableInput();
+    titleEl.textContent = "Визия не выбрана";
     return;
   }
 
-  setupForm();
+  setupSend();
   setupRename();
   loadVision();
 });
 
-// =========================
-// ЗАГРУЗКА ВИЗИИ
-// =========================
+// ============================
+// LOAD DATA
+// ============================
+async function loadVision() {
+  titleEl.textContent = "Загрузка...";
 
-function loadVision() {
-  titleEl.innerText = "Загрузка...";
+  try {
+    const data = await apiGet(`/api/vision/${visionId}`);
+    titleEl.textContent = data.title || "Без названия";
 
-  apiGet(`/api/vision/${visionId}`)
-    .then(data => {
-      titleEl.innerText = data.title || "Без названия";
-      hideError();
-      renderMessages(data.steps || []);
-      enableInput();
-    })
-    .catch(err => {
-      console.error("Ошибка загрузки визии:", err);
-      titleEl.innerText = "Ошибка загрузки визии";
-      showError("Не удалось загрузить визию. Попробуйте обновить страницу.");
-      disableInput();
-    });
+    renderSteps(data.steps || []);
+  } catch (err) {
+    console.error("Ошибка загрузки визии:", err);
+    titleEl.textContent = "Ошибка загрузки визии";
+  }
 }
 
-// =========================
-// РЕНДЕР ШАГОВ (КРАСИВЫЙ)
-// =========================
-
-function renderMessages(steps) {
-  if (!messagesEl) return;
-  messagesEl.innerHTML = "";
+// ============================
+// RENDER STEPS — КРАСИВЫЙ ЧАТ
+// ============================
+function renderSteps(steps) {
+  stepsContainer.innerHTML = "";
 
   steps.forEach(step => {
-    // USER (если есть user_text)
-    if (step.user_text && step.user_text.trim() !== "") {
-      const userMsg = document.createElement("div");
-      userMsg.className = "vision-message vision-message-user";
-      userMsg.innerHTML = `
+    // USER block
+    if (step.user_text) {
+      const msg = document.createElement("div");
+      msg.className = "vision-message vision-message-user";
+      msg.innerHTML = `
         <div class="vision-message-text">${step.user_text}</div>
         <div class="vision-message-label">
           🧑 ${new Date(step.created_at).toLocaleString()}
         </div>
       `;
-      messagesEl.appendChild(userMsg);
+      stepsContainer.appendChild(msg);
     }
 
-    // AI (если есть ai_text)
-    if (step.ai_text && step.ai_text.trim() !== "") {
-      const aiMsg = document.createElement("div");
-      aiMsg.className = "vision-message vision-message-ai";
-      aiMsg.innerHTML = `
+    // AI block
+    if (step.ai_text) {
+      const msg = document.createElement("div");
+      msg.className = "vision-message vision-message-ai";
+      msg.innerHTML = `
         <div class="vision-message-text">${step.ai_text}</div>
         <div class="vision-message-label">
           🤖 ${new Date(step.created_at).toLocaleString()}
         </div>
       `;
-      messagesEl.appendChild(aiMsg);
+      stepsContainer.appendChild(msg);
     }
   });
 
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  stepsContainer.scrollTop = stepsContainer.scrollHeight;
 }
 
-// =========================
-// ОТПРАВКА ШАГА
-// =========================
+// ============================
+// SEND STEP
+// ============================
+function setupSend() {
+  sendBtn.addEventListener("click", sendStep);
 
-function setupForm() {
-  const form = document.getElementById("messageForm");
-  if (!form || !inputEl) return;
-
-  // Submit отправляет шаг
-  form.addEventListener("submit", e => {
-    e.preventDefault();
-    sendStep();
-  });
-
-  // Ctrl+Enter отправляет шаг
   inputEl.addEventListener("keydown", e => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -135,74 +114,44 @@ function setupForm() {
   });
 }
 
-function sendStep() {
+async function sendStep() {
   const text = inputEl.value.trim();
   if (!text) return;
 
   inputEl.value = "";
 
-  apiPost("/api/vision/step", {
-    vision_id: visionId,
-    user_text: text,
-    with_ai: true
-  })
-    .then(() => {
-      hideError();
-      loadVision();
-    })
-    .catch(err => {
-      console.error("Ошибка шага:", err);
-      showError("Не удалось отправить шаг. Попробуйте ещё раз.");
+  try {
+    await apiPost("/api/vision/step", {
+      vision_id: visionId,
+      user_text: text,
+      with_ai: true
     });
+
+    loadVision();
+  } catch (err) {
+    console.error("Ошибка шага:", err);
+  }
 }
 
-// =========================
-// ПЕРЕИМЕНОВАНИЕ
-// =========================
-
+// ============================
+// RENAME
+// ============================
 function setupRename() {
-  renameBtn.disabled = false;
-
-  renameBtn.onclick = () => {
-    const currentTitle = titleEl.innerText.trim();
-    const newName = prompt("Введите новое название визии:", currentTitle);
+  editBtn.addEventListener("click", async () => {
+    const current = titleEl.textContent.trim();
+    const newName = prompt("Новое название визии:", current);
     if (!newName) return;
 
-    apiPost("/api/vision/rename", {
-      vision_id: visionId,
-      title: newName
-    })
-      .then(() => {
-        hideError();
-        loadVision();
-      })
-      .catch(err => {
-        console.error("Ошибка переименования:", err);
-        showError("Не удалось переименовать визию.");
+    try {
+      await apiPost("/api/vision/rename", {
+        vision_id: visionId,
+        title: newName
       });
-  };
-}
 
-// =========================
-// UI HELPERS
-// =========================
-
-function disableInput() {
-  inputEl.disabled = true;
-  sendBtn.disabled = true;
-}
-
-function enableInput() {
-  inputEl.disabled = false;
-  sendBtn.disabled = false;
-}
-
-function showError(text) {
-  errorEl.innerText = text;
-  errorEl.classList.remove("vision-hidden");
-}
-
-function hideError() {
-  errorEl.innerText = "";
-  errorEl.classList.add("vision-hidden");
+      titleEl.textContent = newName;
+    } catch (err) {
+      console.error("Ошибка переименования:", err);
+      alert("Не удалось переименовать визию");
+    }
+  });
 }
