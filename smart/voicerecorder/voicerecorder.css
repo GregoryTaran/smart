@@ -1,4 +1,7 @@
-.vr-root .vr-container {height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
+/* ===============================================================
+   BASE (оставляем, как было раньше)
+   =============================================================== */
+
 .vr-root .vr-container {height:100%;margin:0;background:#fff;font-family:system-ui,Arial}
 .vr-root .vr-container .demo {max-width:720px;margin:24px auto;padding:0 16px}
 .vr-root .vr-container h3 {margin:0 0 12px 0;font-size:1.05rem}
@@ -6,53 +9,92 @@
 .vr-root .vr-container .controls {display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
 
 .vr-root .vr-container button {
-      padding:8px 12px;border-radius:6px;border:1px solid #cfcfd3;background:#fff;
-      cursor:pointer;transition:background .2s;
-    }
+    padding:8px 12px;border-radius:6px;border:1px solid #cfcfd3;background:#fff;
+    cursor:pointer;transition:background .2s;
+}
 .vr-root .vr-container button:hover:not([disabled]) {background:#f7f7f9;}
 .vr-root .vr-container button[disabled] {opacity:.5;cursor:default}
+
 .vr-root .vr-container .status {margin-left:8px;color:#444;font-size:0.95rem}
 
-/* === SMART VISION unique layout helpers === */
-.sv-center-700{
-  box-sizing:border-box;
-  width:min(700px,100%);
-  margin:0 auto;
-  padding:0 2px;
+.sv-center-700 {
+    box-sizing:border-box;
+    width:min(700px,100%);
+    margin:0 auto;
+    padding:0 2px;
 }
-/* === end unique layout helpers === */
 
-/* SMART VISION: persistent media player */
-.sv-player{display:block;width:100%;margin-top:5mm}
-.sv-player--disabled{pointer-events:none;opacity:.6;filter:grayscale(1)}
+.sv-player {display:block;width:100%;margin-top:5mm}
+.sv-player--disabled {pointer-events:none;opacity:.6;filter:grayscale(1)}
 
 
-/* === HISTORY SECTION (использует те же .card) === */
 
+/* ===============================================================
+   RECORDER CARD HELPERS
+   =============================================================== */
+
+.vc-main-card {
+    padding: 24px;
+}
+
+.vc-controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.vc-status {
+    margin-top: 10px;
+    text-align: center;
+}
+
+
+
+/* ===============================================================
+   HISTORY SECTION — ВЕРСИЯ SMART VISION
+   =============================================================== */
+
+/* Секция истории — центрируем и ограничиваем ширину */
 .vc-history-card {
-    margin-top: 24px;
+    max-width: 900px;
+    margin: 30px auto 0;
+    text-align: center;
 }
 
+/* Каждая запись — карточка (использует .card из main.css) */
 .vc-entry-card {
-    margin-top: 16px;
-    text-align: left; /* внутри можно выравнивать, но сама .card остаётся той же */
+    margin: 10px auto 0;
+    max-width: 900px;
+    text-align: center; /* центрируем ВСЁ внутри */
 }
 
+/* Заголовок записи */
 .vc-entry-title {
     margin: 0 0 6px 0;
     font-size: 1.1rem;
     font-weight: 600;
 }
 
+/* Мета (дата + длительность) */
 .vc-entry-meta {
     color: #666;
     font-size: 0.9rem;
     margin-bottom: 10px;
 }
 
+/* Аудиоплеер — ровно по центру */
+.vc-entry-card audio {
+    margin: 10px auto;
+    display: block;
+    width: 100%;
+}
+
+/* Действия — по центру, красиво */
 .vc-entry-actions {
     margin-top: 14px;
     display: flex;
+    justify-content: center;
     gap: 16px;
 }
 

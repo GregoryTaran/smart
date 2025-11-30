@@ -185,7 +185,7 @@ function renderHistory(records) {
 
     for (const rec of records) {
         const card = document.createElement("div");
-        card.className = "vc-entry-card";
+        card.className = "card vc-entry-card";
 
         const date = new Date(rec.created_at).toLocaleString("ru-RU");
         const name = rec.display_name || rec.file_name;
@@ -194,7 +194,7 @@ function renderHistory(records) {
             <h3 class="vc-entry-title">${name}</h3>
             <div class="vc-entry-meta">${date} · ${rec.duration_seconds}s</div>
 
-            <audio controls src="${rec.file_url}" style="width:100%;"></audio>
+            <audio controls src="${rec.file_url}" class="vc-entry-audio"></audio>
 
             <div class="vc-entry-actions">
                 <button data-edit="${rec.rec_id}">✏️ Переименовать</button>
@@ -204,6 +204,7 @@ function renderHistory(records) {
 
         box.appendChild(card);
     }
+
 
     bindHistoryActions();
 }
