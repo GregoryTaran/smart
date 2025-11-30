@@ -1,11 +1,13 @@
 /* ============================================================
-   SMARTID INIT — ФИНАЛЬНАЯ ВЕРСИЯ c LOCALSTORAGE + MENU
+   SMARTID INIT — УЛУЧШЕННАЯ СХЕМА:
+   1) МГНОВЕННЫЙ TOPBAR ПО LOCALSTORAGE
+   2) ПОТОМ СИНХРОНИЗАЦИЯ С СЕРВЕРОМ
    ============================================================ */
 
 (() => {
 
   // ------------------------------------------------------------
-  // 1) Создаём SMART_SESSION как раньше
+  // 1) Создаём глобальную session (как и раньше)
   // ------------------------------------------------------------
   if (!window.SMART_SESSION) {
     const session = {
@@ -19,10 +21,7 @@
       _resolve: null,
     };
 
-    session.ready = new Promise((resolve) => {
-      session._resolve = resolve;
-    });
-
+    session.ready = new Promise(resolve => session._resolve = resolve);
     window.SMART_SESSION = session;
   }
 
@@ -30,7 +29,7 @@
 
 
   // ------------------------------------------------------------
-  // 2) Восстанавливаем данные из localStorage (мгновенно)
+  // 2) Восстанавливаем мгновенно LocalStorage → session
   // ------------------------------------------------------------
   const ls_auth  = localStorage.getItem("sv_authenticated");
   const ls_uid   = localStorage.getItem("sv_user_id");
@@ -49,7 +48,20 @@
 
 
   // ------------------------------------------------------------
-  // 3) Грузим сессию с сервера (НЕ блокирует работу)
+  // 3) МГНОВЕННЫЙ рендер TOPBAR + MENU по LocalStorage
+  // ------------------------------------------------------------
+  import('/js/topbar.module.js')
+    .then(mod => {
+      mod.renderTopbar(session);      // быстрый рендер до сервера
+      mod.renderMenu(session.level);
+      mod.initMenuControls();
+    })
+    .catch(err => console.error("Fast Topbar error:", err));
+
+
+
+  // ------------------------------------------------------------
+  // 4) Загружаем сессию с сервера (НЕ блокирует UI)
   // ------------------------------------------------------------
   async function loadSessionFromServer() {
     try {
@@ -65,17 +77,16 @@
           session.email   = data.user?.email ?? null;
           session.name    = data.user?.name ?? null;
 
-          // 🔥 сохраняем в localStorage
+          // обновляем LС
           localStorage.setItem("sv_authenticated", "yes");
           localStorage.setItem("sv_user_id", session.user_id);
           localStorage.setItem("sv_email", session.email || "");
           localStorage.setItem("sv_name", session.name || "");
           localStorage.setItem("sv_level", session.level.toString());
-        } 
-        else {
+        
+        } else {
           clearLocal();
         }
-
       } else {
         clearLocal();
       }
@@ -86,19 +97,18 @@
 
     session.loading = false;
 
-    // завершаем promise ready — оставляем для твоего кода
     if (typeof session._resolve === "function") {
       session._resolve(session);
       session._resolve = null;
     }
 
-    // 🔥 событие — пусть остаётся (vision старые версии используют)
     document.dispatchEvent(new Event("SMART_SESSION_READY"));
   }
 
 
+
   // ------------------------------------------------------------
-  // 4) Очистка localStorage (logout)
+  // 5) Очистка localStorage (logout helper)
   // ------------------------------------------------------------
   function clearLocal() {
     session.authenticated = false;
@@ -116,45 +126,40 @@
 
 
   // ------------------------------------------------------------
-  // 5) Инициализация: сначала localStorage, потом сервер
+  // 6) После сервера → корректирующий рендер
   // ------------------------------------------------------------
   loadSessionFromServer().then(initLayout);
 
-
-  // ------------------------------------------------------------
-  // 6) Инициализация меню/топбара/футера
-  //    (оставляем полностью как у тебя было!)
-  // ------------------------------------------------------------
   async function initLayout() {
-
     await session.ready;
 
     import('/js/topbar.module.js')
       .then(mod => {
-        mod.renderTopbar(session);      // ← как было
-        mod.renderMenu(session.level);  // ← как было
-        mod.initMenuControls();         // ← как было
+        mod.renderTopbar(session);      // финальный рендер по серверу
+        mod.renderMenu(session.level);
+        mod.initMenuControls();
       })
-      .catch(err => console.error("Ошибка загрузки topbar:", err));
+      .catch(err => console.error("Topbar final error:", err));
 
     import('/js/footer.js')
       .then(mod => mod.renderFooter())
-      .catch(err => console.error("Ошибка загрузки footer:", err));
+      .catch(err => console.error("Footer error:", err));
   }
 
 
   // ------------------------------------------------------------
-  // 7) Logout — теперь ещё и чистим localStorage
+  // 7) Глобальный logout: безопасный и мгновенный
   // ------------------------------------------------------------
   window.SV_LOGOUT = async function () {
+    // 1) мгновенно чистим localStorage + session
+    clearLocal();
+
+    // 2) отправляем logout на сервер (фоново)
     try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (e) {}
 
-    clearLocal();
+    // 3) редирект
     location.href = '/index.html';
   };
 
