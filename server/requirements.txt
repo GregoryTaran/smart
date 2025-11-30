@@ -37,3 +37,6 @@ openai>=1.0.0
 # ==========================
 # OPTIONAL (if needed later)
 # device-detector==5.0.1
+
+
+supabase==2.4.5
