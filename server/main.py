@@ -9,9 +9,11 @@ from pathlib import Path
 # ------------------------ DB INIT ------------------------
 from db import init_db
 
+
 # ------------------------ ROUTERS ------------------------
 # ❗️ ТУТ АККУРАТНАЯ ПРАВКА — подключаем НОВЫЙ vision_server.py
 from vision.vision_server import router as vision_router
+from voicerecorder.voicerecorder_server import router as vr_router
 
 import auth.smart_auth as smart_auth
 
@@ -58,13 +60,14 @@ try:
 except Exception as e:
     log.info("voicerecorder WS not mounted: %s", e)
 
-# HTTP API dictation
+# HTTP API dictation — НОВЫЙ voicerecorder_server.py
 try:
-    from voicerecorder.voicerecorder_api import router as vr_upload_router
-    app.include_router(vr_upload_router)
-    log.info("voicerecorder_api router mounted (/api/voicerecorder/*)")
+    from voicerecorder.voicerecorder_server import router as vr_router
+    app.include_router(vr_router, prefix="/api/voicerecorder", tags=["voicerecorder"])
+    log.info("voicerecorder_server mounted at /api/voicerecorder")
 except Exception as e:
-    log.warning(f"voicerecorder_api not mounted: {e}")
+    log.warning(f"voicerecorder_server not mounted: {e}")
+
 
 # Database routers
 try:
