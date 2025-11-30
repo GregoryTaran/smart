@@ -4,6 +4,7 @@
 
 import SVAudioCore from "/voicerecorder/audiocore/sv-audio-core.js";
 import WavSegmenter from "/voicerecorder/audiocore/wav-segmenter.js";
+import MicIndicator from "/voicerecorder/mic-indicator/mic-indicator.js";
 
 // -------------------------
 // UI elements
@@ -13,6 +14,9 @@ const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn  = document.getElementById("stopBtn");
 const player   = document.getElementById("sv-player");
+
+// MIC INDICATOR
+const indicator = new MicIndicator(document.getElementById("vc-level"));
 
 // -------------------------
 // USER
@@ -37,11 +41,9 @@ let segments = [];   // сюда складываем WAV-сегменты
 //  AUTO WS URL — локалка (vite) / продакшн (render)
 // -------------------------------------------------------------
 function getWsUrl() {
-    // локальная разработка
     if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
         return "ws://localhost:8000/ws/voicerecorder";
     }
-    // продакшн / тест
     return location.origin.replace("http", "ws") + "/ws/voicerecorder";
 }
 
@@ -62,7 +64,11 @@ startBtn.onclick = async () => {
         chunkSize: 2048,
         workletUrl: "/voicerecorder/audiocore/recorder.worklet.js",
     });
-    await audioCore.init(); // уже создаёт цепочку и начинает слать фреймы
+
+    await audioCore.init();  // уже создаёт цепочку и начинает слать фреймы
+
+    // <<< ПОДКЛЮЧАЕМ ИНДИКАТОР ПОСЛЕ init(), когда есть stream
+    indicator.connectStream(audioCore.getStream());
 
     // 2) WAV segmenter
     segmenter = new WavSegmenter({
@@ -70,16 +76,15 @@ startBtn.onclick = async () => {
         segmentSeconds: 2,
         normalize: true,
         padLastSegment: true,
-        emitBlobPerSegment: false, // сами соберём blob при отправке
+        emitBlobPerSegment: false,
     });
 
     segments = [];
     segmenter.onSegment = (seg) => {
-        // просто копим сегменты, отправим их при Stop
         segments.push(seg);
     };
 
-    // 3) каждую порцию Float32 передаём в сегментер
+    // 3) передаём Float32 фреймы в сегментер
     audioCore.onAudioFrame = (frameF32) => {
         segmenter.pushFrame(frameF32);
     };
@@ -140,12 +145,10 @@ pauseBtn.onclick = () => {
     if (!recording || !audioCore) return;
 
     if (audioCore._paused) {
-        // резюм
         audioCore.resumeCapture();
         pauseBtn.textContent = "Pause";
         setStatus("Recording…");
     } else {
-        // пауза
         audioCore.pauseCapture();
         pauseBtn.textContent = "Resume";
         setStatus("Paused");
@@ -160,34 +163,26 @@ stopBtn.onclick = async () => {
 
     setStatus("Processing…");
 
-    // остановить захват новых фреймов
     audioCore.pauseCapture();
-
-    // добить последний хвост (он вызовет onSegment ещё раз)
     segmenter.stop();
 
-    // скопировать список сегментов и очистить основной
     const toSend = segments.slice();
     segments = [];
 
-    // отправить все WAV-сегменты по WS
     for (const seg of toSend) {
         if (!seg || !seg.pcmInt16 || !seg.pcmInt16.length) continue;
 
-        // собираем WAV-blob
         const wavBlob = segmenter._makeWavBlob(
             seg.pcmInt16,
             seg.sampleRate,
-            1 // mono
+            1
         );
         const buf = await wavBlob.arrayBuffer();
         ws.send(new Uint8Array(buf));
     }
 
-    // сигнализируем, что стрим окончен
     ws.send("END");
 
-    // cleanup
     recording = false;
     audioCore.stop();
     audioCore = null;
