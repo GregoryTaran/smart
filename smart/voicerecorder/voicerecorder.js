@@ -1,142 +1,123 @@
-// voicerecorder.js — новая версия под AUTH v3 + visitor-only SVID
+// voicerecorder.js — WebSocket версия под старый UI
+console.log("voicerecorder.js loaded");
 
-// -------------------------------------------------------------
-// API HELPERS
-// -------------------------------------------------------------
-async function apiGet(url) {
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("GET " + url + " " + res.status);
-  return await res.json();
+// =============== USER ID ===============
+const USER_ID = localStorage.getItem("sv_user_id");
+if (!USER_ID) {
+    alert("Нет user_id, авторизуйтесь заново");
+    location.href = "/index.html";
 }
 
-async function apiPost(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {})
-  });
-  if (!res.ok) throw new Error("POST " + url + " " + res.status);
-  return await res.json();
+// =============== ELEMENTS ===============
+const statusEl = document.getElementById("status");
+const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const stopBtn  = document.getElementById("stopBtn");
+const player = document.getElementById("sv-player");
+
+let mediaRecorder;
+let chunks = [];
+let ws = null;
+
+
+// =============== HELPERS ===============
+function setStatus(t) {
+    statusEl.textContent = t;
 }
 
-// -------------------------------------------------------------
-// УНИВЕРСАЛЬНЫЙ ИДЕНТИФИКАТОР
-// userId для авторизованных
-// visitor_id для гостей
-// -------------------------------------------------------------
-async function ensureUniversalId() {
-  // ждём AUTH
-  if (window.SV_AUTH?.ready) {
-    try { await window.SV_AUTH.ready; } catch {}
-  }
+function wsConnect(rec_id) {
+    return new Promise(resolve => {
+        const wsUrl = location.origin.replace("http", "ws") + "/ws/voicerecorder";
+        const socket = new WebSocket(wsUrl);
 
-  // ждём SVID
-  if (window.SVID?.ready) {
-    try { await window.SVID.ready; } catch {}
-  }
+        socket.onopen = () => {
+            socket.send(`START ${JSON.stringify({
+                user_id: USER_ID,
+                rec_id,
+                ext: ".webm"
+            })}`);
+            resolve(socket);
+        };
 
-  // 1) если юзер авторизован → возвращаем userId
-  if (window.SV_AUTH?.isAuthenticated && window.SV_AUTH?.userId) {
-    return {
-      id: window.SV_AUTH.userId,
-      type: "user"
-    };
-  }
+        socket.onmessage = e => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.status === "SAVED") {
+                    player.src = data.url;
+                    player.classList.remove("sv-player--disabled");
+                    setStatus("Готово ✓");
+                }
+            } catch {}
+        };
 
-  // 2) иначе → visitor_id
-  const st = window.SVID?.getState?.() || {};
-  if (st.visitor_id) {
-    return {
-      id: st.visitor_id,
-      type: "visitor"
-    };
-  }
+        socket.onerror = () => setStatus("WebSocket error");
 
-  throw new Error("NO_VALID_ID");
+        return socket;
+    });
 }
 
-// -------------------------------------------------------------
-// РАБОТА С ЗАПИСЯМИ
-// -------------------------------------------------------------
-window.addEventListener("DOMContentLoaded", () => {
-  setupRecorder();
-});
 
-function setupRecorder() {
-  const recordBtn = document.getElementById("recordBtn");
-  const stopBtn = document.getElementById("stopBtn");
-  const listBox = document.getElementById("recordsList");
+// =============== START ===============
+startBtn.onclick = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  let mediaRecorder;
-  let chunks = [];
+        chunks = [];
+        mediaRecorder = new MediaRecorder(stream);
 
-  // --- НАЧАТЬ ЗАПИСЬ ---
-  recordBtn.onclick = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
 
-    chunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.start(1000);
+        setStatus("recording…");
 
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(chunks, { type: "audio/webm" });
-      const file = new File([blob], "record.webm", { type: "audio/webm" });
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled  = false;
 
-      const id = await ensureUniversalId();
-
-      const form = new FormData();
-      form.append("file", file);
-      form.append("owner_id", id.id);        // userId или visitor_id
-      form.append("owner_type", id.type);    // user | visitor
-
-      const r = await fetch("/api/record/upload", {
-        method: "POST",
-        credentials: "include",
-        body: form
-      });
-
-      if (!r.ok) {
-        alert("Ошибка загрузки записи");
-        return;
-      }
-
-      loadRecords();
-    };
-
-    mediaRecorder.start();
-    recordBtn.disabled = true;
-    stopBtn.disabled = false;
-  };
-
-  // --- ОСТАНОВИТЬ ЗАПИСЬ ---
-  stopBtn.onclick = () => {
-    if (mediaRecorder) {
-      mediaRecorder.stop();
-      recordBtn.disabled = false;
-      stopBtn.disabled = true;
+    } catch (e) {
+        setStatus("microphone: denied");
     }
-  };
+};
 
-  // --- ЗАГРУЗИТЬ СПИСОК ---
-  function loadRecords() {
-    apiGet("/api/record/list")
-      .then(data => {
-        listBox.innerHTML = "";
-        (data.records || []).forEach(r => {
-          const el = document.createElement("div");
-          el.className = "record-item";
-          el.innerHTML = `
-            <audio controls src="${r.url}"></audio>
-            <div class="record-date">${new Date(r.created_at).toLocaleString()}</div>
-          `;
-          listBox.appendChild(el);
-        });
-      })
-      .catch(() => {
-        listBox.innerHTML = `<p>Не удалось загрузить записи</p>`;
-      });
-  }
 
-  loadRecords();
-}
+// =============== PAUSE ===============
+pauseBtn.onclick = () => {
+    if (!mediaRecorder) return;
+
+    if (mediaRecorder.state === "recording") {
+        mediaRecorder.pause();
+        pauseBtn.textContent = "Resume";
+        setStatus("paused");
+    } 
+    else if (mediaRecorder.state === "paused") {
+        mediaRecorder.resume();
+        pauseBtn.textContent = "Pause";
+        setStatus("recording…");
+    }
+};
+
+
+// =============== STOP ===============
+stopBtn.onclick = async () => {
+    if (!mediaRecorder) return;
+
+    mediaRecorder.stop();
+    setStatus("processing…");
+
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stopBtn.disabled  = true;
+
+    const rec_id = crypto.randomUUID();
+    ws = await wsConnect(rec_id);
+
+    // отправляем все webm chunk-и
+    for (let blob of chunks) {
+        const buf = await blob.arrayBuffer();
+        ws.send(new Uint8Array(buf));
+    }
+
+    ws.send("END");
+};
