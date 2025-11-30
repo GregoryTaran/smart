@@ -11,7 +11,7 @@ from db import init_db
 
 # ------------------------ ROUTERS ------------------------
 # ❗️ ТУТ АККУРАТНАЯ ПРАВКА — подключаем НОВЫЙ vision_server.py
-from vision_server import router as vision_router
+from vision.vision_server import router as vision_router
 
 import auth.smart_auth as smart_auth
 
