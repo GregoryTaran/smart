@@ -57,15 +57,14 @@
 
 /* Секция истории — центрируем и ограничиваем ширину */
 .vc-history-card {
-    max-width: 900px;
+    max-width: 1100px;
     margin: 30px auto 0;
     text-align: center;
 }
 
 /* Каждая запись — карточка (использует .card из main.css) */
 .vc-entry-card {
-    margin: 10px auto 0;
-    max-width: 900px;
+    max-width: 1100px;
     text-align: center; /* центрируем ВСЁ внутри */
 }
 

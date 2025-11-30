@@ -260,6 +260,7 @@ body.menu-open #overlay {
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
   padding: 22px;
   text-align: center;
+  margin: 5px 5px 5px 5px;
 }
 .card-title {
   margin-bottom: 14px;
