@@ -1,13 +1,17 @@
 console.log("vision_list.js loaded");
 
-document.addEventListener("SMART_SESSION_READY", () => {
-    initVisionList();
-});
+// МГНОВЕННО берём user_id
+const USER_ID = localStorage.getItem("sv_user_id");
+
+if (!USER_ID) {
+    alert("Ошибка: нет user_id. Авторизуйтесь заново!");
+    window.location.href = "/index.html";
+}
 
 const API = "/api/vision";
 
 /**
- * Загружаем список визий пользователя
+ * Загрузка списка визий
  */
 async function loadVisions() {
     try {
@@ -28,7 +32,7 @@ async function loadVisions() {
 }
 
 /**
- * Создать новую визию
+ * Создание визии
  */
 async function createVision() {
     try {
@@ -87,12 +91,15 @@ function openVision(id) {
     window.location.href = `/vision/vision.html?id=${id}`;
 }
 
-
+/**
+ * Инициализация
+ */
 function initVisionList() {
-    const USER_ID = window.SMART_SESSION.user_id;
-
     document.getElementById("newVisionBtn")
         .addEventListener("click", createVision);
 
     loadVisions();
 }
+
+// Запускаем сразу
+initVisionList();
