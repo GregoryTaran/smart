@@ -1,0 +1,17 @@
+https://localhost:5173/
+
+
+
+POWER SHELL ADMIN
+
+PS C:\SMART\smart> npm run dev
+
+> smart@0.0.0 dev
+> vite
+
+You are using Node.js 20.17.0. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.
+
+  VITE v7.2.4  ready in 329 ms
+
+  ➜  Local:   https://localhost:5173/
+  ➜  press h + enter to show help
