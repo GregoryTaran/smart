@@ -16,7 +16,7 @@
   <!-- Стили модуля визий -->
   <link rel="stylesheet" href="/vision/vision.css" />
 
-  <!-- Авторизация -->
+  <!-- Авторизация + быстрый топбар -->
   <script type="module" src="/js/smartid.init.js"></script>
 </head>
 
@@ -37,20 +37,39 @@
         <!-- ВИЗИЯ -->
         <div class="vision-container">
 
+          <!-- Заголовок визии + кнопки -->
           <div class="vision-header">
+
             <input 
               id="vision-title" 
               class="vision-title-input" 
               type="text" 
               placeholder="Название визии"
-              onblur="renameVision()"
             />
 
             <div class="vision-actions">
-              <button class="vision-btn" onclick="addParticipant()">+ Участник</button>
-              <button class="vision-btn vision-btn-secondary" onclick="archiveVision()">Архив</button>
-              <button class="vision-btn vision-btn-danger" onclick="deleteVision()">Удалить</button>
+              <button 
+                class="vision-btn" 
+                id="add-participant-btn"
+              >
+                + Участник
+              </button>
+
+              <button 
+                class="vision-btn vision-btn-secondary" 
+                id="archive-btn"
+              >
+                Архив
+              </button>
+
+              <button 
+                class="vision-btn vision-btn-danger" 
+                id="delete-btn"
+              >
+                Удалить
+              </button>
             </div>
+
           </div>
 
           <!-- Участники -->
@@ -59,12 +78,12 @@
             <div id="participants" class="participants-list"></div>
           </div>
 
-          <!-- ШАГИ -->
+          <!-- Шаги -->
           <div class="vision-block">
             <h3>Шаги</h3>
+
             <div id="steps" class="steps-list"></div>
 
-            <!-- Добавление шага -->
             <div class="step-add-box">
               <textarea 
                 id="step-input" 
@@ -72,7 +91,10 @@
                 placeholder="Написать шаг..."
               ></textarea>
 
-              <button class="vision-btn vision-btn-primary" onclick="addStep()">
+              <button 
+                class="vision-btn vision-btn-primary" 
+                id="add-step-btn"
+              >
                 Отправить
               </button>
             </div>
@@ -88,7 +110,7 @@
 
 <div id="overlay"></div>
 
-<!-- JS логика именно этой страницы -->
+<!-- МОДУЛЬ Vision -->
 <script type="module" src="/vision/vision.js"></script>
 
 </body>
