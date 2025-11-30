@@ -10,7 +10,7 @@
   <link rel="icon" href="/assets/logo400.jpg" />
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- Глобальные стили приложения -->
+  <!-- Глобальные стили -->
   <link rel="stylesheet" href="/css/main.css" />
 
   <!-- Стили модуля визий -->
@@ -32,33 +32,26 @@
       <header id="topbar"></header>
 
       <main id="main">
-        <section class="vision-page">
 
-          <div class="vision-panel">
+        <!-- SmartBlock №1 — Заголовок и кнопка -->
+        <div class="SmartBlock">
+          <h1 class="vision-title">Мои визии</h1>
 
-            <section class="vision-list-block">
-
-              <h1 class="vision-title">Мои визии</h1>
-
-              <div class="vision-list-header">
-                <button 
-                  id="newVisionBtn" 
-                  class="vision-btn vision-btn-secondary"
-                >
-                  Создать новую визию
-                </button>
-              </div>
-
-              <div 
-                id="visionList" 
-                class="vision-list"
-              ></div>
-
-            </section>
-
+          <div class="vision-list-header">
+            <button 
+              id="newVisionBtn" 
+              class="vision-btn vision-btn-secondary"
+            >
+              Создать новую визию
+            </button>
           </div>
+        </div>
 
-        </section>
+        <!-- SmartBlock №2 — Список визий -->
+        <div class="SmartBlock">
+          <div id="visionList" class="vision-list"></div>
+        </div>
+
       </main>
 
       <footer id="footer"></footer>

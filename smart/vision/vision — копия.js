@@ -1,5 +1,5 @@
 // ============================================
-//  SMART VISION — VISION.JS (updated)
+//  SMART VISION — VISION.JS (Clean ES Module)
 // ============================================
 
 console.log("vision.js (module) loaded");
@@ -41,7 +41,7 @@ async function loadVision() {
         }
 
         const data = await res.json();
-        window.VISION_DATA = data;
+        window.VISION_DATA = data; // можно убрать позже
 
         renderVision(data.vision);
         renderParticipants(data.participants);
@@ -58,23 +58,13 @@ async function loadVision() {
 // 4) РЕНДЕРЫ
 // ============================================
 function renderVision(v) {
-    const display = document.getElementById("vision-title-display");
-    const manageInput = document.getElementById("vision-title-manage");
-
-    const title = v.title || "";
-
-    if (display) {
-        display.textContent = title;
-    }
-    if (manageInput) {
-        manageInput.value = title;
-    }
+    const titleBox = document.getElementById("vision-title-display");
+    titleBox.textContent = v.title || "";
 }
+
 
 function renderParticipants(parts) {
     const box = document.getElementById("participants");
-    if (!box) return;
-
     box.innerHTML = "";
 
     parts.forEach(p => {
@@ -92,8 +82,6 @@ function renderParticipants(parts) {
 
 function renderSteps(steps) {
     const box = document.getElementById("steps");
-    if (!box) return;
-
     box.innerHTML = "";
 
     steps.forEach(s => {
@@ -117,10 +105,7 @@ function renderSteps(steps) {
 // 5) ОПЕРАЦИИ (SAVE/ADD/DELETE)
 // ============================================
 async function renameVision() {
-    const input = document.getElementById("vision-title-manage");
-    if (!input) return;
-
-    const title = input.value.trim();
+    const title = document.getElementById("vision-title").value.trim();
     if (!title) return;
 
     try {
@@ -133,10 +118,6 @@ async function renameVision() {
                 title
             })
         });
-
-        // обновить отображение
-        await loadVision();
-
     } catch (err) {
         console.error(err);
         alert("Ошибка изменения названия визии");
@@ -159,7 +140,7 @@ async function addParticipant() {
         });
 
         if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
+            const e = await res.json();
             alert(e.detail || "Ошибка добавления участника");
             return;
         }
@@ -174,8 +155,6 @@ async function addParticipant() {
 
 async function addStep() {
     const input = document.getElementById("step-input");
-    if (!input) return;
-
     const text = input.value.trim();
     if (!text) return;
 
@@ -253,41 +232,21 @@ async function deleteVision() {
 
 
 // ============================================
-// 6) ПАНЕЛЬ УПРАВЛЕНИЯ (toggle + закрыть)
+// 6) ВЕШАЕМ СОБЫТИЯ (Event Delegation)
 // ============================================
-function initManageToggle() {
-    const btnManage = document.getElementById("toggleManage");
-    const panel = document.getElementById("managePanel");
-    const btnClose = document.getElementById("close-manage-btn");
 
-    if (!btnManage || !panel) {
-        console.warn("Панель управления: элементы не найдены, повтор...");
-        setTimeout(initManageToggle, 100);
-        return;
+document.addEventListener("input", (e) => {
+    if (e.target.id === "vision-title") {
+        // можно на blur, можно авто-сейв, выбирай
     }
+});
 
-    panel.style.display = "none";
-
-    // Открыть / закрыть по кнопке "Управление"
-    btnManage.addEventListener("click", () => {
-        panel.style.display =
-            (panel.style.display === "none") ? "block" : "none";
-    });
-
-    // Кнопка "Закрыть управление" внутри панели
-    if (btnClose) {
-        btnClose.addEventListener("click", () => {
-            panel.style.display = "none";
-        });
+document.addEventListener("blur", (e) => {
+    if (e.target.id === "vision-title") {
+        renameVision();
     }
+}, true);
 
-    console.log("Панель управления активна");
-}
-
-
-// ============================================
-// 7) ОБРАБОТЧИКИ КЛИКОВ (кнопки внутри страницы)
-// ============================================
 document.addEventListener("click", (e) => {
 
     if (e.target.matches("#add-participant-btn")) {
@@ -305,15 +264,10 @@ document.addEventListener("click", (e) => {
     if (e.target.matches("#add-step-btn")) {
         addStep();
     }
-
-    if (e.target.matches("#rename-btn")) {
-        renameVision();
-    }
 });
 
 
 // ============================================
-// 8) ИНИЦИАЛИЗАЦИЯ
+// 7) ИНИЦИАЛИЗАЦИЯ
 // ============================================
 loadVision();
-initManageToggle();

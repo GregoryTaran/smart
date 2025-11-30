@@ -1,13 +1,9 @@
-// ================================
-//  SMART VISION — СПИСОК ВИЗИЙ
-//  Чистый, модульный ES-module
-// ================================
+// ============================================
+//  SMART VISION — СПИСОК ВИЗИЙ (updated)
+// ============================================
 
-console.log("vision_list.js (module) loaded");
+console.log("vision_list.js (updated) loaded");
 
-// ----------------------------
-// 1) USER ID из LocalStorage
-// ----------------------------
 const USER_ID = localStorage.getItem("sv_user_id");
 
 if (!USER_ID) {
@@ -18,16 +14,31 @@ if (!USER_ID) {
 const API = "/api/vision";
 
 
-// ===============================
-// 2) Загрузка списка визий
-// ===============================
+// --------------------------------------------------
+// Генерация красивого дефолтного названия
+// --------------------------------------------------
+function generateVisionTitle() {
+    const now = new Date();
+
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yy = String(now.getFullYear()).slice(2);
+
+    const hh = String(now.getHours()).padStart(2, "0");
+    const min = String(now.getMinutes()).padStart(2, "0");
+
+    return `Визия от ${dd}.${mm}.${yy} / ${hh}:${min}`;
+}
+
+
+// --------------------------------------------------
+// 1) Загрузка списка визий
+// --------------------------------------------------
 async function loadVisions() {
     try {
         const res = await fetch(`${API}/list?user_id=${USER_ID}`);
 
-        if (!res.ok) {
-            throw new Error("Ошибка загрузки визий");
-        }
+        if (!res.ok) throw new Error("Ошибка загрузки визий");
 
         const visions = await res.json();
         renderVisionList(visions);
@@ -39,9 +50,9 @@ async function loadVisions() {
 }
 
 
-// ===============================
-// 3) Создание визии
-// ===============================
+// --------------------------------------------------
+// 2) Создание новой визии с дефолтным именем
+// --------------------------------------------------
 async function createVision() {
     try {
         const res = await fetch(`${API}/create`, {
@@ -51,12 +62,25 @@ async function createVision() {
         });
 
         const data = await res.json();
-
-        if (data.vision_id) {
-            window.location.href = `/vision/vision.html?id=${data.vision_id}`;
-        } else {
+        if (!data.vision_id) {
             alert("Ошибка создания визии");
+            return;
         }
+
+        // === Создаём красивое имя ===
+        const title = generateVisionTitle();
+
+        await fetch(`${API}/rename`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                vision_id: data.vision_id,
+                user_id: USER_ID,
+                title
+            })
+        });
+
+        window.location.href = `/vision/vision.html?id=${data.vision_id}`;
 
     } catch (err) {
         console.error(err);
@@ -65,9 +89,9 @@ async function createVision() {
 }
 
 
-// ===============================
-// 4) Рендер списка
-// ===============================
+// --------------------------------------------------
+// 3) Рендер списка
+// --------------------------------------------------
 function renderVisionList(list) {
     const box = document.getElementById("visionList");
     box.innerHTML = "";
@@ -80,16 +104,12 @@ function renderVisionList(list) {
     list.forEach(v => {
         const div = document.createElement("div");
         div.className = "vision-item";
-        div.dataset.visionId = v.id;      // ← важный момент
+        div.dataset.visionId = v.id;
 
         div.innerHTML = `
             <div class="vision-item-title">${v.title}</div>
-            <div class="vision-item-date">
-                ${new Date(v.created_at).toLocaleDateString()}
-            </div>
-            <button class="vision-btn vision-btn-primary" data-open>
-                Открыть
-            </button>
+            <div class="vision-item-date">${new Date(v.created_at).toLocaleDateString()}</div>
+            <button class="vision-btn vision-btn-primary" data-open>Открыть</button>
         `;
 
         box.appendChild(div);
@@ -97,19 +117,16 @@ function renderVisionList(list) {
 }
 
 
-// ===================================================
-// 5) Обработчик событий (Event Delegation)
-// ===================================================
-// Позволяет не создавать 1000 обработчиков
-// Работает быстро и надёжно
+// --------------------------------------------------
+// 4) События
+// --------------------------------------------------
 document.addEventListener("click", (e) => {
-    // Создание визии
+
     if (e.target.id === "newVisionBtn") {
         createVision();
         return;
     }
 
-    // Открытие визии
     if (e.target.matches("[data-open]")) {
         const parent = e.target.closest(".vision-item");
         if (!parent) return;
@@ -118,24 +135,19 @@ document.addEventListener("click", (e) => {
         if (!id) return;
 
         openVision(id);
-        return;
     }
 });
 
 
-// ===============================
-// 6) Переход к визии
-// ===============================
+// --------------------------------------------------
+// 5) Переход к визии
+// --------------------------------------------------
 function openVision(id) {
     window.location.href = `/vision/vision.html?id=${id}`;
 }
 
 
-// ===============================
-// 7) Инициализация
-// ===============================
-function init() {
-    loadVisions();
-}
-
-init();
+// --------------------------------------------------
+// 6) Инициализация
+// --------------------------------------------------
+loadVisions();

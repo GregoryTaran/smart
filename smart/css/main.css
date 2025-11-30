@@ -152,9 +152,6 @@ img, video { max-width: 100%; display: block; }
     height: 30px;
   }
 
-  #main {
-    padding: 6px;
-  }
 }
 
 /* ==========================
@@ -171,7 +168,7 @@ img, video { max-width: 100%; display: block; }
 ========================== */
 #main {
   background: var(--main-bg);
-  padding: 5px;
+  padding: 0px;
   flex: auto; /* НЕ растягиваем main на всю высоту → футер ближе */
 }
 
@@ -250,7 +247,7 @@ body.menu-open #overlay {
   }
 
   #main {
-    padding: 6px;
+    padding: 0px;
   }
 }
 
@@ -411,4 +408,28 @@ body.menu-open #overlay {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+
+
+/* =======================================================
+   SMART VISION — SmartBlock (edge-to-edge)
+   ======================================================= */
+
+.SmartBlock {
+    background: #ffffff;
+
+    /* яркая рамка */
+    border: 0px solid #8a8a8a;
+
+    border-radius: 2px;
+    padding: 5px;
+
+    /* растягивается полностью */
+     width: auto; 
+
+    /* 🔥 теперь ЭТО — главный контроллер расстояний */
+    margin: 4px 2px 4px 2px;
+
+    box-sizing: border-box;
 }
