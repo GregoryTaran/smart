@@ -1,14 +1,12 @@
 // -------------------------------------------------------------
-// SMART VISION — WAV Recorder + WebSocket (local / prod)
+// SMART VISION — WAV Recorder + WebSocket
 // -------------------------------------------------------------
 
 import SVAudioCore from "/voicerecorder/audiocore/sv-audio-core.js";
 import WavSegmenter from "/voicerecorder/audiocore/wav-segmenter.js";
 import MicIndicator from "/voicerecorder/mic-indicator/mic-indicator.js";
 
-// -------------------------
-// UI elements
-// -------------------------
+// UI
 const statusEl = document.getElementById("status");
 const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -18,28 +16,22 @@ const player   = document.getElementById("sv-player");
 // MIC INDICATOR
 const indicator = new MicIndicator(document.getElementById("vc-level"));
 
-// -------------------------
 // USER
-// -------------------------
 const USER_ID = localStorage.getItem("sv_user_id");
 if (!USER_ID) {
     alert("Нет user_id — авторизуйся заново");
     location.href = "/";
 }
 
-// -------------------------
-// Global state
-// -------------------------
+// GLOBAL STATE
 let audioCore = null;
 let segmenter = null;
 let ws = null;
 let rec_id = null;
 let recording = false;
-let segments = [];   // сюда складываем WAV-сегменты
+let segments = [];
 
-// -------------------------------------------------------------
-//  AUTO WS URL — локалка (vite) / продакшн (render)
-// -------------------------------------------------------------
+// WS URL
 function getWsUrl() {
     if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
         return "ws://localhost:8000/ws/voicerecorder";
@@ -52,25 +44,21 @@ function setStatus(text) {
 }
 
 // -------------------------------------------------------------
-//  START RECORDING
+// START
 // -------------------------------------------------------------
 startBtn.onclick = async () => {
     if (recording) return;
 
     setStatus("Инициализация…");
 
-    // 1) init AudioCore (AudioContext + Worklet)
     audioCore = new SVAudioCore({
         chunkSize: 2048,
         workletUrl: "/voicerecorder/audiocore/recorder.worklet.js",
     });
+    await audioCore.init();
 
-    await audioCore.init();  // уже создаёт цепочку и начинает слать фреймы
-
-    // <<< ПОДКЛЮЧАЕМ ИНДИКАТОР ПОСЛЕ init(), когда есть stream
     indicator.connectStream(audioCore.getStream());
 
-    // 2) WAV segmenter
     segmenter = new WavSegmenter({
         sampleRate: audioCore.getContext().sampleRate,
         segmentSeconds: 2,
@@ -80,16 +68,10 @@ startBtn.onclick = async () => {
     });
 
     segments = [];
-    segmenter.onSegment = (seg) => {
-        segments.push(seg);
-    };
+    segmenter.onSegment = (seg) => segments.push(seg);
 
-    // 3) передаём Float32 фреймы в сегментер
-    audioCore.onAudioFrame = (frameF32) => {
-        segmenter.pushFrame(frameF32);
-    };
+    audioCore.onAudioFrame = (frame) => segmenter.pushFrame(frame);
 
-    // 4) WebSocket
     const wsUrl = getWsUrl();
     ws = new WebSocket(wsUrl);
 
@@ -98,11 +80,11 @@ startBtn.onclick = async () => {
 
         ws.send(
             "START " +
-                JSON.stringify({
-                    user_id: USER_ID,
-                    rec_id: rec_id,
-                    ext: ".wav",
-                })
+            JSON.stringify({
+                user_id: USER_ID,
+                rec_id,
+                ext: ".wav",
+            })
         );
 
         setStatus("Recording…");
@@ -115,22 +97,15 @@ startBtn.onclick = async () => {
                 player.src = data.url;
                 player.classList.remove("sv-player--disabled");
                 setStatus("Saved ✓");
-            } else {
-                console.log("[WS msg]", data);
+
+                // AUTO reload history
+                loadHistory();
             }
-        } catch {
-            console.log("[WS msg raw]", ev.data);
-        }
+        } catch {}
     };
 
-    ws.onerror = (err) => {
-        console.error("[WS ERROR]", err);
-        setStatus("WebSocket error");
-    };
-
-    ws.onclose = () => {
-        console.log("[WS CLOSED]");
-    };
+    ws.onerror = () => setStatus("WebSocket error");
+    ws.onclose = () => console.log("[WS CLOSED]");
 
     recording = true;
     startBtn.disabled = true;
@@ -139,27 +114,26 @@ startBtn.onclick = async () => {
 };
 
 // -------------------------------------------------------------
-//  PAUSE / RESUME
+// PAUSE / RESUME
 // -------------------------------------------------------------
 pauseBtn.onclick = () => {
     if (!recording || !audioCore) return;
 
     if (audioCore._paused) {
         audioCore.resumeCapture();
-        indicator.unfreeze();          // <<< продолжить индикатор
+        indicator.unfreeze();
         pauseBtn.textContent = "Pause";
         setStatus("Recording…");
     } else {
         audioCore.pauseCapture();
-        indicator.freeze();            // <<< заморозить индикатор
+        indicator.freeze();
         pauseBtn.textContent = "Resume";
         setStatus("Paused");
     }
 };
 
-
 // -------------------------------------------------------------
-//  STOP RECORDING
+// STOP
 // -------------------------------------------------------------
 stopBtn.onclick = async () => {
     if (!recording || !audioCore) return;
@@ -173,13 +147,7 @@ stopBtn.onclick = async () => {
     segments = [];
 
     for (const seg of toSend) {
-        if (!seg || !seg.pcmInt16 || !seg.pcmInt16.length) continue;
-
-        const wavBlob = segmenter._makeWavBlob(
-            seg.pcmInt16,
-            seg.sampleRate,
-            1
-        );
+        const wavBlob = segmenter._makeWavBlob(seg.pcmInt16, seg.sampleRate, 1);
         const buf = await wavBlob.arrayBuffer();
         ws.send(new Uint8Array(buf));
     }
@@ -188,10 +156,87 @@ stopBtn.onclick = async () => {
 
     recording = false;
     audioCore.stop();
-    indicator.baselineOnly(); 
+    indicator.baselineOnly();
     audioCore = null;
 
     startBtn.disabled = false;
     pauseBtn.disabled = true;
     stopBtn.disabled = true;
 };
+
+// -------------------------------------------------------------
+// HISTORY
+// -------------------------------------------------------------
+
+async function loadHistory() {
+    const res = await fetch(`/api/voicerecorder/list?user_id=${USER_ID}`);
+    const json = await res.json();
+    if (json.ok) renderHistory(json.records);
+}
+
+function renderHistory(records) {
+    const box = document.getElementById("vc-history");
+    box.innerHTML = "";
+
+    if (!records.length) {
+        box.innerHTML = "<p style='color:#777;text-align:center;'>Пока нет записей</p>";
+        return;
+    }
+
+    for (const rec of records) {
+        const card = document.createElement("div");
+        card.className = "vc-entry-card";
+
+        const date = new Date(rec.created_at).toLocaleString("ru-RU");
+        const name = rec.display_name || rec.file_name;
+
+        card.innerHTML = `
+            <h3 class="vc-entry-title">${name}</h3>
+            <div class="vc-entry-meta">${date} · ${rec.duration_seconds}s</div>
+
+            <audio controls src="${rec.file_url}" style="width:100%;"></audio>
+
+            <div class="vc-entry-actions">
+                <button data-edit="${rec.rec_id}">✏️ Переименовать</button>
+                <button data-del="${rec.rec_id}">🗑 Удалить</button>
+            </div>
+        `;
+
+        box.appendChild(card);
+    }
+
+    bindHistoryActions();
+}
+
+function bindHistoryActions() {
+    document.querySelectorAll("[data-edit]").forEach(btn =>
+        btn.onclick = () => openRenameModal(btn.dataset.edit)
+    );
+
+    document.querySelectorAll("[data-del]").forEach(btn =>
+        btn.onclick = () => openDeleteModal(btn.dataset.del)
+    );
+}
+
+function openRenameModal(rec_id) {
+    const newName = prompt("Введите новое название записи:");
+    if (!newName) return;
+
+    fetch("/api/voicerecorder/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, rec_id, display_name: newName })
+    }).then(() => loadHistory());
+}
+
+function openDeleteModal(rec_id) {
+    if (!confirm("Удалить запись полностью?")) return;
+
+    fetch("/api/voicerecorder/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, rec_id })
+    }).then(() => loadHistory());
+}
+
+loadHistory();

@@ -35,17 +35,18 @@
 
     <main id="main">
 
-      <section class="card" style="padding:24px;">
+      <!-- ============ CARD: RECORDER ============ -->
+      <section class="card vc-main-card">
 
-        <h2 class="card-title" style="text-align:center">Диктофон</h2>
+        <h2 class="card-title">Диктофон</h2>
 
-        <!-- MIC INDICATOR AREA -->
+        <!-- MIC INDICATOR -->
         <div class="mic-box" aria-hidden="true">
           <div id="vc-level"></div>
         </div>
 
         <!-- BUTTONS -->
-        <div class="controls" style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+        <div class="vc-controls">
           <button id="startBtn" class="btn-purple">Start</button>
           <button id="pauseBtn" class="btn-purple" disabled>Pause</button>
           <button id="stopBtn" class="btn-purple" disabled>Stop</button>
@@ -55,11 +56,19 @@
         <audio id="sv-player" class="sv-player sv-player--disabled" controls preload="metadata"></audio>
 
         <!-- STATUS -->
-        <div class="status" id="status" style="margin-top:10px;text-align:center;">
-          idle
-        </div>
-
+        <div id="status" class="vc-status">idle</div>
       </section>
+
+
+
+      <!-- ============ CARD: HISTORY ============ -->
+      <section class="card vc-history-card">
+        <h2 class="card-title">История записей</h2>
+
+        <!-- Контейнер с карточками записей -->
+        <div id="vc-history"></div>
+      </section>
+
 
     </main>
 
@@ -69,7 +78,7 @@
 
 <div id="overlay"></div>
 
-<!-- MAIN LOGIC (единственный модульный скрипт) -->
+<!-- MAIN LOGIC -->
 <script type="module" src="/voicerecorder/voicerecorder.js"></script>
 
 </body>

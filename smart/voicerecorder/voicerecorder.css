@@ -25,3 +25,48 @@
 /* SMART VISION: persistent media player */
 .sv-player{display:block;width:100%;margin-top:5mm}
 .sv-player--disabled{pointer-events:none;opacity:.6;filter:grayscale(1)}
+
+
+/* === HISTORY SECTION (использует те же .card) === */
+
+.vc-history-card {
+    margin-top: 24px;
+}
+
+.vc-entry-card {
+    margin-top: 16px;
+    text-align: left; /* внутри можно выравнивать, но сама .card остаётся той же */
+}
+
+.vc-entry-title {
+    margin: 0 0 6px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.vc-entry-meta {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+
+.vc-entry-actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 16px;
+}
+
+.vc-entry-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: #883b63;
+    transition: background .2s;
+}
+
+.vc-entry-actions button:hover {
+    background: #f5e7ef;
+}
