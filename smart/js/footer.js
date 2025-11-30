@@ -1,18 +1,19 @@
 // ================================================
-//  SMART VISION — FOOTER (работает напрямую с SMART_SESSION)
+//  SMART VISION — FOOTER (LocalStorage Edition)
 // ================================================
 
 export function renderFooter() {
   const footer = document.getElementById('footer');
   if (!footer) return;
 
-  const session = window.SMART_SESSION || {
-    authenticated: false,
-    level: 1,
-    user_id: null,
-    email: null,
-    name: null,
-    loading: true
+  // Берём данные из localStorage (мгновенно)
+  const session = {
+    authenticated: localStorage.getItem("sv_authenticated") === "yes",
+    user_id: localStorage.getItem("sv_user_id"),
+    email: localStorage.getItem("sv_email"),
+    name: localStorage.getItem("sv_name"),
+    level: localStorage.getItem("sv_level") || 1,
+    loading: false
   };
 
   const year = new Date().getFullYear();
@@ -35,16 +36,15 @@ export function renderFooter() {
 }
 
 // ------------------------------------------------
-//  DEBUG BLOCK (системное состояние)
+//  DEBUG BLOCK
 // ------------------------------------------------
 function renderDebug(session) {
   return `
-    ${row('Loading', session.loading ? 'yes' : 'no')}
     ${row('Authenticated', session.authenticated ? 'yes' : 'no')}
     ${row('User ID', session.user_id || '—')}
     ${row('Email', session.email || '—')}
     ${row('Name', session.name || '—')}
-    ${row('Level', session.level || 1)}
+    ${row('Level', session.level)}
   `;
 }
 
