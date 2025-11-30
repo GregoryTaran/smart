@@ -1,153 +1,175 @@
-// voicerecorder.js — WebSocket версия под старый UI + MIC-INDICATOR
-console.log("[VR] voicerecorder.js loaded");
+// -------------------------------------------------------------
+//  SMART VISION — WAV Recorder + WebSocket (local/prod)
+// -------------------------------------------------------------
+
+import SVAudioCore from "/voicerecorder/audiocore/sv-audio-core.js";
+import WavSegmenter from "/voicerecorder/audiocore/wav-segmenter.js";
 
 // -------------------------
-// MIC INDICATOR (импорт)
+// UI elements
 // -------------------------
-import MicIndicator from "/voicerecorder/mic-indicator/mic-indicator.js";
+const statusEl = document.getElementById("status");
+const startBtn  = document.getElementById("startBtn");
+const pauseBtn  = document.getElementById("pauseBtn");
+const stopBtn   = document.getElementById("stopBtn");
+const player    = document.getElementById("sv-player");
 
 // -------------------------
-// USER SESSION
+// USER
 // -------------------------
 const USER_ID = localStorage.getItem("sv_user_id");
 if (!USER_ID) {
-    alert("Ошибка: нет user_id. Авторизуйтесь заново.");
-    location.href = "/index.html";
+    alert("Нет user_id — авторизуйся заново");
+    location.href = "/";
 }
 
 // -------------------------
-// ELEMENTS
+// Global state
 // -------------------------
-const statusEl = document.getElementById("status");
-const startBtn = document.getElementById("startBtn");
-const pauseBtn = document.getElementById("pauseBtn");
-const stopBtn  = document.getElementById("stopBtn");
-const player = document.getElementById("sv-player");
-const micContainer = document.getElementById("vc-level");
-
-let mediaRecorder = null;
-let chunks = [];
+let audioCore = null;
+let segmenter = null;
 let ws = null;
 let rec_id = null;
-let micIndicator = null;
+let recording = false;
 
 
-// -------------------------
-// HELPERS
-// -------------------------
+// -------------------------------------------------------------
+//  AUTO WS URL — локалка (vite) / продакшн (render)
+// -------------------------------------------------------------
+function getWsUrl() {
+    // локальная разработка
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+        return "ws://localhost:8000/ws/voicerecorder";
+    }
+
+    // продакшен
+    return location.origin.replace("http", "ws") + "/ws/voicerecorder";
+}
+
 function setStatus(text) {
     statusEl.textContent = text;
 }
 
 
-// -------------------------
-// START BUTTON
-// -------------------------
+// -------------------------------------------------------------
+//  START RECORDING
+// -------------------------------------------------------------
 startBtn.onclick = async () => {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (recording) return;
 
-        // --- MIC INDICATOR ---
-        if (!micIndicator) {
-            micIndicator = new MicIndicator(micContainer, {
-                analyserSmoothing: 0.25,
-                fftSize: 1024,
-                stepMs: 100,
-            });
-        }
-        await micIndicator.connectStream(stream);
+    setStatus("Инициализация…");
 
-        // --- Recorder ---
-        chunks = [];
-        mediaRecorder = new MediaRecorder(stream);
+    // 1) init AudioCore (AudioWorklet)
+    audioCore = new SVAudioCore({
+        chunkSize: 2048,
+        workletUrl: "/voicerecorder/audiocore/recorder.worklet.js"
+    });
+    await audioCore.init();
 
-        mediaRecorder.ondataavailable = ev => {
-            if (ev.data.size > 0) chunks.push(ev.data);
-        };
+    // 2) WAV segmenter
+    segmenter = new WavSegmenter({
+        sampleRate: audioCore.getContext().sampleRate,
+        segmentSeconds: 2,
+        normalize: true,
+        padLastSegment: true
+    });
 
-        mediaRecorder.start(1000);
+    // 3) каждую порцию Float32 передаём в сегментер
+    audioCore.onAudioFrame = (frameF32) => {
+        segmenter.pushFrame(frameF32);
+    };
 
-        rec_id = crypto.randomUUID();
-        setStatus("Recording…");
-
-        startBtn.disabled = true;
-        pauseBtn.disabled = false;
-        stopBtn.disabled = false;
-
-    } catch (e) {
-        console.error(e);
-        setStatus("microphone: denied");
-    }
-};
-
-
-// -------------------------
-// PAUSE BUTTON
-// -------------------------
-pauseBtn.onclick = () => {
-    if (!mediaRecorder) return;
-
-    if (mediaRecorder.state === "recording") {
-        mediaRecorder.pause();
-        pauseBtn.textContent = "Resume";
-        setStatus("Paused");
-        if (micIndicator) micIndicator.freeze();
-    } else if (mediaRecorder.state === "paused") {
-        mediaRecorder.resume();
-        pauseBtn.textContent = "Pause";
-        setStatus("Recording…");
-        if (micIndicator) micIndicator.unfreeze();
-    }
-};
-
-
-// -------------------------
-// STOP BUTTON
-// -------------------------
-stopBtn.onclick = async () => {
-    if (!mediaRecorder) return;
-
-    mediaRecorder.stop();
-    setStatus("Processing…");
-
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    stopBtn.disabled = true;
-
-    // --- MIC INDICATOR STOP ---
-    if (micIndicator) {
-        micIndicator.freeze(); // зафиксировать последний кадр
-    }
-
-    // --- WebSocket CONNECT ---
-    const wsUrl = location.origin.replace("http", "ws") + "/ws/voicerecorder";
+    // 4) WebSocket
+    const wsUrl = getWsUrl();
     ws = new WebSocket(wsUrl);
 
-    ws.onopen = async () => {
+    ws.onopen = () => {
+        rec_id = crypto.randomUUID();
+
         ws.send(`START ${JSON.stringify({
             user_id: USER_ID,
             rec_id: rec_id,
-            ext: ".webm"
+            ext: ".wav"
         })}`);
 
-        for (let blob of chunks) {
-            const buf = await blob.arrayBuffer();
-            ws.send(new Uint8Array(buf));
-        }
-
-        ws.send("END");
+        setStatus("Recording…");
     };
 
-    ws.onmessage = e => {
+    ws.onmessage = (ev) => {
         try {
-            const data = JSON.parse(e.data);
+            const data = JSON.parse(ev.data);
             if (data.status === "SAVED") {
                 player.src = data.url;
                 player.classList.remove("sv-player--disabled");
                 setStatus("Saved ✓");
             }
         } catch {
-            console.log("WS:", e.data);
+            console.log("[WS msg]", ev.data);
         }
     };
+
+    ws.onerror = (err) => {
+        console.error("[WS ERROR]", err);
+        setStatus("WebSocket error");
+    };
+
+    recording = true;
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    stopBtn.disabled = false;
+};
+
+
+// -------------------------------------------------------------
+//  PAUSE / RESUME
+// -------------------------------------------------------------
+pauseBtn.onclick = () => {
+    if (!recording || !audioCore) return;
+
+    if (audioCore._paused) {
+        audioCore.resumeCapture();
+        pauseBtn.textContent = "Pause";
+        setStatus("Recording…");
+    } else {
+        audioCore.pauseCapture();
+        pauseBtn.textContent = "Resume";
+        setStatus("Paused");
+    }
+};
+
+
+// -------------------------------------------------------------
+//  STOP RECORDING
+// -------------------------------------------------------------
+stopBtn.onclick = async () => {
+    if (!recording || !audioCore) return;
+
+    setStatus("Processing…");
+
+    audioCore.pauseCapture();
+
+    // создаём последний сегмент, если он висит
+    segmenter.stop();
+
+    // отправляем все WAV-сегменты
+    const segs = segmenter._segments || [];
+
+    for (let s of segs) {
+        if (!s.pcmInt16 || !s.pcmInt16.length) continue;
+
+        const wavBlob = segmenter._makeWavBlob(s.pcmInt16, s.sampleRate);
+        const buf = await wavBlob.arrayBuffer();
+        ws.send(new Uint8Array(buf));
+    }
+
+    ws.send("END");
+
+    // cleanup
+    recording = false;
+    audioCore.stop();
+    audioCore = null;
+
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    stopBtn.disabled = true;
 };
