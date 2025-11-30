@@ -1,0 +1,199 @@
+# SMART VISION — PROJECT PASSPORT
+
+1. PROJECT NAME: SMART VISION
+2. AUTHOR: Greg Taran
+3. PURPOSE: Web platform (Frontend + FastAPI Backend + Supabase)
+4. FRONTEND: smart/ (Сайт смонтирован на папку smart/)
+5. BACKEND: FastAPI server (Render) (Сервер смонтирован на папку server/)
+6. DATABASE: Supabase (Postgres + Storage)
+7. DOMAIN: https://test.smartvision.life/
+8. STRUCTURE: two folders — smart/ (frontend) and server/ (backend)
+9. FRONT-ENTRY: /smart/index.html
+10. AUTH PAGE: /smart/login/login.html
+15. MAIN FILES: main.py
+22. SUPABASE_URL = "https://bqtlomddtojirtkazpvj.supabase.co"
+
+
+СТРУКТУРА ПАПОК НА КОМПЕ:
+SMART/
+│
+├── .vscode/
+├── node_modules/
+├── readme/
+│
+├── server/
+│   ├── __pycache__/
+│   ├── auth/
+│   ├── core/
+│   ├── data/
+│   ├── database/
+│   ├── identity/
+│   ├── svid/
+│   ├── tokenscount/
+│   ├── vision/
+│   ├── voicerecorder/
+│   │
+│   ├── .env
+│   ├── .env.example
+│   ├── .python-version
+│   ├── database_readme.md
+│   ├── db.py
+│   ├── main.py
+│   └── requirements.txt
+│
+├── smart/
+│   ├── about/
+│   ├── app/
+│   ├── assets/
+│   ├── components/
+│   ├── css/
+│   ├── index/
+│   ├── js/
+│   ├── login/
+│   ├── privacy/
+│   ├── terms/
+│   ├── testserver/
+│   ├── vision/
+│   ├── voicerecorder/
+│   │
+│   ├── index.html
+│   ├── manifest.json
+│   ├── menu.html
+│   └── service-worker.js
+│
+├── .env
+├── .gitignore
+├── package-lock.json
+├── package.json
+└── render.yaml
+
+
+
+НА РЕНЕДЕРЕ: (render.com)
+SMART — Render Web Service Summary
+Service ID: srv-d3qmhaili9vc73cg84s0
+Service Name: smart
+Region: Oregon (US West)
+Instance Type: Starter (0.5 CPU, 512 MB)
+Internal Address: smart-vision-ws-1:10000
+Public Domains:
+  - https://test.smartvision.life
+  - https://smart-vision-ws-1.onrender.com
+Repository & Deploy
+GitHub Repo: https://github.com/GregoryTaran/smart
+Branch: main
+Git Credentials: 4401006@gmail.com
+Root Directory: server
+Build Command:
+  pip install -r requirements.txt
+Start Command:
+  uvicorn main:app --host 0.0.0.0 --port $PORT
+Pre-Deploy Command: none
+Auto-Deploy: On (deploys on every commit)
+Custom Domains
+Active Domain: test.smartvision.life
+SSL: Verified & active
+Render subdomain: enabled
+Edge Caching
+Cache Profile: None
+Health Checks
+Health Check Path: /healthz
+
+
+ПЕРЕМЕННЫЕ НА РЕНДЕР: (Environment Variables на render.com)
+- DATABASE_URL
+- GOOGLE_API_KEY
+- OPENAI_API_KEY
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_URL
+
+CORS РАЗРЕШЁННЫЕ ОРИГИНЫ:
+- https://test.smartvision.life
+- http://localhost:8000
+- http://localhost:5173
+- http://127.0.0.1:8000
+- http://127.0.0.1:5173
+
+REQUIREMENTS (backend):
+- fastapi
+- uvicorn
+- python-multipart
+- aiofiles
+- asyncpg
+- bcrypt
+- python-dotenv
+- httpx
+- email-validator
+- numpy
+- pydub
+- openai
+- supabase
+
+ПРИМЕР ТАБЛИЦ:
+
+TABLE: levels
+- level_id (smallint)
+- code (text)
+- name (text)
+- description (text)
+- is_active (boolean)
+- sort_order (smallint)
+
+TABLE: smart_sessions
+- id (uuid)
+- user_id (uuid)
+- token (text)
+- created_at (timestamp)
+- expires_at (timestamp)
+- last_used_at (timestamp)
+- user_agent (text)
+
+TABLE: smart_users
+- id (uuid)
+- email (text)
+- name (text)
+- password (text)
+- password_hash (text)
+- level (integer)
+- role (text)
+- created_at (timestamp)
+- updated_at (timestamp)
+
+TABLE: tokenscount
+- id (bigint)
+- clientid (text)
+- clienttype (text)
+- provider (text)
+- model (text)
+- prompttokens (integer)
+- completiontokens (integer)
+- totaltokens (integer)
+- rawusage (jsonb)
+- meta (jsonb)
+- createdat (timestamp)
+
+TABLE: vision_participants
+- vision_id (uuid)
+- user_id (uuid)
+- role (text)
+- added_at (timestamp)
+
+TABLE: vision_steps
+- id (bigint)
+- vision_id (uuid)
+- user_text (text)
+- ai_text (text)
+- created_at (timestamp)
+- user_id (uuid)
+
+TABLE: visions
+- id (uuid)
+- owner_id (uuid)
+- title (text)
+- created_at (timestamp)
+- description (text)
+- updated_at (timestamp)
+- archived (boolean)
+
+
