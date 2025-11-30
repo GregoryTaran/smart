@@ -146,14 +146,17 @@ pauseBtn.onclick = () => {
 
     if (audioCore._paused) {
         audioCore.resumeCapture();
+        indicator.unfreeze();          // <<< продолжить индикатор
         pauseBtn.textContent = "Pause";
         setStatus("Recording…");
     } else {
         audioCore.pauseCapture();
+        indicator.freeze();            // <<< заморозить индикатор
         pauseBtn.textContent = "Resume";
         setStatus("Paused");
     }
 };
+
 
 // -------------------------------------------------------------
 //  STOP RECORDING
@@ -185,6 +188,7 @@ stopBtn.onclick = async () => {
 
     recording = false;
     audioCore.stop();
+    indicator.baselineOnly(); 
     audioCore = null;
 
     startBtn.disabled = false;
