@@ -1,5 +1,10 @@
-// voicerecorder.js — WebSocket версия под старый UI
+// voicerecorder.js — WebSocket версия под старый UI + MIC-INDICATOR
 console.log("[VR] voicerecorder.js loaded");
+
+// -------------------------
+// MIC INDICATOR (импорт)
+// -------------------------
+import MicIndicator from "/voicerecorder/mic-indicator/mic-indicator.js";
 
 // -------------------------
 // USER SESSION
@@ -18,11 +23,13 @@ const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn  = document.getElementById("stopBtn");
 const player = document.getElementById("sv-player");
+const micContainer = document.getElementById("vc-level");
 
 let mediaRecorder = null;
 let chunks = [];
 let ws = null;
 let rec_id = null;
+let micIndicator = null;
 
 
 // -------------------------
@@ -40,6 +47,17 @@ startBtn.onclick = async () => {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+        // --- MIC INDICATOR ---
+        if (!micIndicator) {
+            micIndicator = new MicIndicator(micContainer, {
+                analyserSmoothing: 0.25,
+                fftSize: 1024,
+                stepMs: 100,
+            });
+        }
+        await micIndicator.connectStream(stream);
+
+        // --- Recorder ---
         chunks = [];
         mediaRecorder = new MediaRecorder(stream);
 
@@ -50,7 +68,6 @@ startBtn.onclick = async () => {
         mediaRecorder.start(1000);
 
         rec_id = crypto.randomUUID();
-
         setStatus("Recording…");
 
         startBtn.disabled = true;
@@ -74,10 +91,12 @@ pauseBtn.onclick = () => {
         mediaRecorder.pause();
         pauseBtn.textContent = "Resume";
         setStatus("Paused");
+        if (micIndicator) micIndicator.freeze();
     } else if (mediaRecorder.state === "paused") {
         mediaRecorder.resume();
         pauseBtn.textContent = "Pause";
         setStatus("Recording…");
+        if (micIndicator) micIndicator.unfreeze();
     }
 };
 
@@ -95,7 +114,12 @@ stopBtn.onclick = async () => {
     pauseBtn.disabled = true;
     stopBtn.disabled = true;
 
-    // WebSocket CONNECT
+    // --- MIC INDICATOR STOP ---
+    if (micIndicator) {
+        micIndicator.freeze(); // зафиксировать последний кадр
+    }
+
+    // --- WebSocket CONNECT ---
     const wsUrl = location.origin.replace("http", "ws") + "/ws/voicerecorder";
     ws = new WebSocket(wsUrl);
 
