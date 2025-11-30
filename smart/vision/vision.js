@@ -1,17 +1,20 @@
 console.log("vision.js loaded");
 
-document.addEventListener("SMART_SESSION_READY", () => {
-    initVision();
-});
+// МГНОВЕННО берём user_id из localStorage
+const USER_ID = localStorage.getItem("sv_user_id");
 
+if (!USER_ID) {
+    alert("Ошибка: нет user_id. Авторизуйтесь заново!");
+    window.location.href = "/index.html";
+}
 
-const API = "/api/vision";
-
+// Берём ID визии из URL
 const urlParams = new URLSearchParams(window.location.search);
 const VISION_ID = urlParams.get("id");
 
 if (!VISION_ID) alert("Ошибка: нет ID визии!");
 
+const API = "/api/vision";
 
 /**
  * ЗАГРУЗКА ПОЛНОЙ ВИЗИИ
@@ -38,18 +41,16 @@ export async function loadVision() {
     }
 }
 
-
 /**
- * Рендер заголовка и основной инфы по визии
+ * Рендер заголовка визии
  */
 function renderVision(v) {
     const titleEl = document.getElementById("vision-title");
     titleEl.value = v.title || "";
 }
 
-
 /**
- * Рендер шагов визии
+ * Рендер шагов
  */
 function renderSteps(steps) {
     const box = document.getElementById("steps");
@@ -71,7 +72,6 @@ function renderSteps(steps) {
     box.scrollTop = box.scrollHeight;
 }
 
-
 /**
  * Рендер участников
  */
@@ -91,7 +91,6 @@ function renderParticipants(parts) {
         box.appendChild(div);
     });
 }
-
 
 /**
  * Добавление шага
@@ -130,7 +129,6 @@ export async function addStep() {
     }
 }
 
-
 /**
  * Добавление участника
  */
@@ -163,7 +161,6 @@ export async function addParticipant() {
     }
 }
 
-
 /**
  * Переименование визии
  */
@@ -187,9 +184,8 @@ export async function renameVision() {
     }
 }
 
-
 /**
- * Архивирование визии
+ * Архивация визии
  */
 export async function archiveVision() {
     if (!confirm("Отправить в архив?")) return;
@@ -212,7 +208,6 @@ export async function archiveVision() {
         alert("Ошибка архивации визии");
     }
 }
-
 
 /**
  * Удаление визии
@@ -238,8 +233,5 @@ export async function deleteVision() {
     }
 }
 
-
-function initVision() {
-    window.USER_ID = window.SMART_SESSION.user_id;
-    loadVision();
-}
+// ИНИЦИАЛИЗАЦИЯ
+loadVision();
