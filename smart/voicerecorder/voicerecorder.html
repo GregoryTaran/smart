@@ -16,6 +16,9 @@
 <!-- Стили диктофона -->
 <link rel="stylesheet" href="/voicerecorder/voicerecorder.css" />
 
+<!-- Стили индикатора -->
+<link rel="stylesheet" href="/voicerecorder/mic-indicator/mic-indicator.css" />
+
 <!-- Авторизация -->
 <script type="module" src="/js/smartid.init.js"></script>
 
@@ -36,18 +39,22 @@
 
         <h2 class="card-title" style="text-align:center">Диктофон</h2>
 
+        <!-- MIC INDICATOR AREA -->
         <div class="mic-box" aria-hidden="true">
           <div id="vc-level"></div>
         </div>
 
+        <!-- BUTTONS -->
         <div class="controls" style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
           <button id="startBtn" class="btn-purple">Start</button>
           <button id="pauseBtn" class="btn-purple" disabled>Pause</button>
           <button id="stopBtn" class="btn-purple" disabled>Stop</button>
         </div>
 
+        <!-- AUDIO PLAYER -->
         <audio id="sv-player" class="sv-player sv-player--disabled" controls preload="metadata"></audio>
 
+        <!-- STATUS -->
         <div class="status" id="status" style="margin-top:10px;text-align:center;">
           idle
         </div>
@@ -62,6 +69,10 @@
 
 <div id="overlay"></div>
 
+<!-- MIC INDICATOR MODULE -->
+<script type="module" src="/voicerecorder/mic-indicator/mic-indicator.js"></script>
+
+<!-- MAIN LOGIC -->
 <script type="module" src="/voicerecorder/voicerecorder.js"></script>
 
 </body>
