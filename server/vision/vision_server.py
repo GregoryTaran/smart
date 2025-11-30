@@ -19,37 +19,27 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set")
+    raise RuntimeError("SUPABASE_URL или SUPABASE_SERVICE_ROLE_KEY не заданы")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-
-AI_USER_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
+AI_USER_EMAIL = "ai@smartvision.local"
 
 
 # =====================================================
 #  MODELS
 # =====================================================
 
+class CreateRequest(BaseModel):
+    user_id: str
+
+
 class StepRequest(BaseModel):
     vision_id: str
     user_id: str
     user_text: str
     with_ai: bool = True
-
-
-class AddParticipantRequest(BaseModel):
-    vision_id: str
-    user_id: str
-    email: str
-
-
-class RemoveParticipantRequest(BaseModel):
-    vision_id: str
-    user_id: str
-    remove_user_id: str
 
 
 class RenameRequest(BaseModel):
@@ -69,12 +59,25 @@ class DeleteRequest(BaseModel):
     user_id: str
 
 
+class AddParticipantRequest(BaseModel):
+    vision_id: str
+    user_id: str
+    email: str
+
+
+class RemoveParticipantRequest(BaseModel):
+    vision_id: str
+    user_id: str
+    participant_id: str
+
+
 # =====================================================
 #  HELPERS
 # =====================================================
 
 def require_user(user_id: Optional[str]):
-    if not user_id:
+    # Дополнительная защита: строковое 'null' и пустые значения
+    if not user_id or user_id == "null":
         raise HTTPException(401, "user_id отсутствует")
     return user_id
 
@@ -89,63 +92,67 @@ async def get_participant_role(vision_id: str, user_id: str) -> Optional[str]:
     return res.data[0]["role"] if res.data else None
 
 
-async def ensure_access(vision_id: str, user_id: str, allowed: List[str]):
+async def ensure_access(vision_id: str,
+                        user_id: str,
+                        allowed_roles: List[str]):
+    require_user(user_id)
+
     role = await get_participant_role(vision_id, user_id)
+    if role is None:
+        raise HTTPException(404, "Визия недоступна")
 
-    if not role:
-        raise HTTPException(404, "Нет доступа к визии")
-
-    if role not in allowed:
-        raise HTTPException(403, "Недостаточно прав")
-
-    return role
+    if role not in allowed_roles:
+        raise HTTPException(403, "Нет прав для этого действия")
 
 
 async def load_participants(vision_id: str):
-    """
-    Быстрый хелпер (вместо вызова эндпоинта).
-    """
-
-    parts = supabase.table("vision_participants") \
-        .select("user_id, role") \
+    res = supabase.table("vision_participants") \
+        .select("vision_id,user_id,role,added_at") \
         .eq("vision_id", vision_id) \
         .execute().data
 
-    user_ids = [p["user_id"] for p in parts]
+    if not res:
+        return []
 
-    user_rows = supabase.table("smart_users") \
+    ids = [p["user_id"] for p in res]
+
+    users = supabase.table("smart_users") \
         .select("id,email,name") \
-        .in_("id", user_ids) \
+        .in_("id", ids) \
         .execute().data
 
-    user_map = {u["id"]: u for u in user_rows}
+    u_map = {u["id"]: u for u in users}
 
-    return [
-        {
+    participants = []
+    for p in res:
+        info = u_map.get(p["user_id"], {})
+        participants.append({
+            "vision_id": p["vision_id"],
             "user_id": p["user_id"],
             "role": p["role"],
-            "email": user_map.get(p["user_id"], {}).get("email"),
-            "name": user_map.get(p["user_id"], {}).get("name"),
-        }
-        for p in parts
-    ]
+            "added_at": p["added_at"],
+            "email": info.get("email"),
+            "name": info.get("name"),
+        })
+
+    return participants
 
 
 async def load_steps_with_names(vision_id: str):
-    """
-    Быстрый хелпер шагов с именами пользователей.
-    """
-
     steps = supabase.table("vision_steps") \
-        .select("*") \
+        .select("id,vision_id,user_id,user_text,ai_text,created_at") \
         .eq("vision_id", vision_id) \
         .order("created_at", desc=False) \
         .execute().data
 
-    user_ids = list(set([s["user_id"] for s in steps]))
+    if not steps:
+        return []
+
+    ids = list({s["user_id"] for s in steps})
+
     users = supabase.table("smart_users") \
-        .select("id,name,email") \
-        .in_("id", user_ids) \
+        .select("id,email,name") \
+        .in_("id", ids) \
         .execute().data
 
     u_map = {u["id"]: u for u in users}
@@ -175,17 +182,17 @@ def build_ai_answer(history: List[dict], user_text: str):
         }
     ]
 
-    # добавляем до 30 последних сообщений
-    for msg in history[-30:]:
-        if msg["user_text"]:
-            messages.append({"role": "user", "content": msg["user_text"]})
-        if msg["ai_text"]:
-            messages.append({"role": "assistant", "content": msg["ai_text"]})
+    # Берём до 30 последних шагов
+    for step in history[-30:]:
+        if step.get("user_text"):
+            messages.append({"role": "user", "content": step["user_text"]})
+        if step.get("ai_text"):
+            messages.append({"role": "assistant", "content": step["ai_text"]})
 
     messages.append({"role": "user", "content": user_text})
 
     resp = openai_client.chat.completions.create(
-        model="gpt-4o-mini-search-preview",
+        model="gpt-4o-mini",
         messages=messages,
     )
 
@@ -214,12 +221,29 @@ async def create_vision(request: Request):
     vision = res.data[0]
     vid = vision["id"]
 
+    # добавляем owner + ai как участников
+    # находим/создаём AI
+    ai_user = supabase.table("smart_users") \
+        .select("id") \
+        .eq("email", AI_USER_EMAIL) \
+        .execute().data
+
+    if ai_user:
+        ai_id = ai_user[0]["id"]
+    else:
+        ai = supabase.table("smart_users").insert({
+            "email": AI_USER_EMAIL,
+            "name": "SMART AI",
+            "role": "system",
+        }).execute().data[0]
+        ai_id = ai["id"]
+
     supabase.table("vision_participants").insert([
         {"vision_id": vid, "user_id": user_id, "role": "owner"},
-        {"vision_id": vid, "user_id": AI_USER_ID, "role": "ai"},
+        {"vision_id": vid, "user_id": ai_id, "role": "ai"},
     ]).execute()
 
-    return {"vision_id": vid, "created_at": vision["created_at"]}
+    return {"vision_id": vid}
 
 
 # =====================================================
@@ -235,15 +259,18 @@ async def add_participant(req: AddParticipantRequest):
     owner_email = owner_row.data[0]["email"]
 
     if req.email == owner_email:
-        raise HTTPException(400, "Нельзя добавить самого себя")
+        raise HTTPException(400, "Нельзя добавить самого себя как участника")
 
     # ищем пользователя по email
-    user_res = supabase.table("smart_users").select("id,email").eq("email", req.email).execute()
+    u = supabase.table("smart_users") \
+        .select("id,email") \
+        .eq("email", req.email) \
+        .execute().data
 
-    if not user_res.data:
-        raise HTTPException(400, "Пользователь не найден")
+    if not u:
+        raise HTTPException(400, "Пользователь с таким email не найден")
 
-    add_id = user_res.data[0]["id"]
+    add_id = u[0]["id"]
 
     # проверяем уже есть ли
     check = supabase.table("vision_participants") \
@@ -272,18 +299,24 @@ async def add_participant(req: AddParticipantRequest):
 async def remove_participant(req: RemoveParticipantRequest):
     await ensure_access(req.vision_id, req.user_id, ["owner"])
 
-    role = await get_participant_role(req.vision_id, req.remove_user_id)
+    # нельзя удалить владельца или AI
+    p = supabase.table("vision_participants") \
+        .select("role") \
+        .eq("vision_id", req.vision_id) \
+        .eq("user_id", req.participant_id) \
+        .execute().data
 
-    if not role:
+    if not p:
         raise HTTPException(404, "Участник не найден")
 
-    if role in ["owner", "ai"]:
-        raise HTTPException(403, "Нельзя удалить owner или ai")
+    role = p[0]["role"]
+    if role in ("owner", "ai"):
+        raise HTTPException(403, "Нельзя удалить владельца или AI")
 
     supabase.table("vision_participants") \
         .delete() \
         .eq("vision_id", req.vision_id) \
-        .eq("user_id", req.remove_user_id) \
+        .eq("user_id", req.participant_id) \
         .execute()
 
     return {"status": "ok"}
@@ -294,7 +327,9 @@ async def remove_participant(req: RemoveParticipantRequest):
 # =====================================================
 
 @router.get("/vision/get_participants")
-async def get_participants(vision_id: str):
+async def get_participants(vision_id: str, user_id: str):
+    # проверяем, что пользователь имеет доступ к визии
+    await ensure_access(vision_id, user_id, ["owner", "participant", "ai"])
     return await load_participants(vision_id)
 
 
@@ -334,14 +369,20 @@ async def get_vision(vision_id: str, user_id: str):
 
     await ensure_access(vision_id, user_id, ["owner", "participant", "ai"])
 
-    # загрузка визии + шагов + участников
-    vision = supabase.table("visions").select("*").eq("id", vision_id).single().execute().data
+    v = supabase.table("visions") \
+        .select("*") \
+        .eq("id", vision_id) \
+        .single() \
+        .execute().data
+
+    if not v:
+        raise HTTPException(404, "Визия не найдена")
 
     steps = await load_steps_with_names(vision_id)
     participants = await load_participants(vision_id)
 
     return {
-        "vision": vision,
+        "vision": v,
         "steps": steps,
         "participants": participants,
     }
@@ -387,7 +428,6 @@ async def add_step(req: StepRequest):
         "vision_id": req.vision_id,
         "user_text": req.user_text,
         "ai_text": ai_text,
-        "created_at": step["created_at"],
     }
 
 
@@ -400,7 +440,7 @@ async def rename_vision(req: RenameRequest):
     await ensure_access(req.vision_id, req.user_id, ["owner"])
 
     supabase.table("visions") \
-        .update({"title": req.title}) \
+        .update({"title": req.title, "updated_at": datetime.utcnow().isoformat()}) \
         .eq("id", req.vision_id) \
         .execute()
 
@@ -416,7 +456,7 @@ async def archive_vision(req: ArchiveRequest):
     await ensure_access(req.vision_id, req.user_id, ["owner"])
 
     supabase.table("visions") \
-        .update({"archived": req.archived}) \
+        .update({"archived": req.archived, "updated_at": datetime.utcnow().isoformat()}) \
         .eq("id", req.vision_id) \
         .execute()
 

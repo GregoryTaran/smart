@@ -1,12 +1,15 @@
 console.log("vision.js loaded");
 
+document.addEventListener("SMART_SESSION_READY", () => {
+    initVision();
+});
+
+
 const API = "/api/vision";
-const USER_ID = window.SMART_SESSION?.user_id;
 
 const urlParams = new URLSearchParams(window.location.search);
 const VISION_ID = urlParams.get("id");
 
-if (!USER_ID) alert("Ошибка: пользователь не авторизован!");
 if (!VISION_ID) alert("Ошибка: нет ID визии!");
 
 
@@ -236,7 +239,7 @@ export async function deleteVision() {
 }
 
 
-/**
- * Инициализация страницы
- */
-loadVision();
+function initVision() {
+    window.USER_ID = window.SMART_SESSION.user_id;
+    loadVision();
+}

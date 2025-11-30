@@ -1,11 +1,10 @@
 console.log("vision_list.js loaded");
 
-const API = "/api/vision";
-const USER_ID = window.SMART_SESSION?.user_id;
+document.addEventListener("SMART_SESSION_READY", () => {
+    initVisionList();
+});
 
-if (!USER_ID) {
-    alert("Ошибка: пользователь не авторизован!");
-}
+const API = "/api/vision";
 
 /**
  * Загружаем список визий пользователя
@@ -88,8 +87,12 @@ function openVision(id) {
     window.location.href = `/vision/vision.html?id=${id}`;
 }
 
-/**
- * Инициализация
- */
-document.getElementById("newVisionBtn").addEventListener("click", createVision);
-loadVisions();
+
+function initVisionList() {
+    const USER_ID = window.SMART_SESSION.user_id;
+
+    document.getElementById("newVisionBtn")
+        .addEventListener("click", createVision);
+
+    loadVisions();
+}
