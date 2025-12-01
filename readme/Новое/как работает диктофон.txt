@@ -1,0 +1,52 @@
+voicerecorder.html - СТАРТА ПАУЗА СТОП
+voicerecorder.js → создаёт главный конвейер
+sv-audio-core.js — строит граф AudioContext
+mic-indicator.js — визуальный уровень громкости.
+recorder.worklet.js — Стабильно собирать аудиофреймы одинакового размера и слать наружу.
+wav-segmenter.js — нарезает поток фреймов Float32 на ровные 2-секундные куски.
+WebSocket → сервер - ЭТО КТО ДЕЛАЕТ?
+
+
+
+voicerecorder.html    — кнопки
+      ↓
+voicerecorder.js      — центр управления
+      ↓
+sv-audio-core.js      — AudioContext + Gain + Compressor + Makeup
+      ↓
+      ├──────────────────────────► Mic Indicator (слушает core.getStream())
+      │
+      ▼
+recorder.worklet.js   — отдаёт Float32 фреймы
+      ↓
+wav-segmenter.js      — делает 2s сегменты
+      ↓
+voicerecorder.js      — превращает сегменты в WAV
+      ↓
+WebSocket → сервер
+
+
+
+voicerecorder_records
+    id (uuid)
+    user_id (uuid)
+    rec_id (text)
+    display_name (text)
+    file_name (text)
+    file_url (text)
+    storage_path (text)
+    format (text)
+    duration_seconds (int)
+    size_bytes (bigint)
+    created_at (timestamptz)
+    updated_at
+    notes
+
+КАРТОЧКА как идея:
+______________________________________
+НАЗВАНИЕ ЗАПИСИ (ДАТА) \ ВРЕМЯ ЗАПИСИ
+МЕДИА ПЛЕЕР ЧТО БЫ ПОСЛУШАТЬ
+УДАЛИТЬ / ОТПРАВИТЬ / ЧТО -ТО ЕЩЕ
+_______________________________________
+
+

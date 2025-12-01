@@ -4,10 +4,13 @@
 
 /* Общий контейнер списка шагов */
 #steps {
+    max-height: 450px;
     overflow-y: auto;
-    padding-bottom: 180px; /* чтобы шаги не прятались под фикс-футером */
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 160px; /* для нижней панели */
 }
-
 
 /* Каждый шаг */
 .step-item {
@@ -60,7 +63,7 @@
 
     /* сидит на верхней рамке */
     margin-bottom: -10px;
-    transform: translateY(-5px);
+    transform: translateY(-13px);
 }
 
 /* ===============================
@@ -76,17 +79,19 @@
     background: #f3f3f3;
     border-top: 1px solid #dcdcdc;
 
-    padding: 12px 0;
-    z-index: 1000;             /* всегда сверху */
+    padding: 16px 0;
+    height: 140px;
 
-    /* без center тут — выравнивать будем самим SmartBlock */
+    display: flex;
+    justify-content: center;
+
+    z-index: 1000;
 }
 
 .input-footer-fixed .SmartBlock {
-    max-width: 900px;   /* как у основного SmartBlock */
-    margin: 0 auto;     /* центрируем относительно страницы */
+    width: 100%;
+    max-width: 900px;
 }
-
 
 /* Строка ввода */
 .step-input-row {

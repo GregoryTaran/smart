@@ -1,0 +1,677 @@
+/* =========================================================
+   SMART VISION — ЧИСТЫЙ, НОВЫЙ, ПРОДУКТОВЫЙ CSS
+   Под vision.html + vision.js
+   ========================================================= */
+
+/* Основной контейнер страницы */
+.vision-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+    background: #f4f4f6;
+    border-radius: 12px;
+    box-shadow: 0 0 18px rgba(0,0,0,0.07);
+}
+
+/* ---------------------------
+      ШАПКА ВИЗИИ
+---------------------------- */
+
+.vision-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.2rem;
+}
+
+#vision-title {
+    flex: 1;
+    padding: 0.45rem 0.7rem;
+    font-size: 1.1rem;
+    border: 1px solid #d0d0d5;
+    border-radius: 8px;
+    background: white;
+    color: #222;
+    font-weight: 500;
+    transition: border-color 0.2s;
+}
+
+#vision-title:focus {
+    outline: none;
+    border-color: #4f46e5;
+}
+
+/* Кнопки действий */
+.vision-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.vision-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.9rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    border: 1px solid #c6c6c6;
+    cursor: pointer;
+    background: #e7e7e7;
+    color: #222;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.vision-btn:hover {
+    background: #ddd;
+}
+
+.vision-btn-primary {
+    background: #4f46e5;
+    color: #fff;
+    border-color: #4f46e5;
+}
+
+.vision-btn-primary:hover {
+    background: #433BCA;
+}
+
+.vision-btn-secondary {
+    background: #ffffff;
+    border-color: #c4c4c4;
+}
+
+.vision-btn-danger {
+    background: #d64545;
+    border-color: #c93b3b;
+    color: white;
+}
+
+.vision-btn-danger:hover {
+    background: #ba2f2f;
+}
+
+/* ---------------------------
+      УЧАСТНИКИ
+---------------------------- */
+
+.vision-block h3 {
+    margin: 0 0 0.4rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #222;
+}
+
+.participants-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.participant-item {
+    padding: 0.4rem 0.6rem;
+    background: #fff;
+    border: 1px solid #dedede;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.participant-name {
+    font-weight: 500;
+}
+
+.participant-role {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* ---------------------------
+      СПИСОК ШАГОВ
+---------------------------- */
+
+#steps {
+    max-height: 450px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-right: 0.4rem;
+}
+
+.step-item {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid #e4e4e8;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.step-author {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    opacity: 0.85;
+}
+
+.step-user-text {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    color: #111;
+}
+
+.step-ai-text {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    margin-top: 0.3rem;
+    padding-left: 0.6rem;
+    border-left: 3px solid #22c55e; /* зеленая линия для AI */
+    color: #0f5132;
+}
+
+/* Линия для пользователя */
+.step-item.user {
+    border-left: 3px solid #4f46e5;
+}
+
+/* ---------------------------
+      ДОБАВЛЕНИЕ ШАГА
+---------------------------- */
+
+
+/* ---------------------------
+      СПИСОК ВИЗИЙ (index.html)
+---------------------------- */
+
+.vision-list-block {
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.vision-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;   /* ← центрируем заголовок */
+}
+
+.vision-list-header {
+    display: flex;
+    justify-content: center;   /* ← центрируем кнопку */
+    margin-bottom: 0.6rem;
+}
+
+
+#visionList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.vision-item {
+    padding: 0.55rem 0.75rem;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #d3d3d3;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.vision-item:hover {
+    background: #f3f3f3;
+    border-color: #bdbdbd;
+}
+
+.vision-item-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.vision-item-date {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+/* Кнопка внутри списка */
+.vision-item button {
+    margin-left: 1rem;
+}
+
+
+.back-link {
+  font-size: 14px;
+  color: #555;
+  text-decoration: none;
+}
+
+.vision-manage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.manage-panel.hidden {
+  display: none;
+}
+
+.manage-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+/* выпадающая панель управления */
+.manage-panel {
+    background: #fffbfb;      /* СЕРЫЙ ФОН — видно, что меню открыто */
+    border: 1px solid #b5b5b5;
+    border-radius: 2px;
+    margin-top: 10px;
+    padding: 10px;
+
+    display: none;            /* изначально скрыто */
+}
+
+/* каждый пункт внутри */
+.manage-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+/* белые кнопки */
+.btn-white {
+    background: #f1ecec;
+    border: 1px solid #c6c6c6;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-white:hover {
+    background: #f2f2f2;
+}
+
+/* поле ввода */
+.vision-input {
+    padding: 6px 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* кнопка закрыть */
+.btn-close-manage {
+    margin-top: 6px;
+    background: #f90505;
+    border-color: #f5f4f4;
+}
+
+
+
+/* Общие мини-кнопки слева */
+.mini-btn {
+    width: 42px;
+    height: 42px;
+    background: #ffffff;
+    border: 1px solid #cfcfcf;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.mini-btn:hover {
+    background: #f3f3f3;
+    border-color: #b9b9b9;
+}
+
+/* ПЛЮС (+) — красивый */
+.mini-btn.plus::before,
+.mini-btn.plus::after {
+    content: "";
+    position: absolute;
+    background: #333;
+    border-radius: 2px;
+}
+
+.mini-btn.plus::before {
+    width: 22px;
+    height: 3px;
+}
+
+.mini-btn.plus::after {
+    width: 3px;
+    height: 22px;
+}
+
+/* МИКРОФОН — минималистичный */
+.mini-btn.mic::before {
+    content: "";
+    width: 14px;
+    height: 22px;
+    border: 2.5px solid #333;
+    border-radius: 10px;
+}
+
+.mini-btn.mic::after {
+    content: "";
+    position: absolute;
+    bottom: 6px;
+    width: 16px;
+    height: 6px;
+    border-bottom: 3px solid #333;
+    border-radius: 12px;
+}
+
+/* Кнопка отправки — стрелка вверх */
+.step-send-btn {
+    width: 52px;
+    background: #4f46e5;
+    color: white;
+    border-color: #4f46e5;
+    border-radius: 12px;
+    position: relative;
+}
+
+.step-send-btn::before {
+    content: "";
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 16px solid white; /* стрелка вверх */
+}
+
+/* ОБЕРТКА ДЛЯ НОВОГО БЛОКА */
+.step-input-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+/* ЛЕВЫЕ КНОПКИ */
+.input-left-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+/* КРАСИВЫЕ МИНИ-КНОПКИ */
+.mini-btn {
+    width: 42px;
+    height: 42px;
+    background: #ffffff;
+    border: 1px solid #d0d0d5;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+}
+
+/* Плюс */
+.mini-btn.plus::before,
+.mini-btn.plus::after {
+    content: "";
+    position: absolute;
+    background: #333;
+    border-radius: 2px;
+}
+
+.mini-btn.plus::before {
+    width: 20px;
+    height: 3px;
+}
+
+.mini-btn.plus::after {
+    width: 3px;
+    height: 20px;
+}
+
+/* Микрофон */
+.mini-btn.mic::before {
+    content: "";
+    width: 12px;
+    height: 18px;
+    border: 2px solid #333;
+    border-radius: 8px;
+}
+
+.mini-btn.mic::after {
+    content: "";
+    width: 14px;
+    height: 4px;
+    border-bottom: 3px solid #333;
+    position: absolute;
+    bottom: 6px;
+}
+
+/* ПОЛЕ ДЛЯ ТЕКСТА */
+.step-input-full {
+    flex: 1;
+    min-height: 90px;
+    resize: vertical;
+    padding: 0.7rem;
+    border: 1px solid #d0d0d5;
+    border-radius: 12px;
+}
+
+/* КНОПКА СТРЕЛКИ */
+.step-send-btn {
+    width: 35px;
+    height: 90px;
+    background: #e1a01c !important;
+    border-radius: 12px;
+    border: none !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* Стрелка вверх */
+.step-send-btn::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 16px solid #fff;
+}
+
+
+/* ФИКСИРОВАННАЯ НИЖНЯЯ ПАНЕЛЬ */
+/* ФИКСИРОВАННАЯ НИЖНЯЯ ПАНЕЛЬ — ПРАВИЛЬНАЯ ВЫСОТА */
+.input-footer-fixed {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #f3f3f3;
+    padding: 18px 0;  /* Чуть больше padding, больше места */
+    border-top: 1px solid #dcdcdc;
+    display: flex;
+    justify-content: center;
+    z-index: 1000;
+
+    height: 140px; /* 🔥 вот главное: фиксируем устойчивую высоту */
+}
+
+/* Теперь внутренний SmartBlock растягивается нормально */
+.input-footer-fixed .SmartBlock {
+    width: 100%;
+    max-width: 900px;
+}
+
+/* И список шагов не перекрывается */
+#steps {
+    margin-bottom: 160px; /* Чуть больше чем высота footer'а */
+}
+
+
+
+
+.step-block-inner {
+    padding: 0.6rem 0.8rem;
+    background: #fff;
+    border: 1px solid #e4e4e4;
+    border-radius: 8px;
+    white-space: pre-wrap;
+}
+
+.step-block.user .step-block-inner {
+    border-left: 3px solid #4f46e5;
+}
+
+.step-block.ai .step-block-inner {
+    border-left: 3px solid #22c55e;
+}
+
+.step-block {
+    margin-top: 0.4rem;
+}
+.step-block-inner p:first-child,
+.step-block-inner div:first-child {
+    margin-top: 0 !important;
+}
+
+.step-block-inner p:last-child,
+.step-block-inner div:last-child {
+    margin-bottom: 0 !important;
+}
+
+.step-block-inner > * {
+    margin-top: 0.3rem;
+    margin-bottom: 0.3rem;
+}
+
+
+/* Автор сообщения — мелкий текст справа */
+.step-author {
+    font-size: 0.72rem;
+    color: #666;
+    opacity: 0.85;
+
+    position: relative;
+    top: -10px;           /* 🔥 Поднимаем вверх */
+    text-align: right;
+    padding-right: 8px;
+
+    margin-bottom: -6px; /* 🔥 Пододвигаем вверх к блоку, чтобы не было пустоты */
+}
+
+
+
+/* Автор сообщения — прямо над текстом пользователя */
+.msg-author {
+    font-size: 0.75rem;
+    color: #777;
+    opacity: 0.9;
+    text-align: right;
+
+    margin-bottom: 2px; /* вместо -6px или -4px */
+    margin-top: 4px;    /* поднимаем, но не пережимаем */
+    padding-right: 6px;
+}
+
+/* Блок сообщения */
+.msg-block {
+    margin-bottom: 12px;
+}
+
+/* Внутренний контейнер */
+.msg-inner {
+    background: #fff;
+    border: 1px solid #e4e4e4;
+    padding: 0.6rem 0.85rem;
+    border-radius: 10px;
+    white-space: pre-wrap;
+}
+
+/* Полоски */
+.msg-block.user .msg-inner {
+    border-left: 3px solid #4f46e5;
+}
+.msg-block.ai .msg-inner {
+    border-left: 3px solid #22c55e;
+}
+
+/* Убираем старую рамку шага */
+.step-item {
+    border: none !important;
+    padding: 0;
+}
+
+.step-item {
+    margin-bottom: 6px; /* было больше — оставляем компактное */
+}
+.msg-block {
+    margin-bottom: 4px; /* было 12px — слишком много */
+}
+.msg-block {
+    margin-bottom: 8px;
+}
+
+.msg-author {
+    font-size: 0.75rem;
+    color: #777;
+    text-align: right;
+    margin-bottom: 2px;
+    padding-right: 6px;
+    opacity: 0.85;
+}
+
+.msg-inner {
+    background: #fff;
+    border: 1px solid #e4e4e4;
+    padding: 0.6rem 0.85rem;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    border-left-width: 3px;
+}
+
+.msg-block.user .msg-inner {
+    border-left-color: #4f46e5;
+}
+
+.msg-block.ai .msg-inner {
+    border-left-color: #22c55e;
+}
+
+
+.msg-author {
+    position: relative;
+    display: inline-block;
+
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    line-height: 0.9rem;
+    color: #777;
+    opacity: 0.9;
+
+    float: right;
+    margin-right: 8px;
+
+    margin-bottom: -10px;
+
+    transform: translateY(-13px);   /* 🔥 ПОДНИМАЕМ */
+}
