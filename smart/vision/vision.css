@@ -1,27 +1,47 @@
-/* ===============================
-   SMART VISION — CLEAN CSS
-   =============================== */
+/* ======================================================
+   SMART VISION — ПРАВИЛЬНЫЙ ФУНДАМЕНТАЛЬНЫЙ LAYOUT
+   Desktop (≥900px) → sticky footer в колонке
+   Mobile (<900px) → fixed footer + keyboard-friendly
+   Переписанная архитектура vision.css под main.css
+====================================================== */
 
-/* Общий контейнер списка шагов */
-#steps {
+/* --------------------------------------------
+   ROOT
+-------------------------------------------- */
+:root {
+    --content-width: 900px;
+    --sidebar-w-min: 180px;
+    --sidebar-w-max: 320px;
+    --sidebar-w: 22vw;
+}
+
+/* --------------------------------------------
+   КОЛОНКА APP — основа для sticky/absolute элементов
+-------------------------------------------- */
+#app {
+    position: relative; /* ВАЖНО: теперь футер может быть sticky внутри */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#main {
+    flex: 1;
     overflow-y: auto;
-    padding-bottom: 180px; /* чтобы шаги не прятались под фикс-футером */
 }
 
-
-/* Каждый шаг */
-.step-item {
-    padding: 0;
-    margin-bottom: 6px;
+/* --------------------------------------------
+   СПИСОК ШАГОВ / СООБЩЕНИЙ
+-------------------------------------------- */
+#steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 100px; /* переопределяется */
 }
 
-/* ===============================
-      СООБЩЕНИЯ (ПОЛЬЗОВАТЕЛЬ / AI)
-   =============================== */
-
-.msg-block {
-    margin-bottom: 8px;
-}
+.step-item { margin-bottom: 6px; }
+.msg-block { margin-bottom: 8px; }
 
 .msg-inner {
     background: #fff;
@@ -31,78 +51,78 @@
     white-space: pre-wrap;
     border-left-width: 3px;
 }
+.msg-block.user .msg-inner { border-left-color: #4f46e5; }
+.msg-block.ai .msg-inner { border-left-color: #22c55e; }
 
-.msg-block.user .msg-inner {
-    border-left-color: #4f46e5; /* фиолетовая линия */
-}
-
-.msg-block.ai .msg-inner {
-    border-left-color: #22c55e; /* зелёная линия */
-}
-
-/* Автор сообщения — красивая плашка над текстом */
 .msg-author {
     position: relative;
     display: inline-block;
-
     background: #ffffff;
     border: 1px solid #e5e5e5;
     border-radius: 6px;
-
     padding: 2px 8px;
     font-size: 0.72rem;
-    line-height: 0.9rem;
     color: #777;
-    opacity: 0.9;
-
     float: right;
     margin-right: 8px;
-
-    /* сидит на верхней рамке */
     margin-bottom: -10px;
     transform: translateY(-5px);
 }
 
-/* ===============================
-      НИЖНЯЯ ФИКС-ПАНЕЛЬ
-   =============================== */
+/* --------------------------------------------
+   ПАНЕЛЬ УПРАВЛЕНИЯ ВИЗИЕЙ (оставлено как есть)
+-------------------------------------------- */
+.manage-panel {
+    background: #ffffff;
+    border: 1px solid #dedede;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 8px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+    display: none;
+    transition: 0.25s ease;
+}
+.manage-panel.open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    display: block;
+}
 
+/* --------------------------------------------
+   ФУТЕР: ЧАТ-ПАНЕЛЬ (универсальная основа)
+-------------------------------------------- */
 .input-footer-fixed {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-
     background: #f3f3f3;
     border-top: 1px solid #dcdcdc;
-
-    padding: 12px 0;
-    z-index: 1000;             /* всегда сверху */
-
-    /* без center тут — выравнивать будем самим SmartBlock */
+    padding: 10px 0;
+    z-index: 1000;
 }
 
+/* Контент футера */
 .input-footer-fixed .SmartBlock {
-    max-width: 900px;   /* как у основного SmartBlock */
-    margin: 0 auto;     /* центрируем относительно страницы */
+    max-width: var(--content-width);
+    width: 100%;
+    margin: 0 auto;
+    padding: 10px;
 }
 
-
-/* Строка ввода */
+/* Ряд элементов */
 .step-input-row {
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
 }
 
-/* Левые кнопки */
 .input-left-buttons {
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
 }
 
-/* Кнопка-плюс и микрофон */
 .mini-btn {
     width: 42px;
     height: 42px;
@@ -110,34 +130,20 @@
     border: 1px solid #d0d0d5;
     border-radius: 10px;
     cursor: pointer;
-
     display: flex;
     justify-content: center;
     align-items: center;
-
     position: relative;
 }
-
-/* + */
 .mini-btn.plus::before,
 .mini-btn.plus::after {
     content: "";
     position: absolute;
     background: #333;
-    border-radius: 2px;
 }
+.mini-btn.plus::before { width: 20px; height: 3px; }
+.mini-btn.plus::after { width: 3px; height: 20px; }
 
-.mini-btn.plus::before {
-    width: 20px;
-    height: 3px;
-}
-
-.mini-btn.plus::after {
-    width: 3px;
-    height: 20px;
-}
-
-/* 🎤 */
 .mini-btn.mic::before {
     content: "";
     width: 12px;
@@ -145,257 +151,81 @@
     border: 2px solid #333;
     border-radius: 8px;
 }
-
 .mini-btn.mic::after {
     content: "";
     width: 14px;
-    height: 4px;
     border-bottom: 3px solid #333;
     position: absolute;
     bottom: 6px;
 }
 
-/* Поле ввода */
 .step-input-full {
     flex: 1;
-    min-height: 90px;
-    resize: vertical;
-
+    min-height: 60px;
     padding: 0.7rem;
     border: 1px solid #d0d0d5;
     border-radius: 12px;
     background: #fff;
+    resize: vertical;
 }
 
-/* Кнопка отправки — стрелка */
 .step-send-btn {
-    width: 35px;
-    height: 90px;
-    background: #e1a01c !important;
+    width: 40px;
+    height: 70px;
+    background: #e1a01c;
     border-radius: 12px;
-    border: none !important;
-
+    border: none;
     display: flex;
     justify-content: center;
     align-items: center;
-    position: relative;
 }
-
 .step-send-btn::before {
     content: "";
-    width: 0;
-    height: 0;
-
     border-left: 10px solid transparent;
     border-right: 10px solid transparent;
     border-bottom: 16px solid #fff;
 }
 
+/* ======================================================
+   🖥 DESKTOP (≥900px)
+   ПРАВИЛЬНЫЙ ПОДХОД → sticky footer
+====================================================== */
+@media (min-width: 900px) {
 
+  /* Футер привязан к низу правой колонки, НЕ ко всему экрану */
+  .input-footer-fixed {
+      position: sticky;
+      bottom: 0;
+      width: 100%; /* ширина правой колонки */
+  }
 
+  /* Контент прокручиваемый */
+  #steps {
+      padding-bottom: 140px;
+  }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#managePanel {
-    background: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 10px;
-    margin-bottom: 20px;
-
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-
-    display: none; /* управление идёт через JS */
+  .step-input-full { min-height: 80px; }
+  .step-send-btn { height: 80px; width: 35px; }
 }
 
-#managePanel button {
-    width: 100%;
-    padding: 10px;
-    font-size: 0.9rem;
-    border-radius: 10px;
-    border: 1px solid #ccc;
-    background: #fff;
-    margin-bottom: 10px;
-    cursor: pointer;
-}
+/* ======================================================
+   📱 MOBILE (<900px)
+   PWA / WebView → fixed + keyboard-friendly
+====================================================== */
+@media (max-width: 899px) {
 
-#managePanel button:hover {
-    background: #f5f5f5;
-}
+  .input-footer-fixed {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+  }
 
-#managePanel .danger {
-    background: #ffdddd;
-    border-color: #ffaaaa;
-}
+  #steps {
+      padding-bottom: 220px;
+  }
 
-#managePanel .danger:hover {
-    background: #ffcccc;
-}
-
-#managePanel h4 {
-    margin-bottom: 12px;
-    font-size: 1rem;
-    font-weight: 600;
-}
-
-#managePanel .participant-item {
-    margin-bottom: 6px;
-    font-size: 0.9rem;
-    padding: 4px 0;
-    border-bottom: 1px solid #efefef;
-}
-
-
-.vision-manage-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    margin-bottom: 8px;
-    padding: 6px 4px;
-}
-
-.vision-title-text {
-    font-size: 1.25rem;
-    font-weight: 600;
-}
-
-
-.manage-panel {
-    background: #ffffff;
-    border: 1px solid #dedede;
-    border-radius: 12px;
-
-    padding: 16px;
-    margin-top: 8px;
-
-    display: none;
-
-    box-shadow: 0 4px 18px rgba(0,0,0,0.06);
-}
-
-
-.manage-item {
-    margin-bottom: 16px;
-}
-
-.manage-item:last-child {
-    margin-bottom: 0;
-}
-
-.vision-input {
-    width: 100%;
-    padding: 10px 12px;
-
-    border: 1px solid #cfcfcf;
-    border-radius: 8px;
-
-    font-size: 1rem;
-    margin-bottom: 10px;
-}
-
-
-.btn-white {
-    width: 100%;
-    padding: 10px 14px;
-
-    border: 1px solid #cfcfcf;
-    border-radius: 10px;
-
-    background: #fff;
-    font-size: 0.95rem;
-    cursor: pointer;
-
-    transition: 0.2s ease;
-}
-
-.btn-white:hover {
-    background: #f3f3f3;
-}
-
-.btn-close-manage {
-    background: #fafafa;
-}
-
-
-.participants-list {
-    margin-bottom: 10px;
-}
-
-.participant-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    padding: 6px 4px;
-    border-bottom: 1px solid #ececec;
-}
-
-.participant-name {
-    font-size: 0.92rem;
-}
-
-.participant-role {
-    font-size: 0.8rem;
-    opacity: 0.7;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-.manage-panel {
-    background: #ffffff;
-    border: 1px solid #dedede;
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 8px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.06);
-
-    /* анимация */
-    opacity: 0;
-    transform: translateY(-8px);
-    pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-/* открытое состояние */
-.manage-panel.open {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
+  .step-input-full { min-height: 60px; }
+  .step-send-btn { height: 60px; width: 34px; }
 }

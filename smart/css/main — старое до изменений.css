@@ -1,0 +1,436 @@
+/* ==========================
+   RESET
+========================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  background: #fff;
+  color: #111;
+}
+img, video { max-width: 100%; display: block; }
+
+/* ==========================
+   ROOT TOKENS
+========================== */
+:root {
+  --sidebar-w: 300px;      /* фикс ширина меню на ПК */
+  --container-max: 1400px; /* максимум ширины всего сайта */
+  --main-bg: #ff0000;
+  --topbar-h: 50px;
+}
+
+
+/* ==========================
+   PAGE GRID (DESKTOP)
+========================== */
+#page {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #fff;
+}
+
+/* ==========================
+   SIDEBAR (DESKTOP)
+========================== */
+#sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: var(--sidebar-w);   /* ← строго 300px */
+  border-right: 1px solid #eee;
+  background: #fff;
+  overflow-y: auto;
+  z-index: 15;
+}
+
+
+/* ==========================
+   TOPBAR (ФИНАЛЬНАЯ ВЕРСИЯ)
+========================== */
+
+#topbar {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  z-index: 10;
+}
+
+/* БАЗОВАЯ СЕТКА — МОБИЛЬНАЯ */
+.topbar-inner {
+  height: var(--topbar-h);
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  padding: 6px 10px;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ЛОГОТИП */
+.topbar-inner .logo {
+  justify-self: center;
+}
+.topbar-inner .logo img {
+  height: 34px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* БУРГЕР */
+.topbar-inner .menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+
+/* КНОПКА ВОЙТИ */
+.topbar-inner .login-link {
+  padding: 6px 11px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  text-decoration: none;
+  color: #111;
+  font-size: 14px;
+  justify-self: end;
+}
+
+/* ==========================
+   ДЕСКТОП
+========================== */
+@media (min-width: 900px) {
+  .topbar-inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 10px 16px;
+    align-items: center;
+    position: relative; /* чтобы логотип мог позиционироваться относительно */
+  }
+
+  .topbar-inner .menu-toggle {
+    display: none;
+  }
+
+  /* ЛОГОТИП по центру ВСЕГО экрана */
+  .topbar-inner .logo {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+  }
+  .topbar-inner .logo img {
+    height: 26px;
+  }
+
+  /* кнопка Войти — всегда справа */
+  .topbar-inner .login-link {
+    justify-self: end;
+    grid-column: 2; /* правая колонка */
+  }
+}
+
+
+
+/* ==========================
+   МОБИЛЬНЫЙ ТЮНИНГ
+========================== */
+@media (max-width: 899px) {
+
+  .topbar-inner .logo img {
+    height: 30px;
+  }
+
+}
+
+/* ==========================
+   APP BACKBONE
+========================== */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;      /* вся правая колонка по высоте экрана */
+  overflow: hidden;   /* скролл только внутри main */
+}
+
+#main {
+  background: var(--main-bg);
+  padding: 0;
+  flex: 1;            /* занимает всё свободное место */
+  overflow-y: auto;   /* скролл только в контенте */
+}
+
+
+/* ==========================
+   FOOTER
+========================== */
+#footer {
+  background: #fff;
+  border-top: 1px solid #eee;
+  padding: 20px;
+  text-align: center;
+}
+
+/* ==========================
+   MENU (SIDEBAR CONTENT)
+========================== */
+.menu {
+  padding: 0;
+}
+.menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu li:first-child { border-top: 1px solid #eee; }
+.menu li { border-bottom: 1px solid #eee; }
+.menu a {
+  display: block;
+  padding: 14px 18px;
+  text-decoration: none;
+  color: inherit;
+}
+.menu a:hover { background: rgba(0,0,0,0.04); }
+.menu a.is-active {
+  background: var(--main-bg);
+  font-weight: 600;
+}
+
+/* ==========================
+   MOBILE MENU
+========================== */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: none;
+  z-index: 12;
+}
+body.menu-open #overlay {
+  display: block;
+}
+
+@media (max-width: 899px) {
+
+  #page { display: block; }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform .25s ease-out;
+    width: 80vw;
+    max-width: 380px;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+    z-index: 20;
+  }
+
+  body.menu-open #sidebar {
+    transform: translateX(0);
+  }
+
+  #topbar .logo img {
+    max-height: 26px;
+  }
+
+  #main {
+    padding: 0px;
+  }
+}
+
+/* ==========================
+   CARD STYLE
+========================== */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  padding: 22px;
+  text-align: center;
+  margin: 5px 5px 5px 5px;
+}
+.card-title {
+  margin-bottom: 14px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+
+
+
+/* ============================================
+   SMART VISION — BUTTONS KIT
+   ============================================ */
+
+/* --- Tokens for Buttons --- */
+:root {
+  --sv-radius: 12px;
+  --sv-card-shadow: 0 1px 4px rgba(0,0,0,.05);
+
+  --sv-purple: #8d82ff;
+  --sv-purple-10: rgba(120,100,255,.10);
+  --sv-purple-22: rgba(120,100,255,.22);
+
+  --sv-text-strong: #0b1220;
+}
+
+
+/* --------------------------------------------
+   PURPLE BUTTON  (основная кнопка проекта)
+   -------------------------------------------- */
+.btn-purple {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  padding: 12px 14px;
+  border-radius: 10px;
+
+  background: #fff;
+  border: 1px solid var(--sv-purple);
+  color: var(--sv-text-strong);
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition:
+    background .2s,
+    box-shadow .2s,
+    border-color .2s,
+    transform .06s;
+}
+
+.btn-purple + .btn-purple {
+  margin-top: 8px;
+}
+
+.btn-purple:hover {
+  background: var(--sv-purple-10);
+}
+
+.btn-purple:active,
+.btn-purple[aria-pressed="true"],
+.btn-purple.is-active {
+  background: var(--sv-purple-22);
+  border-color: var(--sv-purple);
+  box-shadow: 0 0 0 2px rgba(120,100,255,.18);
+}
+
+.btn-purple:focus-visible {
+  outline: none;
+  background: var(--sv-purple-10);
+  border-color: var(--sv-purple);
+  box-shadow: 0 0 0 3px rgba(120,100,255,.25);
+}
+
+.btn-purple:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+
+
+/* --------------------------------------------
+   WHITE BUTTON  (классическая чисто-белая)
+   -------------------------------------------- */
+.btn-white {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 12px 14px;
+  border-radius: 10px;
+
+  background: #fff;
+  border: 1px solid #ccc;
+  color: #111;
+
+  font-weight: 600;
+  cursor: pointer;
+
+  transition:
+    background .2s,
+    border-color .2s,
+    box-shadow .2s,
+    transform .06s;
+}
+
+.btn-white:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.btn-white:active {
+  background: #e9e9e9;
+  border-color: #aaa;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.05);
+}
+
+.btn-white:focus-visible {
+  outline: none;
+  background: #f5f5f5;
+  border-color: #bbb;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.15);
+}
+
+.btn-white:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+
+
+/* --------------------------------------------
+   LAYOUT UTILITIES
+   -------------------------------------------- */
+
+/* вертикальная колонка (регулярный отступ 16px) */
+.stack-16 > * + * {
+  margin-top: 16px;
+}
+
+/* горизонтальный ряд кнопок */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+
+
+/* =======================================================
+   SMART VISION — SmartBlock (edge-to-edge)
+   ======================================================= */
+
+.SmartBlock {
+    background: #ffffff;
+
+    /* яркая рамка */
+    border: 0px solid #8a8a8a;
+
+    border-radius: 2px;
+    padding: 5px;
+
+    /* растягивается полностью */
+     width: auto; 
+
+    /* 🔥 теперь ЭТО — главный контроллер расстояний */
+    margin: 4px 2px 4px 2px;
+
+    box-sizing: border-box;
+}

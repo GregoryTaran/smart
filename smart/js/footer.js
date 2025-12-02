@@ -21,9 +21,6 @@ export function renderFooter() {
   footer.innerHTML = `
     <div class="footer-inner">
 
-      <div class="footer-left">
-        <strong>SMART VISION</strong> © ${year}
-      </div>
 
       <div class="footer-right">
         <div id="svFooterInfo" class="card" style="padding: 12px; font-size: 0.85rem;">

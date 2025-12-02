@@ -94,36 +94,35 @@ export function renderMenu(level) {
 }
 
 // ===========================================================
-// MENU CONTROLS  (ЧИСТЫЕ, МИНИМАЛЬНЫЕ, БЕЗ ВЫЧИСЛЕНИЙ)
+// MENU CONTROLS
 // ===========================================================
 export function initMenuControls() {
   const body = document.body;
   const sidebar = document.getElementById('sidebar');
   const btn = document.querySelector('.menu-toggle');
+
+  // ★ ADD — твой overlay
   const overlay = document.getElementById('overlay');
 
   if (!sidebar || !btn) return;
 
-  // Открыть меню
   btn.addEventListener('click', () => {
     body.classList.add('menu-open');
   });
 
-  // Клик по пункту меню → закрыть
   sidebar.addEventListener('click', (e) => {
     if (e.target.tagName === 'A') {
       body.classList.remove('menu-open');
     }
   });
 
-  // Клик по overlay → закрыть
+  // ★ ADD — обработчик клика по тёмному фону
   if (overlay) {
     overlay.addEventListener('click', () => {
       body.classList.remove('menu-open');
     });
   }
 
-  // Если резко расширили окно → закрыть меню
   window.addEventListener('resize', () => {
     if (window.innerWidth >= 900) {
       body.classList.remove('menu-open');

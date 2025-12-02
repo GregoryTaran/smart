@@ -23,111 +23,113 @@
 <body>
 <div id="page">
 
-  <!-- Боковое меню -->
+  <!-- ЛЕВАЯ КОЛОНКА -->
   <aside id="sidebar"></aside>
 
+  <!-- ПРАВАЯ КОЛОНКА / ВСЁ ПРИЛОЖЕНИЕ -->
   <div id="app">
 
-    <!-- Верхняя панель -->
+    <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
     <header id="topbar"></header>
 
-<main id="main">
-  <section class="vision-page">
+    <!-- ОСНОВНОЙ КОНТЕНТ -->
+    <main id="main">
+      <section class="vision-page">
 
-    <!-- БЛОК 1 — назад -->
-    <div class="SmartBlock">
-      <a href="/vision/index.html" class="back-link">
-        ← Назад к списку визий
-      </a>
-    </div>
+        <!-- БЛОК 1 — назад -->
+        <div class="SmartBlock">
+          <a href="/vision/index.html" class="back-link">
+            ← Назад к списку визий
+          </a>
+        </div>
 
-    <!-- БЛОК 2 — название + управление -->
-    <div class="SmartBlock">
+        <!-- БЛОК 2 — название + управление -->
+        <div class="SmartBlock">
 
-      <div class="vision-manage-header">
-        <div id="vision-title-display" class="vision-title-text"></div>
+          <div class="vision-manage-header">
+            <div id="vision-title-display" class="vision-title-text"></div>
 
-        <button id="toggleManage" class="vision-btn vision-btn-secondary">
-          Управление
-        </button>
+            <button id="toggleManage" class="vision-btn vision-btn-secondary">
+              Управление
+            </button>
+          </div>
+
+          <!-- Выпадающее меню управления -->
+          <div id="managePanel" class="manage-panel">
+
+            <!-- Переименование -->
+            <div class="manage-item">
+              <input 
+                id="vision-title-manage"
+                class="vision-input"
+                type="text"
+                placeholder="Новое название"
+              />
+              <button class="btn-white" id="rename-btn">Переименовать</button>
+            </div>
+
+            <!-- Участники -->
+            <div class="manage-item">
+              <div id="participants" class="participants-list"></div>
+              <button class="btn-white" id="add-participant-btn">+ Добавить участника</button>
+            </div>
+
+            <!-- Архив -->
+            <div class="manage-item">
+              <button class="btn-white" id="archive-btn">Перенести в архив</button>
+            </div>
+
+            <!-- Удаление -->
+            <div class="manage-item">
+              <button class="btn-white" id="delete-btn">Удалить визию</button>
+            </div>
+
+            <!-- Закрыть -->
+            <div class="manage-item">
+              <button class="btn-white btn-close-manage" id="close-manage-btn">
+                Закрыть управление
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- БЛОК 3 — список шагов -->
+        <div class="SmartBlock">
+          <div id="steps" class="steps-list"></div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- ФУТЕР ЧАТА (ПРАВИЛЬНО ПЕРЕНЕСЁН ВНУТРЬ #app) -->
+    <div class="input-footer-fixed">
+      <div class="SmartBlock step-input-row">
+
+        <div class="input-left-buttons">
+          <button class="mini-btn plus" id="step-add-btn"></button>
+          <button class="mini-btn mic" id="step-mic-btn"></button>
+        </div>
+
+        <textarea
+            id="step-input"
+            class="step-input-full"
+            placeholder="Написать шаг..."
+        ></textarea>
+
+        <button
+            id="add-step-btn"
+            class="step-send-btn"
+        ></button>
+
       </div>
-
-      <!-- Выпадающее меню управления -->
-      <div id="managePanel" class="manage-panel">
-
-        <!-- Переименование -->
-        <div class="manage-item">
-          <input 
-            id="vision-title-manage"
-            class="vision-input"
-            type="text"
-            placeholder="Новое название"
-          />
-          <button class="btn-white" id="rename-btn">Переименовать</button>
-        </div>
-
-        <!-- Участники -->
-        <div class="manage-item">
-          <div id="participants" class="participants-list"></div>
-          <button class="btn-white" id="add-participant-btn">+ Добавить участника</button>
-        </div>
-
-        <!-- Архив -->
-        <div class="manage-item">
-          <button class="btn-white" id="archive-btn">Перенести в архив</button>
-        </div>
-
-        <!-- Удалить -->
-        <div class="manage-item">
-          <button class="btn-white" id="delete-btn">Удалить визию</button>
-        </div>
-
-        <!-- Кнопка закрыть -->
-        <div class="manage-item">
-          <button class="btn-white btn-close-manage" id="close-manage-btn">
-            Закрыть управление
-          </button>
-        </div>
-
-      </div>
     </div>
 
-    <!-- БЛОК 3 — список шагов -->
-    <div class="SmartBlock">
-      <div id="steps" class="steps-list"></div>
-    </div>
+  </div><!-- /#app -->
 
-  </section>
-</main>
+</div><!-- /#page -->
 
-  </div>
-</div>
-
-<!-- ===== ФИКСИРОВАННЫЙ НИЖНИЙ INPUT ===== -->
-
-<div class="input-footer-fixed">
-  <div class="SmartBlock step-input-row">
-
-    <div class="input-left-buttons">
-      <button class="mini-btn plus" id="step-add-btn"></button>
-      <button class="mini-btn mic" id="step-mic-btn"></button>
-    </div>
-
-    <textarea
-        id="step-input"
-        class="step-input-full"
-        placeholder="Написать шаг..."
-    ></textarea>
-
-    <button
-        id="add-step-btn"
-        class="step-send-btn"
-    ></button>
-
-  </div>
-</div>
-
-<!-- МОДУЛЬ Vision -->
+<!-- JS модуль визий -->
 <script type="module" src="/vision/vision.js"></script>
 
 </body>

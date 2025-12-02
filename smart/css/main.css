@@ -1,296 +1,114 @@
-/* ==========================
-   RESET
-========================== */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  font-size: 16px;
-  background: #fff;
-  color: #111;
-}
-img, video { max-width: 100%; display: block; }
+/********************************************************
+ ████████████████████████████████████████████████████████
+   I. GLOBAL (ОБЩИЕ СТИЛИ — РАБОТАЮТ ВЕЗДЕ)
+████████████████████████████████████████████████████████
+*********************************************************/
 
-/* ==========================
-   ROOT TOKENS
-========================== */
 :root {
-  --sidebar-w-min: 220px;
-  --sidebar-w-max: 320px;
-  --sidebar-w: 22vw; /* средняя ширина */
-  --container-max: 1300px;
-  --main-bg: #f5f5f5;
-  --topbar-h: 50px;
+  --container-max: 1000px;   /* ширина страницы */
+  --topbar-h: 50px;          /* единая высота топбара */
+  --sidebar-w: 75vw;         /* ширина меню для всех устройств */
+  --sidebar-max: 340px;      /* максимальная ширина меню */
 }
 
-/* ==========================
-   PAGE GRID (DESKTOP)
-========================== */
+/* RESET */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow-x: hidden;
+  font-family: sans-serif;
+  background: #fff;
+}
+
+/* PAGE LAYOUT */
 #page {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  width: 100%;
   max-width: var(--container-max);
   margin: 0 auto;
   min-height: 100vh;
-  background: #fff;
-}
-
-/* ==========================
-   SIDEBAR (DESKTOP)
-========================== */
-#sidebar {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  width: clamp(var(--sidebar-w-min), var(--sidebar-w), var(--sidebar-w-max));
-  border-right: 1px solid #eee;
-  background: #fff;
-  overflow-y: auto;
-  z-index: 15;
-}
-
-/* ==========================
-   TOPBAR (ФИНАЛЬНАЯ ВЕРСИЯ)
-========================== */
-
-#topbar {
-  background: #fff;
-  border-bottom: 1px solid #eee;
-  z-index: 10;
-}
-
-/* БАЗОВАЯ СЕТКА — МОБИЛЬНАЯ */
-.topbar-inner {
-  height: var(--topbar-h);
-  display: grid;
-  grid-template-columns: 48px 1fr auto;
-  padding: 6px 10px;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ЛОГОТИП */
-.topbar-inner .logo {
-  justify-self: center;
-}
-.topbar-inner .logo img {
-  height: 34px;
-  width: auto;
-  object-fit: contain;
-}
-
-/* БУРГЕР */
-.topbar-inner .menu-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #fff;
-}
-
-/* КНОПКА ВОЙТИ */
-.topbar-inner .login-link {
-  padding: 6px 11px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: #fff;
-  text-decoration: none;
-  color: #111;
-  font-size: 14px;
-  justify-self: end;
-}
-
-/* ==========================
-   ДЕСКТОП
-========================== */
-@media (min-width: 900px) {
-  .topbar-inner {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    padding: 10px 16px;
-    align-items: center;
-    position: relative; /* чтобы логотип мог позиционироваться относительно */
-  }
-
-  .topbar-inner .menu-toggle {
-    display: none;
-  }
-
-  /* ЛОГОТИП по центру ВСЕГО экрана */
-  .topbar-inner .logo {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0;
-  }
-  .topbar-inner .logo img {
-    height: 26px;
-  }
-
-  /* кнопка Войти — всегда справа */
-  .topbar-inner .login-link {
-    justify-self: end;
-    grid-column: 2; /* правая колонка */
-  }
-}
-
-
-
-/* ==========================
-   МОБИЛЬНЫЙ ТЮНИНГ
-========================== */
-@media (max-width: 899px) {
-
-  .topbar-inner .logo img {
-    height: 30px;
-  }
-
-}
-
-/* ==========================
-   APP BACKBONE
-========================== */
-#app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
-/* ==========================
-   MAIN CONTENT
-========================== */
 #main {
-  background: var(--main-bg);
-  padding: 0px;
-  flex: auto; /* НЕ растягиваем main на всю высоту → футер ближе */
+  flex: 1;
+  overflow: hidden;        /* все что внутри будет внутри */
+  padding: 0px 0px 0px 0px;
+  text-align: center;
+  background: #f5f5f5;
 }
 
-/* ==========================
-   FOOTER
-========================== */
+
 #footer {
-  background: #fff;
-  border-top: 1px solid #eee;
-  padding: 20px;
+  padding: 0px 0px 0px 0px;
+  overflow: hidden;
+  background: #f3e9dd;
   text-align: center;
+  font-size: 14px;
+  color: #444; 
 }
 
-/* ==========================
-   MENU (SIDEBAR CONTENT)
-========================== */
-.menu {
-  padding: 0;
-}
-.menu ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.menu li:first-child { border-top: 1px solid #eee; }
-.menu li { border-bottom: 1px solid #eee; }
-.menu a {
-  display: block;
-  padding: 14px 18px;
-  text-decoration: none;
-  color: inherit;
-}
-.menu a:hover { background: rgba(0,0,0,0.04); }
-.menu a.is-active {
-  background: var(--main-bg);
-  font-weight: 600;
-}
 
-/* ==========================
-   MOBILE MENU
-========================== */
-#overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: none;
-  z-index: 12;
-}
-body.menu-open #overlay {
-  display: block;
-}
 
-@media (max-width: 899px) {
 
-  #page { display: block; }
+/********************************************************
+   CARD COMPONENT — универсальная белая карточка
+*********************************************************/
 
-  #sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    transform: translateX(-100%);
-    transition: transform .25s ease-out;
-    width: 80vw;
-    max-width: 380px;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
-    z-index: 20;
-  }
-
-  body.menu-open #sidebar {
-    transform: translateX(0);
-  }
-
-  #topbar .logo img {
-    max-height: 26px;
-  }
-
-  #main {
-    padding: 0px;
-  }
-}
-
-/* ==========================
-   CARD STYLE
-========================== */
 .card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-  padding: 22px;
-  text-align: center;
-  margin: 5px 5px 5px 5px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 10px 20px 10px;
+  margin: 10px 10px 10px 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;    /* можно заменить на center если хочешь */
 }
-.card-title {
-  margin-bottom: 14px;
-  font-size: 1.5rem;
+
+/* Заголовок карточки */
+.card h2 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
   font-weight: 600;
 }
 
-
-
-
-/* ============================================
-   SMART VISION — BUTTONS KIT
-   ============================================ */
-
-/* --- Tokens for Buttons --- */
-:root {
-  --sv-radius: 12px;
-  --sv-card-shadow: 0 1px 4px rgba(0,0,0,.05);
-
-  --sv-purple: #8d82ff;
-  --sv-purple-10: rgba(120,100,255,.10);
-  --sv-purple-22: rgba(120,100,255,.22);
-
-  --sv-text-strong: #0b1220;
+/* Обычный текст внутри карточки */
+.card p {
+  margin: 0 0 14px 0;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 
-/* --------------------------------------------
-   PURPLE BUTTON  (основная кнопка проекта)
-   -------------------------------------------- */
+
+
+
+/********************************************************
+   BUTTONS KIT — SMART VISION 2025
+*********************************************************/
+
+/* ===========================
+   COLORS (если нужны переменные)
+=========================== */
+
+:root {
+  --sv-purple: #766bff;
+  --sv-purple-10: rgba(118,107,255,0.10);
+  --sv-purple-22: rgba(118,107,255,0.22);
+  --sv-text-strong: #111;
+}
+
+
+
+/* ===========================
+   PRIMARY BUTTON — ФИОЛЕТОВАЯ
+   (Запуск записи / Стоп / Повтор)
+=========================== */
+
 .btn-purple {
   display: inline-flex;
   align-items: center;
@@ -303,8 +121,8 @@ body.menu-open #overlay {
   background: #fff;
   border: 1px solid var(--sv-purple);
   color: var(--sv-text-strong);
-
   font-weight: 700;
+
   cursor: pointer;
 
   transition:
@@ -312,10 +130,6 @@ body.menu-open #overlay {
     box-shadow .2s,
     border-color .2s,
     transform .06s;
-}
-
-.btn-purple + .btn-purple {
-  margin-top: 8px;
 }
 
 .btn-purple:hover {
@@ -345,9 +159,11 @@ body.menu-open #overlay {
 
 
 
-/* --------------------------------------------
-   WHITE BUTTON  (классическая чисто-белая)
-   -------------------------------------------- */
+/* ===========================
+   SECONDARY BUTTON — БЕЛАЯ
+   (Удалить / Сохранить / Отмена)
+=========================== */
+
 .btn-white {
   display: inline-flex;
   align-items: center;
@@ -359,8 +175,8 @@ body.menu-open #overlay {
   background: #fff;
   border: 1px solid #ccc;
   color: #111;
-
   font-weight: 600;
+
   cursor: pointer;
 
   transition:
@@ -395,42 +211,292 @@ body.menu-open #overlay {
 
 
 
-/* --------------------------------------------
-   LAYOUT UTILITIES
-   -------------------------------------------- */
+/* ===========================
+   GROUPS — РЯДЫ И КОЛОНКИ
+=========================== */
 
-/* вертикальная колонка (регулярный отступ 16px) */
+/* Ряд кнопок */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Колонка */
 .stack-16 > * + * {
   margin-top: 16px;
 }
 
-/* горизонтальный ряд кнопок */
-.btn-row {
+/********************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ████████████████████████████████████████████████████████
+   II. MOBILE VERSION (МОБИЛЬНАЯ ВЁРСТКА — ПО УМОЛЧАНИЮ)
+████████████████████████████████████████████████████████
+*********************************************************/
+
+/* ─────────────── TOPBAR (mobile-first) ─────────────── */
+
+#topbar {
+  height: var(--topbar-h);
+  background: #ffffff;            /* мобилка — белый */
+  border-bottom: 1px solid #ddd;
+
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 14px;
+  position: static;
+  z-index: 5000;
+}
+
+/* grid:  ▣ (menu) | LOGO | [Exit] */
+.topbar-inner {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 40px 1fr 90px;
+  align-items: center;
+}
+
+/* BURGER */
+.menu-toggle {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  font-size: 22px;
+}
+
+/* LOGO (mobile) */
+.logo {
+  justify-self: center;
+}
+.logo img {
+  width: 200px;        /* ← мобильная версия: большой лого */
+  height: auto;
+  object-fit: contain;
+}
+
+/* EXIT BUTTON */
+.login-link {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+
+  font-size: 14px;
+  text-decoration: none;
+  color: #111;
+  white-space: nowrap;
+}
+
+
+/* ─────────────── SIDEBAR (mobile-first) ─────────────── */
+
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+
+  width: var(--sidebar-w);
+  max-width: var(--sidebar-max);
+  height: 100vh;
+
+  background: #fff;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+  z-index: 9999;
+
+  transform: translateX(-110%);
+  opacity: 0;
+  pointer-events: none;
+
+  transition: transform .25s ease-out, opacity .2s ease-out;
+}
+
+body.menu-open #sidebar {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* overlay */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.40);
+  display: none;
+  z-index: 9998;
+}
+body.menu-open #overlay {
+  display: block;
+}
+
+
+/* ─────────────── MENU ELEMENTS ─────────────── */
+
+.menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu li {
+  border-bottom: 1px solid #eee;
+}
+.menu a {
+  display: block;
+  padding: 14px 18px;
+  text-decoration: none;
+  color: #111;
+  font-size: 16px;
+}
+.menu a:hover {
+  background: rgba(0,0,0,0.05);
+}
+.menu a.is-active {
+  font-weight: 700;
+  background: rgba(0,0,0,0.08);
 }
 
 
 
-/* =======================================================
-   SMART VISION — SmartBlock (edge-to-edge)
-   ======================================================= */
 
-.SmartBlock {
-    background: #ffffff;
 
-    /* яркая рамка */
-    border: 0px solid #8a8a8a;
 
-    border-radius: 2px;
-    padding: 5px;
 
-    /* растягивается полностью */
-     width: auto; 
 
-    /* 🔥 теперь ЭТО — главный контроллер расстояний */
-    margin: 4px 2px 4px 2px;
 
-    box-sizing: border-box;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/********************************************************
+ ████████████████████████████████████████████████████████
+   III. DESKTOP VERSION (>= 801px)
+████████████████████████████████████████████████████████
+*********************************************************/
+
+@media (min-width: 801px) {
+
+  /* ─────────────── TOPBAR (desktop) ─────────────── */
+
+  #topbar {
+    height: var(--topbar-h);
+    background: #f2f2f2;     /* ПК — серый */
+    padding: 0 20px;
+    border-bottom: 1px solid #ddd;
+    position: static;
+  }
+
+  .topbar-inner {
+    grid-template-columns: 50px 1fr 110px;
+  }
+
+  .menu-toggle {
+    width: 42px;
+    height: 42px;
+    font-size: 24px;
+  }
+
+  /* LOGO (desktop) */
+  .logo img {
+    width: auto;
+    height: 32px;      /* ← ПК: компактный логотип */
+  }
+
+  .login-link {
+    padding: 7px 14px;
+    font-size: 15px;
+  }
+
+
+  /* ─────────────── SIDEBAR (desktop) ─────────────── */
+
+  #sidebar {
+    width: 300px;
+    max-width: 300px;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  body.menu-open #sidebar {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+
+  /* ─────────────── MENU ON DESKTOP ─────────────── */
+
+  .menu a {
+    font-size: 17px;
+    padding: 16px 20px;
+  }
+
 }
