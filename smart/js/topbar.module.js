@@ -4,17 +4,17 @@
 
 // --------------------------- MENU DATA ---------------------
 export const MENU = [
-  { id: 'home',   title: 'Главная', href: 'index.html', allow: [1, 2] },
-  { id: 'about',  title: 'О проекте', href: 'about/about.html', allow: [1, 2] },
-  { id: 'priv',   title: 'Политика', href: 'privacy/privacy.html', allow: [1, 2] },
-  { id: 'terms',  title: 'Условия', href: 'terms/terms.html', allow: [1, 2] },
+  { id: 'home',   title: 'Главная', href: '/index.html', allow: [1, 2] },
+  { id: 'about',  title: 'О проекте', href: '/about/about.html', allow: [1, 2] },
+  { id: 'priv',   title: 'Политика', href: '/privacy/privacy.html', allow: [1, 2] },
+  { id: 'terms',  title: 'Условия', href: '/terms/terms.html', allow: [1, 2] },
 
-  { id: 'login',  title: 'Вход/регистрация', href: 'login/login.html#login', allow: [1] },
+  { id: 'login',  title: 'Вход/регистрация', href: '/login/login.html#login', allow: [1] },
 
-  { id: 'rec',    title: 'Диктофон', href: 'voicerecorder/voicerecorder.html', allow: [2] },
-  { id: 'vision', title: 'Путь по визии', href: 'vision/index.html', allow: [2] },
+  { id: 'rec',    title: 'Диктофон', href: '/voicerecorder/voicerecorder.html', allow: [2] },
+  { id: 'vision', title: 'Путь по визии', href: '/vision/vision_list.html', allow: [2] },
 
-  { id: 'app',    title: 'Мобильное приложение', href: 'app/app.html', allow: [1, 2] },
+  { id: 'app',    title: 'Мобильное приложение', href: '/app/app.html', allow: [1, 2] },
 
   { id: 'logout', title: 'Выйти', href: '#logout', action: 'logout', allow: [2] }
 ];
@@ -26,8 +26,8 @@ export function renderTopbar(session) {
   const topbar = document.getElementById('topbar');
   if (!topbar) return;
 
-  const logoHref = 'index.html';
-  const logoSrc  = 'assets/logo400.jpg';
+const logoHref = '/index.html';
+const logoSrc  = '/assets/logo400.jpg';
 
   topbar.innerHTML = `
     <div class="topbar-inner">

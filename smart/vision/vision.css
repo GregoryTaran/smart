@@ -1,231 +1,258 @@
-/* ======================================================
-   SMART VISION — ПРАВИЛЬНЫЙ ФУНДАМЕНТАЛЬНЫЙ LAYOUT
-   Desktop (≥900px) → sticky footer в колонке
-   Mobile (<900px) → fixed footer + keyboard-friendly
-   Переписанная архитектура vision.css под main.css
-====================================================== */
+/********************************************************
+  SMART VISION — VISION PAGE UI (ЧИСТЫЙ, НОВЫЙ)
+********************************************************/
 
-/* --------------------------------------------
-   ROOT
--------------------------------------------- */
-:root {
-    --content-width: 900px;
-    --sidebar-w-min: 180px;
-    --sidebar-w-max: 320px;
-    --sidebar-w: 22vw;
+
+/*******************************************************
+  I. NAVIGATION — Кнопка «Назад»
+*******************************************************/
+.vision-back {
+    margin: 10px 0 20px 0;
 }
 
-/* --------------------------------------------
-   КОЛОНКА APP — основа для sticky/absolute элементов
--------------------------------------------- */
-#app {
-    position: relative; /* ВАЖНО: теперь футер может быть sticky внутри */
-    height: 100%;
+.btn-back {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.btn-back:hover {
+    color: #111;
+}
+
+
+
+/*******************************************************
+  II. VISION CARD — Универсальная карточка
+*******************************************************/
+.vision-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px 22px;
+    margin: 20px 0;
+
+    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
 
-#main {
-    flex: 1;
-    overflow-y: auto;
+
+
+/*******************************************************
+  III. TITLE CARD — Заголовок визии
+*******************************************************/
+.vision-title-card h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
 }
 
-/* --------------------------------------------
-   СПИСОК ШАГОВ / СООБЩЕНИЙ
--------------------------------------------- */
-#steps {
+.vision-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+.vision-actions {
+    display: flex;
+    gap: 10px;
+}
+
+
+
+/*******************************************************
+  IV. VISION LIST — список визий
+*******************************************************/
+.vision-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.vision-list-item {
+    background: #fafafa;
+    border-radius: 14px;
+    padding: 16px 18px;
+    border: 1px solid #e2e2e2;
+
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding-bottom: 100px; /* переопределяется */
+
+    cursor: pointer;
+    transition: background .15s ease;
 }
 
-.step-item { margin-bottom: 6px; }
-.msg-block { margin-bottom: 8px; }
-
-.msg-inner {
-    background: #fff;
-    border: 1px solid #e4e4e4;
-    border-radius: 10px;
-    padding: 0.6rem 0.85rem;
-    white-space: pre-wrap;
-    border-left-width: 3px;
-}
-.msg-block.user .msg-inner { border-left-color: #4f46e5; }
-.msg-block.ai .msg-inner { border-left-color: #22c55e; }
-
-.msg-author {
-    position: relative;
-    display: inline-block;
-    background: #ffffff;
-    border: 1px solid #e5e5e5;
-    border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 0.72rem;
-    color: #777;
-    float: right;
-    margin-right: 8px;
-    margin-bottom: -10px;
-    transform: translateY(-5px);
+.vision-list-item:hover {
+    background: #f0f0f0;
 }
 
-/* --------------------------------------------
-   ПАНЕЛЬ УПРАВЛЕНИЯ ВИЗИЕЙ (оставлено как есть)
--------------------------------------------- */
-.manage-panel {
-    background: #ffffff;
-    border: 1px solid #dedede;
-    border-radius: 12px;
-    padding: 16px;
-    margin-top: 8px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.06);
-    opacity: 0;
-    transform: translateY(-8px);
-    pointer-events: none;
-    display: none;
-    transition: 0.25s ease;
-}
-.manage-panel.open {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-    display: block;
+.vision-list-item-title {
+    font-size: 18px;
+    font-weight: 600;
 }
 
-/* --------------------------------------------
-   ФУТЕР: ЧАТ-ПАНЕЛЬ (универсальная основа)
--------------------------------------------- */
-.input-footer-fixed {
-    background: #f3f3f3;
-    border-top: 1px solid #dcdcdc;
-    padding: 10px 0;
-    z-index: 1000;
+.vision-list-item-meta {
+    font-size: 14px;
+    color: #666;
 }
 
-/* Контент футера */
-.input-footer-fixed .SmartBlock {
-    max-width: var(--content-width);
-    width: 100%;
-    margin: 0 auto;
-    padding: 10px;
-}
 
-/* Ряд элементов */
-.step-input-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-}
 
-.input-left-buttons {
+/*******************************************************
+  V. STEPS — шаги визии
+*******************************************************/
+.vision-steps {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 14px;
 }
 
-.mini-btn {
-    width: 42px;
-    height: 42px;
-    background: #ffffff;
-    border: 1px solid #d0d0d5;
-    border-radius: 10px;
-    cursor: pointer;
+.vision-step {
+    background: #fafafa;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1px solid #e2e2e2;
+
     display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-.mini-btn.plus::before,
-.mini-btn.plus::after {
-    content: "";
-    position: absolute;
-    background: #333;
-}
-.mini-btn.plus::before { width: 20px; height: 3px; }
-.mini-btn.plus::after { width: 3px; height: 20px; }
-
-.mini-btn.mic::before {
-    content: "";
-    width: 12px;
-    height: 18px;
-    border: 2px solid #333;
-    border-radius: 8px;
-}
-.mini-btn.mic::after {
-    content: "";
-    width: 14px;
-    border-bottom: 3px solid #333;
-    position: absolute;
-    bottom: 6px;
+    justify-content: space-between;
+    gap: 12px;
 }
 
-.step-input-full {
+.vision-step-text {
+    font-size: 16px;
+    line-height: 1.45;
     flex: 1;
-    min-height: 60px;
-    padding: 0.7rem;
-    border: 1px solid #d0d0d5;
-    border-radius: 12px;
-    background: #fff;
-    resize: vertical;
 }
 
-.step-send-btn {
-    width: 40px;
-    height: 70px;
-    background: #e1a01c;
+.vision-step-actions {
+    display: flex;
+    gap: 10px;
+}
+
+
+
+/*******************************************************
+  VI. INPUT PANEL — Добавление шага
+*******************************************************/
+.vision-input-panel {
+    background: #ffffff;
+    padding: 14px;
+    border-radius: 14px;
+    margin: 20px 0;
+
+    display: flex;
+    gap: 10px;
+
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+#stepInput {
+    flex: 1;
+    resize: none;
+    padding: 12px;
+    font-size: 15px;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+}
+
+
+/* ОБЩАЯ КАРТОЧКА СТРАНИЦЫ ВИЗИЙ */
+.vision-page-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    margin: 20px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.vision-page-title {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+/* Кнопка создания визии */
+.vision-create-btn {
+    width: 100%;
+    padding: 12px 18px;
+    background: #2b72ff;
     border-radius: 12px;
     border: none;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 25px;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.vision-create-btn:hover {
+    background: #0063ff;
+}
+
+/* Список визий и карточки */
+.vision-list {
     display: flex;
-    justify-content: center;
-    align-items: center;
-}
-.step-send-btn::before {
-    content: "";
-    border-left: 10px solid transparent;
-    border-right: 10px solid transparent;
-    border-bottom: 16px solid #fff;
+    flex-direction: column;
+    gap: 12px;
 }
 
-/* ======================================================
-   🖥 DESKTOP (≥900px)
-   ПРАВИЛЬНЫЙ ПОДХОД → sticky footer
-====================================================== */
-@media (min-width: 900px) {
-
-  /* Футер привязан к низу правой колонки, НЕ ко всему экрану */
-  .input-footer-fixed {
-      position: sticky;
-      bottom: 0;
-      width: 100%; /* ширина правой колонки */
-  }
-
-  /* Контент прокручиваемый */
-  #steps {
-      padding-bottom: 140px;
-  }
-
-  .step-input-full { min-height: 80px; }
-  .step-send-btn { height: 80px; width: 35px; }
+.vision-list-item {
+    background: #ffffff;
+    border: 1px solid #e9e9e9;
+    border-radius: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    transition: 0.2s ease;
 }
 
-/* ======================================================
-   📱 MOBILE (<900px)
-   PWA / WebView → fixed + keyboard-friendly
-====================================================== */
-@media (max-width: 899px) {
-
-  .input-footer-fixed {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      width: 100%;
-  }
-
-  #steps {
-      padding-bottom: 220px;
-  }
-
-  .step-input-full { min-height: 60px; }
-  .step-send-btn { height: 60px; width: 34px; }
+.vision-list-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
 }
+
+.vision-list-item-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.vision-list-item-meta {
+    font-size: 14px;
+    color: #777;
+}
+
+
+
+/*******************************************************
+  VII. ADAPTIVE (Media Queries)
+*******************************************************/
+@media (max-width: 800px) {
+
+    .vision-card {
+        padding: 16px;
+    }
+
+    .vision-step {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .vision-title-card h1 {
+        font-size: 22px;
+    }
+}
+

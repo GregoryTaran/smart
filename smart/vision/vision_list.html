@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMART VISION — Мои визии</title>
+
+  <!-- Глобальные стили -->
+  <link rel="stylesheet" href="/css/main.css">
+  <!-- Стили для визий -->
+  <link rel="stylesheet" href="/vision/vision.css">
+
+  <!-- Инициализация topbar / sidebar / footer -->
+  <script type="module" src="/js/smartid.init.js"></script>
+</head>
+
+<body>
+
+  <!-- SIDE DRAWER (меню) -->
+  <aside id="sidebar"></aside>
+  <div id="overlay"></div>
+
+  <!-- ОСНОВНОЙ КОНТЕЙНЕР СТРАНИЦЫ -->
+  <div id="page">
+
+    <!-- TOPBAR (генерируется через init) -->
+    <header id="topbar"></header>
+
+    <!-- MAIN -->
+    <main id="main">
+
+      <!-- ✅ ОБЩАЯ БОЛЬШАЯ КАРТОЧКА ДЛЯ СТРАНИЦЫ ВИЗИЙ -->
+      <section class="vision-page-card">
+
+        <h1 class="vision-page-title">Мои визии</h1>
+
+        <button id="createVisionBtn" class="vision-create-btn">
+          ➕ Создать новую визию
+        </button>
+
+        <!-- Список визий -->
+        <div id="visionList" class="vision-list">
+          <!-- vision_list.js подставит сюда карточки -->
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- FOOTER (инит вставит содержимое) -->
+    <footer id="footer"></footer>
+
+  </div>
+
+  <!-- ЛОКАЛЬНЫЙ JS ДЛЯ ЭТОЙ СТРАНИЦЫ -->
+  <script src="/vision/vision_list.js"></script>
+
+</body>
+</html>

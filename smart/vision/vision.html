@@ -1,136 +1,133 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Визия — SMART VISION</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <base href="/" />
-
-  <link rel="icon" href="/assets/logo400.jpg" />
-  <link rel="manifest" href="/manifest.json" />
+  <title>SMART VISION — Визия</title>
 
   <!-- Глобальные стили -->
-  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/main.css">
 
-  <!-- Стили модуля визий -->
-  <link rel="stylesheet" href="/vision/vision.css" />
+  <!-- Стили визий -->
+  <link rel="stylesheet" href="/vision/vision.css">
+  <link rel="stylesheet" href="/vision/visionone.css">
 
-  <!-- Авторизация + быстрый топбар -->
+
+  <!-- Инициализация общих модулей -->
   <script type="module" src="/js/smartid.init.js"></script>
 </head>
 
 <body>
-<div id="page">
 
-  <!-- ЛЕВАЯ КОЛОНКА -->
+  <!-- Sidebar -->
   <aside id="sidebar"></aside>
+  <div id="overlay"></div>
 
-  <!-- ПРАВАЯ КОЛОНКА / ВСЁ ПРИЛОЖЕНИЕ -->
-  <div id="app">
+  <!-- PAGE -->
+  <div id="page">
 
-    <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
+    <!-- Topbar -->
     <header id="topbar"></header>
 
-    <!-- ОСНОВНОЙ КОНТЕНТ -->
+    <!-- MAIN -->
     <main id="main">
-      <section class="vision-page">
 
-        <!-- БЛОК 1 — назад -->
-        <div class="SmartBlock">
-          <a href="/vision/index.html" class="back-link">
-            ← Назад к списку визий
-          </a>
+      <!-- Назад -->
+      <div class="vision-back">
+        <button class="btn-back" onclick="location.href='/vision/vision_list.html'">
+          ← Назад к списку визий
+        </button>
+      </div>
+
+      <!-- Карточка заголовка -->
+      <section class="vision-card vision-title-card">
+
+        <h1 id="vision-title-display">Загрузка…</h1>
+
+        <div class="vision-meta">
+          <span id="visionDate"></span>
+          <span id="visionParticipants"></span>
         </div>
 
-        <!-- БЛОК 2 — название + управление -->
-        <div class="SmartBlock">
-
-          <div class="vision-manage-header">
-            <div id="vision-title-display" class="vision-title-text"></div>
-
-            <button id="toggleManage" class="vision-btn vision-btn-secondary">
-              Управление
-            </button>
-          </div>
-
-          <!-- Выпадающее меню управления -->
-          <div id="managePanel" class="manage-panel">
-
-            <!-- Переименование -->
-            <div class="manage-item">
-              <input 
-                id="vision-title-manage"
-                class="vision-input"
-                type="text"
-                placeholder="Новое название"
-              />
-              <button class="btn-white" id="rename-btn">Переименовать</button>
-            </div>
-
-            <!-- Участники -->
-            <div class="manage-item">
-              <div id="participants" class="participants-list"></div>
-              <button class="btn-white" id="add-participant-btn">+ Добавить участника</button>
-            </div>
-
-            <!-- Архив -->
-            <div class="manage-item">
-              <button class="btn-white" id="archive-btn">Перенести в архив</button>
-            </div>
-
-            <!-- Удаление -->
-            <div class="manage-item">
-              <button class="btn-white" id="delete-btn">Удалить визию</button>
-            </div>
-
-            <!-- Закрыть -->
-            <div class="manage-item">
-              <button class="btn-white btn-close-manage" id="close-manage-btn">
-                Закрыть управление
-              </button>
-            </div>
-
-          </div>
+        <div class="vision-actions">
+          <button id="toggleManage" class="btn-purple">Управление</button>
         </div>
 
-        <!-- БЛОК 3 — список шагов -->
-        <div class="SmartBlock">
-          <div id="steps" class="steps-list"></div>
+        <!-- Панель управления -->
+        <div id="managePanel" class="manage-panel">
+
+          <!-- Переименование -->
+          <div class="manage-item">
+            <input id="vision-title-manage" class="vision-input" type="text" placeholder="Новое название">
+            <button id="rename-btn" class="btn-white">Переименовать</button>
+          </div>
+
+          <!-- Участники -->
+          <div class="manage-item">
+            <h4>Участники</h4>
+            <div id="participants" class="participants-list"></div>
+            <button id="add-participant-btn" class="btn-white">+ Добавить участника</button>
+          </div>
+
+          <!-- Архив -->
+          <div class="manage-item">
+            <button id="archive-btn" class="btn-white">Перенести в архив</button>
+          </div>
+
+          <!-- Удалить -->
+          <div class="manage-item">
+            <button id="delete-btn" class="btn-white danger">Удалить визию</button>
+          </div>
+
+          <!-- Закрыть -->
+          <div class="manage-item">
+            <button id="close-manage-btn" class="btn-white btn-close-manage">Закрыть управление</button>
+          </div>
+
         </div>
 
       </section>
+
+      <!-- Диалог -->
+      <section class="vision-card">
+        <h2>Диалог</h2>
+        <div id="steps" class="steps-list"></div>
+      </section>
+
     </main>
 
-    <!-- ФУТЕР ЧАТА (ПРАВИЛЬНО ПЕРЕНЕСЁН ВНУТРЬ #app) -->
-    <div class="input-footer-fixed">
-      <div class="SmartBlock step-input-row">
+    <!-- Нижняя input-панель (фиксированная) -->
+<!-- ===== ФИКСИРОВАННЫЙ НИЖНИЙ INPUT ===== -->
+<div class="input-footer-fixed">
+  <div class="footer-inner">
 
-        <div class="input-left-buttons">
-          <button class="mini-btn plus" id="step-add-btn"></button>
-          <button class="mini-btn mic" id="step-mic-btn"></button>
-        </div>
-
-        <textarea
-            id="step-input"
-            class="step-input-full"
-            placeholder="Написать шаг..."
-        ></textarea>
-
-        <button
-            id="add-step-btn"
-            class="step-send-btn"
-        ></button>
-
-      </div>
+    <!-- СЛЕВА -->
+    <div class="footer-left">
+      <button class="mini-btn plus"></button>
+      <button class="mini-btn phone"></button>
     </div>
 
-  </div><!-- /#app -->
+    <!-- ЦЕНТР -->
+    <textarea id="step-input" class="footer-textarea" placeholder="Написать шаг..."></textarea>
 
-</div><!-- /#page -->
+    <!-- СПРАВА -->
+    <div class="footer-right">
+      <button id="add-step-btn" class="send-btn"></button>
+      <button class="mini-btn mic"></button>
+    </div>
 
-<!-- JS модуль визий -->
-<script type="module" src="/vision/vision.js"></script>
+  </div>
+</div>
+
+
+</div>
+</div>
+
+  <!-- JS -->
+  <script src="/vision/vision.js"></script>
 
 </body>
+
 </html>

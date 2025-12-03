@@ -1,153 +1,205 @@
-// ============================================
-//  SMART VISION — СПИСОК ВИЗИЙ (updated)
-// ============================================
+/* ==========================================================
+   SMART VISION — СПИСОК ВИЗИЙ
+   Финальная стабильная версия
+   Работает после полной загрузки: window.onload
+   by БРО ❤️🔥
+========================================================== */
 
-console.log("vision_list.js (updated) loaded");
+console.log("vision_list.js loaded (FINAL)");
 
-const USER_ID = localStorage.getItem("sv_user_id");
+window.addEventListener("load", () => {
+  console.log("window.onload → DOM + init.js + topbar готово");
 
-if (!USER_ID) {
-    alert("Ошибка: нет user_id. Авторизуйтесь заново!");
+  /* --------------------------------------------------------
+     1. USER ID
+  -------------------------------------------------------- */
+  const USER_ID = localStorage.getItem("sv_user_id");
+
+  if (!USER_ID) {
+    alert("Ошибка входа: нет user_id");
     window.location.href = "/index.html";
-}
+    return;
+  }
 
-const API = "/api/vision";
-
-
-// --------------------------------------------------
-// Генерация красивого дефолтного названия
-// --------------------------------------------------
-function generateVisionTitle() {
-    const now = new Date();
-
-    const dd = String(now.getDate()).padStart(2, "0");
-    const mm = String(now.getMonth() + 1).padStart(2, "0");
-    const yy = String(now.getFullYear()).slice(2);
-
-    const hh = String(now.getHours()).padStart(2, "0");
-    const min = String(now.getMinutes()).padStart(2, "0");
-
-    return `Визия от ${dd}.${mm}.${yy} / ${hh}:${min}`;
-}
+  console.log("USER_ID =", USER_ID);
 
 
-// --------------------------------------------------
-// 1) Загрузка списка визий
-// --------------------------------------------------
-async function loadVisions() {
+  /* --------------------------------------------------------
+     2. DOM элементы
+  -------------------------------------------------------- */
+  const listContainer = document.getElementById("visionList");
+  const createBtn = document.getElementById("createVisionBtn");
+
+  if (!listContainer) {
+    console.error("❌ visionList НЕ НАЙДЕН!");
+    return;
+  }
+
+  console.log("visionList найден → OK");
+
+
+  /* --------------------------------------------------------
+     3. API URL
+  -------------------------------------------------------- */
+  const API = "/api/vision";
+
+
+  /* --------------------------------------------------------
+     4. Загрузить список визий
+  -------------------------------------------------------- */
+  async function loadVisions() {
     try {
-        const res = await fetch(`${API}/list?user_id=${USER_ID}`);
+      console.log("📡 Загружаем список визий…");
 
-        if (!res.ok) throw new Error("Ошибка загрузки визий");
+      const url = `${API}/list?user_id=${encodeURIComponent(USER_ID)}`;
+      console.log("GET:", url);
 
-        const visions = await res.json();
-        renderVisionList(visions);
+      const res = await fetch(url);
+
+      console.log("status:", res.status);
+
+      if (!res.ok) throw new Error("Ошибка загрузки визий");
+
+      const data = await res.json();
+      console.log("Ответ API:", data);
+
+      let visions = [];
+
+      // поддержка обоих форматов
+      if (Array.isArray(data)) {
+        visions = data;
+      } else if (data && Array.isArray(data.visions)) {
+        visions = data.visions;
+      } else {
+        console.warn("⚠ API вернул неизвестный формат:", data);
+      }
+
+      renderVisionList(visions);
 
     } catch (err) {
-        console.error(err);
-        alert("Не удалось загрузить список визий");
+      console.error("❌ Ошибка loadVisions:", err);
+
+      listContainer.innerHTML = `
+        <div style="text-align:center; padding:20px; color:#777;">
+          Не удалось загрузить список визий 😢
+        </div>
+      `;
     }
-}
+  }
 
 
-// --------------------------------------------------
-// 2) Создание новой визии с дефолтным именем
-// --------------------------------------------------
-async function createVision() {
-    try {
-        const res = await fetch(`${API}/create`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ user_id: USER_ID })
-        });
+  /* --------------------------------------------------------
+     5. Рендер списка визий
+  -------------------------------------------------------- */
+  function renderVisionList(list) {
+    console.log("renderVisionList:", list);
 
-        const data = await res.json();
-        if (!data.vision_id) {
-            alert("Ошибка создания визии");
-            return;
-        }
-
-        // === Создаём красивое имя ===
-        const title = generateVisionTitle();
-
-        await fetch(`${API}/rename`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                vision_id: data.vision_id,
-                user_id: USER_ID,
-                title
-            })
-        });
-
-        window.location.href = `/vision/vision.html?id=${data.vision_id}`;
-
-    } catch (err) {
-        console.error(err);
-        alert("Ошибка создания визии");
-    }
-}
-
-
-// --------------------------------------------------
-// 3) Рендер списка
-// --------------------------------------------------
-function renderVisionList(list) {
-    const box = document.getElementById("visionList");
-    box.innerHTML = "";
+    listContainer.innerHTML = "";
 
     if (!list || list.length === 0) {
-        box.innerHTML = `<div class="empty">У вас ещё нет визий</div>`;
-        return;
+      listContainer.innerHTML = `
+        <div style="text-align:center; padding:20px; color:#777;">
+          У вас ещё нет визий. Создайте первую ✨
+        </div>
+      `;
+      return;
     }
 
     list.forEach(v => {
-        const div = document.createElement("div");
-        div.className = "vision-item";
-        div.dataset.visionId = v.id;
+      const div = document.createElement("div");
+      div.className = "vision-list-item";
+      div.dataset.visionId = v.id;
 
-        div.innerHTML = `
-            <div class="vision-item-title">${v.title}</div>
-            <div class="vision-item-date">${new Date(v.created_at).toLocaleDateString()}</div>
-            <button class="vision-btn vision-btn-primary" data-open>Открыть</button>
-        `;
+      const createdAt = v.created_at
+        ? new Date(v.created_at).toLocaleDateString("ru-RU")
+        : "";
 
-        box.appendChild(div);
+      div.innerHTML = `
+        <div class="vision-list-item-title">${v.title || "Без названия"}</div>
+        <div class="vision-list-item-meta">${createdAt}</div>
+      `;
+
+      div.onclick = () => openVision(v.id);
+
+      listContainer.appendChild(div);
     });
-}
+  }
 
 
-// --------------------------------------------------
-// 4) События
-// --------------------------------------------------
-document.addEventListener("click", (e) => {
+  /* --------------------------------------------------------
+     6. Создание новой визии
+  -------------------------------------------------------- */
 
-    if (e.target.id === "newVisionBtn") {
-        createVision();
+  function generateVisionTitle() {
+    const n = new Date();
+    return `Визия ${n.toLocaleDateString("ru-RU")} ${n.getHours()}:${String(n.getMinutes()).padStart(2, "0")}`;
+  }
+
+  async function createVision() {
+    try {
+      console.log("➕ Создание новой визии…");
+
+      // 1. Создаём пустую визию
+      const res = await fetch(`${API}/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID })
+      });
+
+      const data = await res.json();
+      console.log("Ответ create:", data);
+
+      if (!data.vision_id) {
+        alert("Ошибка создания визии");
         return;
+      }
+
+      // 2. Даём ей название
+      const title = generateVisionTitle();
+
+      await fetch(`${API}/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vision_id: data.vision_id,
+          user_id: USER_ID,
+          title
+        })
+      });
+
+      console.log("✔ Визия создана, открываем её");
+
+      // 3. Переходим
+      window.location.href = `/vision/vision.html?id=${data.vision_id}`;
+
+    } catch (err) {
+      console.error("❌ Ошибка createVision:", err);
+      alert("Ошибка при создании визии");
     }
-
-    if (e.target.matches("[data-open]")) {
-        const parent = e.target.closest(".vision-item");
-        if (!parent) return;
-
-        const id = parent.dataset.visionId;
-        if (!id) return;
-
-        openVision(id);
-    }
-});
+  }
 
 
-// --------------------------------------------------
-// 5) Переход к визии
-// --------------------------------------------------
-function openVision(id) {
+  /* --------------------------------------------------------
+     7. Открытие визии
+  -------------------------------------------------------- */
+  function openVision(id) {
+    if (!id) return;
     window.location.href = `/vision/vision.html?id=${id}`;
-}
+  }
 
 
-// --------------------------------------------------
-// 6) Инициализация
-// --------------------------------------------------
-loadVisions();
+  /* --------------------------------------------------------
+     8. События
+  -------------------------------------------------------- */
+  if (createBtn) {
+    createBtn.onclick = () => createVision();
+  } else {
+    console.warn("⚠ Кнопка createVisionBtn не найдена");
+  }
+
+
+  /* --------------------------------------------------------
+     9. Запуск
+  -------------------------------------------------------- */
+  loadVisions();
+});
